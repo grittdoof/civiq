@@ -175,4 +175,3 @@ MIT — Libre d'utilisation pour toute collectivité.
 ---
 
 *Développé avec ❤️ pour les communes françaises*
-# civiq

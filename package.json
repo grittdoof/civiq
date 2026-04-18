@@ -1,0 +1,41 @@
+{
+  "name": "civiq",
+  "version": "0.1.0",
+  "description": "Plateforme modulaire de sondages civiques pour collectivités",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "supabase db push",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > src/types/database.ts"
+  },
+  "dependencies": {
+    "next": "^15.2",
+    "react": "^19.0",
+    "react-dom": "^19.0",
+    "@supabase/supabase-js": "^2.49",
+    "@supabase/ssr": "^0.6",
+    "recharts": "^2.15",
+    "lucide-react": "^0.468",
+    "clsx": "^2.1",
+    "tailwind-merge": "^2.6",
+    "framer-motion": "^12.0",
+    "date-fns": "^4.1",
+    "papaparse": "^5.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4.0",
+    "@tailwindcss/postcss": "^4.0",
+    "postcss": "^8.5",
+    "eslint": "^9",
+    "eslint-config-next": "^15.2",
+    "supabase": "^2.15"
+  }
+}
