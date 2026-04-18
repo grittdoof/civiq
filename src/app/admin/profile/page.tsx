@@ -38,33 +38,40 @@ export default function ProfilePage() {
   }, []);
 
   async function loadData() {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    setUserEmail(user.email || "");
+      setUserEmail(user.email || "");
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, commune_id, communes(*)")
-      .eq("id", user.id)
-      .single();
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("full_name, commune_id, communes(*)")
+        .eq("id", user.id)
+        .single();
 
-    if (profile) {
-      setFullName(profile.full_name || "");
-      setCommuneId(profile.commune_id || null);
+      if (error) console.error("Profile load error:", error);
 
-      const commune = profile.communes as Record<string, string> | null;
-      if (commune) {
-        setCommuneName(commune.name || "");
-        setCodePostal(commune.code_postal || "");
-        setContactEmail(commune.contact_email || "");
-        setWebsiteUrl(commune.website_url || "");
-        setPrimaryColor(commune.primary_color || "#1a2744");
-        setAccentColor(commune.accent_color || "#c9a84c");
+      if (profile) {
+        setFullName(profile.full_name || "");
+        setCommuneId(profile.commune_id || null);
+
+        const commune = profile.communes as Record<string, string> | null;
+        if (commune) {
+          setCommuneName(commune.name || "");
+          setCodePostal(commune.code_postal || "");
+          setContactEmail(commune.contact_email || "");
+          setWebsiteUrl(commune.website_url || "");
+          setPrimaryColor(commune.primary_color || "#1a2744");
+          setAccentColor(commune.accent_color || "#c9a84c");
+        }
       }
+    } catch (err) {
+      console.error("loadData error:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function saveCommune() {

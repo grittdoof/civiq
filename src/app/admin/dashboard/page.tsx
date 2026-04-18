@@ -56,54 +56,66 @@ export default function AdminDashboard() {
   }, []);
 
   async function loadData() {
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    // Get profile + commune
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("commune_id, communes(name, slug)")
-      .eq("id", user.id)
-      .single();
+      // Get profile + commune
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("commune_id, communes(name, slug)")
+        .eq("id", user.id)
+        .single();
 
-    const profile = profileData as ProfileWithCommune | null;
+      if (profileError) {
+        console.error("Profile error:", profileError);
+      }
 
-    if (profile?.communes) {
-      setCommune(profile.communes);
+      const profile = profileData as ProfileWithCommune | null;
+
+      if (profile?.communes) {
+        setCommune(profile.communes);
+      }
+
+      if (!profile?.commune_id) return;
+
+      // Get surveys with response counts
+      const { data: surveyData, error: surveyError } = await supabase
+        .from("surveys")
+        .select("*, responses(count)")
+        .eq("commune_id", profile.commune_id)
+        .order("created_at", { ascending: false });
+
+      if (surveyError) {
+        console.error("Surveys error:", surveyError);
+      }
+
+      if (surveyData) {
+        setSurveys(surveyData as SurveyRow[]);
+
+        const total = surveyData.length;
+        const active = surveyData.filter((s) => s.status === "published").length;
+        const responses = surveyData.reduce(
+          (sum: number, s) => sum + ((s.responses as { count: number }[])?.[0]?.count || 0),
+          0
+        );
+
+        setStats({
+          totalSurveys: total,
+          activeSurveys: active,
+          totalResponses: responses,
+          avgCompletionRate: 0,
+        });
+      }
+    } catch (err) {
+      console.error("loadData error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    if (!profile?.commune_id) return;
-
-    // Get surveys with response counts
-    const { data: surveyData } = await supabase
-      .from("surveys")
-      .select("*, responses(count)")
-      .eq("commune_id", profile.commune_id)
-      .order("created_at", { ascending: false });
-
-    if (surveyData) {
-      setSurveys(surveyData as SurveyRow[]);
-
-      const total = surveyData.length;
-      const active = surveyData.filter((s) => s.status === "published").length;
-      const responses = surveyData.reduce(
-        (sum: number, s) => sum + ((s.responses as { count: number }[])?.[0]?.count || 0),
-        0
-      );
-
-      setStats({
-        totalSurveys: total,
-        activeSurveys: active,
-        totalResponses: responses,
-        avgCompletionRate: 0,
-      });
-    }
-
-    setLoading(false);
   }
 
   function getStatusBadge(status: string) {

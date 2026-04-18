@@ -15,6 +15,7 @@ export default function NewSurveyPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -35,6 +36,7 @@ export default function NewSurveyPage() {
   async function handleCreate() {
     if (!title.trim()) return;
     setCreating(true);
+    setCreateError(null);
 
     try {
       const res = await fetch("/api/surveys", {
@@ -47,12 +49,17 @@ export default function NewSurveyPage() {
         }),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        const survey = await res.json();
-        router.push(`/admin/surveys/${survey.id}`);
+        // Redirige vers l'éditeur, pas la page de résultats
+        router.push(`/admin/surveys/${data.id}/edit`);
+      } else {
+        setCreateError(data.error || "Une erreur est survenue lors de la création.");
       }
     } catch (err) {
       console.error("Create error:", err);
+      setCreateError("Impossible de créer le sondage. Vérifiez votre connexion.");
     } finally {
       setCreating(false);
     }
@@ -148,6 +155,9 @@ export default function NewSurveyPage() {
       </div>
 
       {/* Create button */}
+      {createError && (
+        <div className="create-error">⚠ {createError}</div>
+      )}
       <div className="create-actions">
         <button
           onClick={handleCreate}
@@ -155,7 +165,7 @@ export default function NewSurveyPage() {
           className="create-btn"
         >
           {creating ? "Création…" : "Créer le sondage"}{" "}
-          <Sparkles size={18} />
+          {!creating && <Sparkles size={18} />}
         </button>
       </div>
 
@@ -280,6 +290,15 @@ export default function NewSurveyPage() {
         }
         .create-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(26,39,68,0.3); }
         .create-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .create-error {
+          background: #fef2f2;
+          color: #991b1b;
+          padding: 12px 16px;
+          border-radius: 8px;
+          font-size: 14px;
+          margin-bottom: 16px;
+          border: 1px solid #fecaca;
+        }
       `}</style>
     </div>
   );
