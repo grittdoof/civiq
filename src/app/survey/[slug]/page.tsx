@@ -23,8 +23,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     .from("surveys")
     .select("title, description, communes(name)")
     .eq("slug", slug)
-    .eq("status", "published")
-    .single();
+    .maybeSingle();
 
   if (!survey) return { title: "Sondage introuvable" };
 
@@ -40,22 +39,37 @@ export default async function SurveyPage({ params, searchParams }: Props) {
   const { commune: communeSlug } = await searchParams;
   const supabase = await createClient();
 
-  // Fetch survey with commune branding
+  // Fetch survey (tous statuts) — on filtre sur le statut après pour
+  // distinguer "introuvable" de "non encore publié"
   let query = supabase
     .from("surveys")
     .select("*, communes(*)")
-    .eq("slug", slug)
-    .eq("status", "published");
+    .eq("slug", slug);
 
   if (communeSlug) {
     query = query.eq("communes.slug", communeSlug);
   }
 
-  const { data: survey, error } = await query.single();
+  const { data: survey, error } = await query.maybeSingle();
 
   if (!survey || error) notFound();
 
   const commune = (survey as SurveyWithCommune).communes;
+
+  // Sondage existe mais n'est pas encore publié
+  if (survey.status !== "published") {
+    return (
+      <main className="civiq-page">
+        <div className="civiq-closed">
+          <h1>Sondage non encore publié</h1>
+          <p>
+            Ce sondage est actuellement en {survey.status === "draft" ? "brouillon" : survey.status}.
+            Il sera accessible au public dès sa publication.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   // Check dates
   const now = new Date();

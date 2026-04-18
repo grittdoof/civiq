@@ -157,16 +157,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Bottom */}
         <div className="al-sidebar-bottom">
-          {commune && (
-            <a
-              href={`/survey/besoins-periscolaires-2026?commune=${commune.slug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="al-preview-link"
-            >
-              👁 Voir le sondage en ligne
-            </a>
-          )}
           <button
             type="button"
             onClick={handleLogout}

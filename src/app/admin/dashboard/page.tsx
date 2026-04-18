@@ -217,11 +217,22 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {surveys.map((s) => (
+                {surveys.map((s) => {
+                  const publicUrl = `/survey/${s.slug}${commune ? `?commune=${commune.slug}` : ""}`;
+                  return (
                   <tr key={s.id}>
                     <td>
                       <strong>{s.title}</strong>
-                      <span className="slug-label">/{s.slug}</span>
+                      <a
+                        href={publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="public-url"
+                        title="Ouvrir le sondage public"
+                      >
+                        <ExternalLink size={11} />
+                        /survey/{s.slug}
+                      </a>
                     </td>
                     <td>{getStatusBadge(s.status)}</td>
                     <td className="responses-count">
@@ -250,25 +261,22 @@ export default function AdminDashboard() {
                         >
                           <BarChart3 size={16} />
                         </Link>
-                        {s.status === "published" && (
-                          <>
-                            <a
-                              href={`/survey/${s.slug}`}
-                              target="_blank"
-                              className="icon-btn"
-                              title="Ouvrir le sondage"
-                            >
-                              <ExternalLink size={16} />
-                            </a>
-                            <button
-                              onClick={() => copyLink(s.slug)}
-                              className="icon-btn"
-                              title="Copier le lien"
-                            >
-                              <Copy size={16} />
-                            </button>
-                          </>
-                        )}
+                        <a
+                          href={publicUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="icon-btn"
+                          title={s.status === "published" ? "Ouvrir le sondage public" : "Prévisualiser (non publié)"}
+                        >
+                          <Eye size={16} />
+                        </a>
+                        <button
+                          onClick={() => copyLink(s.slug)}
+                          className="icon-btn"
+                          title="Copier le lien public"
+                        >
+                          <Copy size={16} />
+                        </button>
                         <a
                           href={`/api/export?survey_id=${s.id}&format=csv`}
                           className="icon-btn"
@@ -279,7 +287,8 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -413,6 +422,23 @@ export default function AdminDashboard() {
         tr:hover { background: #faf9f6; }
         td strong { display: block; font-weight: 600; color: #1a2744; }
         .slug-label { font-size: 12px; color: #bbb; }
+        .public-url {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: #3b6fa0;
+          text-decoration: none;
+          font-family: monospace;
+          margin-top: 2px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          background: #f0f7ff;
+          border: 1px solid transparent;
+          transition: 0.15s;
+          word-break: break-all;
+        }
+        .public-url:hover { background: #e1efff; border-color: #b8d4f0; }
         .responses-count { font-weight: 700; color: #1a2744; font-size: 18px; }
         .date-cell { font-size: 13px; color: #999; }
 

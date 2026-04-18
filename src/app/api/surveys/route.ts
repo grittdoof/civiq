@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createClient, createServiceClient } from "@/lib/supabase-server";
+
+// Génère un slug propre depuis un titre français
+function slugify(input: string): string {
+  return input
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip accents (é→e, à→a, ç→c, etc.)
+    .toLowerCase()
+    .replace(/['']/g, "")            // retire les apostrophes
+    .replace(/[^a-z0-9]+/g, "-")     // tout le reste devient un tiret
+    .replace(/-+/g, "-")             // collapse les tirets multiples
+    .replace(/^-|-$/g, "");          // trim les tirets en début/fin
+}
 
 // GET /api/surveys — liste des sondages de la commune
 export async function GET(request: NextRequest) {
@@ -82,7 +94,7 @@ export async function POST(request: NextRequest) {
     .insert({
       commune_id: profile.commune_id,
       title,
-      slug: slug || title.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+      slug: slug ? slugify(slug) : slugify(title),
       description,
       schema: surveySchema || { steps: [], settings: {} },
       created_by: user.id,
