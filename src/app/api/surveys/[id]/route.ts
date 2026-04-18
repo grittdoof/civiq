@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase-server";
+import { createClient, createServiceClient } from "@/lib/supabase-server";
 import type { SurveySchema } from "@/types/survey";
 
 interface RouteParams {
@@ -14,7 +14,10 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { data: profile } = await supabase
+  // Service client → bypass RLS récursif sur profiles
+  const service = await createServiceClient();
+
+  const { data: profile } = await service
     .from("profiles")
     .select("commune_id")
     .eq("id", user.id)
@@ -24,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Aucune commune associée" }, { status: 403 });
   }
 
-  const { data: survey, error } = await supabase
+  const { data: survey, error } = await service
     .from("surveys")
     .select("*")
     .eq("id", id)
@@ -39,7 +42,6 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
 }
 
 // PATCH /api/surveys/[id]
-// Permet de mettre à jour le schema, le statut, le titre, les dates, etc.
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const supabase = await createClient();
@@ -47,7 +49,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { data: profile } = await supabase
+  // Service client → bypass RLS récursif sur profiles
+  const service = await createServiceClient();
+
+  const { data: profile } = await service
     .from("profiles")
     .select("commune_id, role")
     .eq("id", user.id)
@@ -60,8 +65,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
 
-  // Ensure survey belongs to this commune
-  const { data: existing } = await supabase
+  // Vérifier que le sondage appartient à cette commune
+  const { data: existing } = await service
     .from("surveys")
     .select("id, commune_id")
     .eq("id", id)
@@ -87,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     require_email,
   } = body;
 
-  // Validate schema if provided
+  // Valider le schema si fourni
   if (schema) {
     const s = schema as SurveySchema;
     if (!s.steps || !Array.isArray(s.steps)) {
@@ -95,7 +100,6 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
   }
 
-  // Validate status transitions
   const allowedStatuses = ["draft", "published", "closed", "archived"];
   if (status && !allowedStatuses.includes(status)) {
     return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
@@ -117,7 +121,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   if (allow_anonymous !== undefined) updates.allow_anonymous = allow_anonymous;
   if (require_email !== undefined) updates.require_email = require_email;
 
-  const { data: survey, error } = await supabase
+  const { data: survey, error } = await service
     .from("surveys")
     .update(updates)
     .eq("id", id)
@@ -139,7 +143,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  const { data: profile } = await supabase
+  // Service client → bypass RLS récursif sur profiles
+  const service = await createServiceClient();
+
+  const { data: profile } = await service
     .from("profiles")
     .select("commune_id, role")
     .eq("id", user.id)
@@ -152,7 +159,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
 
-  const { error } = await supabase
+  const { error } = await service
     .from("surveys")
     .delete()
     .eq("id", id)

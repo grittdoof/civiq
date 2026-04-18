@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { Save, Loader2, Check, KeyRound, Building2, User } from "lucide-react";
 
+// Note : loadData utilise /api/auth/me (service client, bypass RLS)
+// saveCommune/saveProfile utilisent le client browser (soumis au RLS)
+
 // ═══════════════════════════════════════════════════
 // PROFILE & PARAMÈTRES — Gestion du profil admin
 // + paramètres de la commune (nom, couleurs, contact)
@@ -39,33 +42,25 @@ export default function ProfilePage() {
 
   async function loadData() {
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Charge via l'API (service client côté serveur, bypass RLS récursif)
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
+        console.error("Profile load error:", res.status);
+        return;
+      }
+      const data = await res.json();
 
-      setUserEmail(user.email || "");
+      setUserEmail(data.email || "");
+      setFullName(data.full_name || "");
+      setCommuneId(data.commune_id || null);
 
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("full_name, commune_id, communes(*)")
-        .eq("id", user.id)
-        .single();
-
-      if (error) console.error("Profile load error:", error);
-
-      if (profile) {
-        setFullName(profile.full_name || "");
-        setCommuneId(profile.commune_id || null);
-
-        const commune = profile.communes as Record<string, string> | null;
-        if (commune) {
-          setCommuneName(commune.name || "");
-          setCodePostal(commune.code_postal || "");
-          setContactEmail(commune.contact_email || "");
-          setWebsiteUrl(commune.website_url || "");
-          setPrimaryColor(commune.primary_color || "#1a2744");
-          setAccentColor(commune.accent_color || "#c9a84c");
-        }
+      if (data.commune) {
+        setCommuneName(data.commune.name || "");
+        setCodePostal(data.commune.code_postal || "");
+        setContactEmail(data.commune.contact_email || "");
+        setWebsiteUrl(data.commune.website_url || "");
+        setPrimaryColor(data.commune.primary_color || "#1a2744");
+        setAccentColor(data.commune.accent_color || "#c9a84c");
       }
     } catch (err) {
       console.error("loadData error:", err);

@@ -13,8 +13,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  // Récupérer le profil pour connaître la commune
-  const { data: profile } = await supabase
+  // Utiliser le service client pour lire le profil (bypass RLS récursif)
+  const service = await createServiceClient();
+  const { data: profile } = await service
     .from("profiles")
     .select("commune_id, role")
     .eq("id", user.id)
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Aucune commune associée" }, { status: 403 });
   }
 
-  const { data: surveys, error } = await supabase
+  const { data: surveys, error } = await service
     .from("surveys")
     .select("*, responses(count)")
     .eq("commune_id", profile.commune_id)
@@ -49,7 +50,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
+  // Utiliser le service client pour lire le profil (bypass RLS récursif)
+  const service = await createServiceClient();
+  const { data: profile } = await service
     .from("profiles")
     .select("commune_id, role")
     .eq("id", user.id)
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
   // Si template_id, charger le schema du template
   let surveySchema = schema;
   if (template_id && !schema) {
-    const { data: template } = await supabase
+    const { data: template } = await service
       .from("survey_templates")
       .select("schema")
       .eq("id", template_id)
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (template) surveySchema = template.schema;
   }
 
-  const { data: survey, error } = await supabase
+  const { data: survey, error } = await service
     .from("surveys")
     .insert({
       commune_id: profile.commune_id,

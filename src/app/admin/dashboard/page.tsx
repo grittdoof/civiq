@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase-browser";
 import {
   BarChart3,
   FileText,
@@ -57,60 +56,44 @@ export default function AdminDashboard() {
 
   async function loadData() {
     try {
-      const supabase = createClient();
+      // Tout passe par les API routes (service client côté serveur, bypass RLS)
+      const [surveysRes] = await Promise.all([
+        fetch("/api/surveys"),
+      ]);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get profile + commune
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("commune_id, communes(name, slug)")
-        .eq("id", user.id)
-        .single();
-
-      if (profileError) {
-        console.error("Profile error:", profileError);
+      if (surveysRes.status === 403) {
+        // Pas de commune configurée encore
+        return;
       }
 
-      const profile = profileData as ProfileWithCommune | null;
-
-      if (profile?.communes) {
-        setCommune(profile.communes);
+      if (!surveysRes.ok) {
+        console.error("Surveys API error:", surveysRes.status);
+        return;
       }
 
-      if (!profile?.commune_id) return;
+      const surveyData = await surveysRes.json() as SurveyRow[];
+      setSurveys(surveyData);
 
-      // Get surveys with response counts
-      const { data: surveyData, error: surveyError } = await supabase
-        .from("surveys")
-        .select("*, responses(count)")
-        .eq("commune_id", profile.commune_id)
-        .order("created_at", { ascending: false });
-
-      if (surveyError) {
-        console.error("Surveys error:", surveyError);
+      // Charger la commune via l'API profil
+      const profileRes = await fetch("/api/auth/me");
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData.commune) setCommune(profileData.commune);
       }
 
-      if (surveyData) {
-        setSurveys(surveyData as SurveyRow[]);
+      const total = surveyData.length;
+      const active = surveyData.filter((s) => s.status === "published").length;
+      const responses = surveyData.reduce(
+        (sum: number, s) => sum + ((s.responses as { count: number }[])?.[0]?.count || 0),
+        0
+      );
 
-        const total = surveyData.length;
-        const active = surveyData.filter((s) => s.status === "published").length;
-        const responses = surveyData.reduce(
-          (sum: number, s) => sum + ((s.responses as { count: number }[])?.[0]?.count || 0),
-          0
-        );
-
-        setStats({
-          totalSurveys: total,
-          activeSurveys: active,
-          totalResponses: responses,
-          avgCompletionRate: 0,
-        });
-      }
+      setStats({
+        totalSurveys: total,
+        activeSurveys: active,
+        totalResponses: responses,
+        avgCompletionRate: 0,
+      });
     } catch (err) {
       console.error("loadData error:", err);
     } finally {

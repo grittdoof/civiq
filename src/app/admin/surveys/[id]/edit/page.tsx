@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase-browser";
 import SurveyBuilder from "@/components/survey/SurveyBuilder";
 import type { Survey, SurveySchema } from "@/types/survey";
 import {
@@ -44,28 +43,27 @@ export default function EditSurveyPage() {
   }, [surveyId]);
 
   async function loadSurvey() {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("surveys")
-      .select("*")
-      .eq("id", surveyId)
-      .single();
-
-    if (data) {
-      setSurvey(data as Survey);
-      setSchema((data as Survey).schema);
-      setTitle((data as Survey).title);
-      setDescription((data as Survey).description || "");
-      setEndsAt(
-        (data as Survey).ends_at
-          ? new Date((data as Survey).ends_at!).toISOString().slice(0, 16)
-          : ""
-      );
-      setStatus((data as Survey).status);
-      setCustomThankYou((data as Survey).custom_thank_you || "");
-      setCustomHeaderText((data as Survey).custom_header_text || "");
+    try {
+      // Charge via l'API (service client côté serveur, bypass RLS récursif)
+      const res = await fetch(`/api/surveys/${surveyId}`);
+      if (!res.ok) {
+        console.error("loadSurvey error:", res.status, await res.text());
+        return;
+      }
+      const data = await res.json() as Survey;
+      setSurvey(data);
+      setSchema(data.schema);
+      setTitle(data.title);
+      setDescription(data.description || "");
+      setEndsAt(data.ends_at ? new Date(data.ends_at).toISOString().slice(0, 16) : "");
+      setStatus(data.status);
+      setCustomThankYou(data.custom_thank_you || "");
+      setCustomHeaderText(data.custom_header_text || "");
+    } catch (err) {
+      console.error("loadSurvey error:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   const handleSave = useCallback(
