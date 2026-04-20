@@ -154,7 +154,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteParams) {
 
   if (
     !profile?.commune_id ||
-    !["admin", "super_admin"].includes(profile.role)
+    !["admin", "super_admin", "editor"].includes(profile.role)
   ) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }

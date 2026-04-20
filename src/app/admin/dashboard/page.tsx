@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Copy,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -128,6 +129,22 @@ export default function AdminDashboard() {
   async function copyLink(slug: string) {
     const url = `${window.location.origin}/survey/${slug}${commune ? `?commune=${commune.slug}` : ""}`;
     await navigator.clipboard.writeText(url);
+  }
+
+  async function deleteSurvey(id: string, title: string) {
+    const ok = window.confirm(
+      `Supprimer définitivement le sondage « ${title} » ?\n\nCette action est irréversible et supprimera aussi les réponses associées.`
+    );
+    if (!ok) return;
+
+    const res = await fetch(`/api/surveys/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: "Erreur inconnue" }));
+      alert(`Suppression impossible : ${body.error || res.statusText}`);
+      return;
+    }
+
+    setSurveys((prev) => prev.filter((s) => s.id !== id));
   }
 
   if (loading) {
@@ -284,6 +301,14 @@ export default function AdminDashboard() {
                         >
                           <Download size={16} />
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => deleteSurvey(s.id, s.title)}
+                          className="icon-btn danger"
+                          title="Supprimer le sondage"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -457,6 +482,7 @@ export default function AdminDashboard() {
           transition: 0.2s;
         }
         .icon-btn:hover { border-color: #3b6fa0; color: #3b6fa0; background: #f0f7ff; }
+        .icon-btn.danger:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
 
         @media (max-width: 768px) {
           .admin-header { flex-direction: column; align-items: flex-start; gap: 16px; }

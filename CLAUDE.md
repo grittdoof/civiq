@@ -215,3 +215,143 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx
 SUPABASE_SERVICE_ROLE_KEY=eyJxxx   # Uniquement côté serveur
 ```
+
+---
+
+## Session 3 — Pages légales, commit initial, premiers bugs (2026-04-19)
+
+### Pages légales créées
+- ✅ `/mentions-legales` — 7 sections (éditeur, hébergement, IP, responsabilité, données, cookies, droit applicable)
+- ✅ `/confidentialite` — Politique RGPD avec tableau des finalités
+- ✅ Lien « Mot de passe oublié » ajouté dans `/auth/login`
+
+### Premier push GitHub
+- Commit `1810b16` + `2c78631` → `grittdoof/civiq` sur `main`
+
+### Bugs remontés
+- 🐛 Dashboard bloqué sur « Chargement… »
+- 🐛 Création de sondage cassée
+- 🐛 Paramètres de commune cassés
+
+### Fixes round 1 (commit `a4d1efb`)
+- Wrapping de tous les `loadData()` dans try/finally (sinon `setLoading(false)` jamais appelé si la query échoue)
+- `createError` state + redirect vers `/edit` dans `/admin/surveys/new`
+- Migration `002_fix_rls_policies.sql` (v1)
+
+---
+
+## Session 4 — Correction RLS récursive (2026-04-19)
+
+### Problème racine
+Le 403 « Permissions insuffisantes » venait de policies RLS **récursives** :
+```sql
+using (commune_id in (select commune_id from profiles where id = auth.uid()))
+```
+→ cette subquery déclenche la policy SELECT sur `profiles`, qui elle-même contient la même subquery → boucle → `NULL` → tout bloqué.
+
+### Solution (commit `a2cc335`)
+1. Fonctions `SECURITY DEFINER` qui bypass RLS sur `profiles` :
+   - `public.my_commune_id()` → `uuid`
+   - `public.my_role()` → `text`
+2. Toutes les policies réécrites pour utiliser ces fonctions au lieu de subqueries
+3. Policy directe « Users can view own profile » (non-récursive)
+4. Belt-and-suspenders : toutes les API routes lisent `profiles` via `createServiceClient()` (service role key, bypass RLS complet)
+5. Nouvelle route `/api/auth/me` centralisée
+
+---
+
+## Session 5 — Super-admin, modules, multi-admin, design Airbnb (2026-04-20)
+
+### Prompt de départ
+> "Il faut un mode super administrateur qui gère la plateforme et puisse activer les modules. Les administrateurs éditeur (les mairies) possèdent leur propre espace qui contient le ou les modules activés. Chaque espace peut avoir plusieurs utilisateurs administrateurs. S'inspirer d'Airbnb pour le design. Fais un checkup global et corrige les bugs."
+
+### Architecture finale des rôles
+| Rôle | Scope | Peut |
+|---|---|---|
+| `super_admin` | Plateforme entière | Gérer toutes les communes, activer/désactiver les modules au catalogue, promouvoir des users, voir stats globales |
+| `admin` | Sa commune | Gérer membres de sa mairie, activer les modules pour sa commune, inviter des éditeurs, éditer les paramètres |
+| `editor` | Modules activés de sa commune | Créer, éditer, publier, supprimer des sondages (et autres modules quand ils existeront) |
+| `viewer` (*administré*) | Public | Compte simple lecteur. Pas d'accès admin ni modules. Rôle réservé pour features futures (suivi d'inscription, historique de participation) |
+
+### Livrés — Migration 003
+Tables : `modules`, `commune_modules`, `commune_invitations`
+Fonctions : `my_active_modules()`, `make_super_admin(email)`
+Vue : `commune_stats`
+Seed : 5 modules (surveys, budget, events, alerts, urbanism)
+Auto-activation `surveys` pour toutes les communes existantes
+
+### Livrés — Backend
+- `src/lib/auth-helpers.ts` : `getAuthContext()`, `isSuperAdmin()`, `isCommuneAdmin()`
+- `src/app/api/auth/me/route.ts` enrichi avec `is_super_admin` + `modules` activés
+- API super-admin : `/api/super-admin/{communes,users,modules}/route.ts`
+- API team : `/api/team/route.ts`, `/api/team/invite/route.ts`
+- API modules : `/api/modules/activate/route.ts`
+- API invitations : `/api/invitations/accept/route.ts` (token + preview + POST accept)
+
+### Livrés — Frontend
+- Layout `/super-admin/*` avec sidebar sombre + garde client-side
+- Pages super-admin : dashboard (stats + grid communes), communes (table searchable), users (rôle éditable inline)
+- Refonte `globals.css` avec design system Airbnb :
+  - `--civiq-accent: #ff5a5f` (coral signature)
+  - `--civiq-radius: 16px` (généreux)
+  - Cards blanches avec borders subtiles
+  - Boutons gradients + shadows douces
+  - Pill badges
+
+### Fixes & polish (commit `51a1dfb`)
+- `createServiceClient` manquant dans l'import de `/api/surveys/route.ts` (cause de « Unexpected end of JSON input »)
+- `slugify()` avec strip d'accents + collapse de tirets multiples (plus de `besoins-priscolaires--extrascolaires`)
+- `/survey/[slug]` : message « Sondage non encore publié » au lieu d'un 404 sec pour les drafts
+- Dashboard admin : lien public visible et cliquable pour **tous** les statuts (plus seulement `published`)
+- Retrait du lien hardcodé `👁 Voir le sondage en ligne` dans la sidebar
+
+### Migration 003 : problèmes rencontrés et solutions
+- ❌ `function public.my_role() does not exist` → migration 002 jamais passée
+- ❌ `42710: policy "Users can view own profile" for table "profiles" already exists` → `create policy` nu dans 002 non-idempotent
+- ✅ Solution : bloc rejouable avec `drop policy if exists` + `create or replace function` fourni en session
+- ❌ `42P07: relation "modules" already exists` → 003 partiellement appliqué
+- ✅ Solution : bloc rejouable qui saute les tables, force seed via `on conflict do nothing`, recrée policies + fonctions + vue
+
+---
+
+## Session 6 — Profil, suppression sondage, CSS ajustements, docs (2026-04-20)
+
+### Prompt de départ
+> "Dans 'profil & paramètres' il faut afficher le statut du compte. Les différents profils sont : Super Administrateur (gère la plateforme), Éditeur (agents territoriaux, adjoints, conseillers municipaux rattachés à un espace mairie), Administré (compte par défaut en lecture). Dans le module Sondage, permettre la suppression. CSS : `.civiq-field-label` avec display block + 15px + bleu-nuit + margin 8px, `.civiq-btn` texte blanc. Bien mettre tout le suivi."
+
+### Livrés
+- **Profil** : bloc « Statut du compte » en tête de page avec icône, libellé et description du rôle courant (mapping `ROLE_META` dans `src/app/admin/profile/page.tsx`)
+- **Dashboard admin** : bouton de suppression 🗑 avec confirmation native + optimistic update de la liste
+- **API** : `DELETE /api/surveys/[id]` étendu à `editor` (avant : admin + super_admin)
+- **CSS globals** :
+  - Ajout `--bleu-nuit: #1a2744` dans `:root` (alias sémantique de `--civiq-primary`)
+  - `.civiq-field-label` : display block, 15px, 600, `var(--bleu-nuit)`, margin-bottom 8px
+  - `.civiq-btn` : `color: #fff` par défaut (variants `secondary`/`ghost` continuent à override avec `var(--civiq-text)`)
+- **Docs** :
+  - CLAUDE.md enrichi de Sessions 3→6 (ce fichier)
+  - CHANGELOG.md créé (user-facing, versionné par date)
+  - ROADMAP.md créé (feuille de route par modules + phases)
+
+---
+
+## Points d'attention courants
+
+### Toujours utiliser `createServiceClient()` pour lire `profiles`
+Les policies RLS de `profiles` sont protégées par `my_commune_id()` / `my_role()` qui lisent elles-mêmes `profiles` en SECURITY DEFINER. Mais en cas de doute ou sur les routes sensibles, passer par le service role reste le plus sûr. **Toujours** importer `createServiceClient` explicitement, pas seulement `createClient` (oublier cet import = 500 silencieuse = `Unexpected end of JSON input` côté client).
+
+### Slug de sondage
+Normalisé via `slugify()` dans `src/app/api/surveys/route.ts` :
+- Strip accents NFD (`é`→`e`, `à`→`a`, `ç`→`c`)
+- Retire les apostrophes
+- Tout caractère non-alphanum → tiret
+- Collapse tirets multiples
+- Trim tirets en début/fin
+
+### Migration idempotente
+Toutes les futures migrations **doivent** utiliser :
+- `create or replace function` pour les fonctions
+- `drop policy if exists` avant `create policy`
+- `on conflict do nothing` pour les seeds
+- `create index if not exists` pour les index
+Rien ne doit casser si la migration est rejouée.
+

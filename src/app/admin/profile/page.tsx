@@ -2,7 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
-import { Save, Loader2, Check, KeyRound, Building2, User } from "lucide-react";
+import { Save, Loader2, Check, KeyRound, Building2, User, Shield, ShieldCheck, Edit3, Eye } from "lucide-react";
+
+// Mapping des rôles vers un libellé + description + couleur
+const ROLE_META: Record<string, { label: string; description: string; color: string; bg: string; icon: React.ReactNode }> = {
+  super_admin: {
+    label: "Super Administrateur",
+    description: "Gère la plateforme : communes, modules, membres et statistiques globales.",
+    color: "#991b1b",
+    bg: "#fee2e2",
+    icon: <ShieldCheck size={16} />,
+  },
+  admin: {
+    label: "Administrateur",
+    description: "Gère votre espace mairie : membres, modules activés, sondages.",
+    color: "#1e3a8a",
+    bg: "#dbeafe",
+    icon: <Shield size={16} />,
+  },
+  editor: {
+    label: "Éditeur",
+    description: "Agent territorial, adjoint ou conseiller — crée, édite et publie dans les modules activés.",
+    color: "#065f46",
+    bg: "#d1fae5",
+    icon: <Edit3 size={16} />,
+  },
+  viewer: {
+    label: "Administré",
+    description: "Lecteur simple — pas d'accès aux modules ni à l'administration.",
+    color: "#57534e",
+    bg: "#f5f5f4",
+    icon: <Eye size={16} />,
+  },
+};
 
 // Note : loadData utilise /api/auth/me (service client, bypass RLS)
 // saveCommune/saveProfile utilisent le client browser (soumis au RLS)
@@ -27,6 +59,7 @@ export default function ProfilePage() {
   // User profile
   const [fullName, setFullName] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [role, setRole] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -53,6 +86,7 @@ export default function ProfilePage() {
       setUserEmail(data.email || "");
       setFullName(data.full_name || "");
       setCommuneId(data.commune_id || null);
+      setRole(data.role || null);
 
       if (data.commune) {
         setCommuneName(data.commune.name || "");
@@ -146,6 +180,33 @@ export default function ProfilePage() {
         <h1>Profil &amp; paramètres</h1>
         <p>Gérez votre compte et les informations de votre commune.</p>
       </header>
+
+      {/* ── Statut du compte ── */}
+      <section className="profile-card role-card">
+        <div className="role-card-top">
+          <div className="role-avatar" style={{ background: (role && ROLE_META[role]?.bg) || "#f2f2f2", color: (role && ROLE_META[role]?.color) || "#666" }}>
+            {(role && ROLE_META[role]?.icon) || <User size={16} />}
+          </div>
+          <div className="role-info">
+            <span className="role-label-small">Statut du compte</span>
+            <div className="role-title-row">
+              <strong>{role ? ROLE_META[role]?.label || role : "Aucun rôle"}</strong>
+              {role && (
+                <span
+                  className="role-chip"
+                  style={{ background: ROLE_META[role]?.bg, color: ROLE_META[role]?.color }}
+                >
+                  {ROLE_META[role]?.icon}
+                  {ROLE_META[role]?.label}
+                </span>
+              )}
+            </div>
+            <p className="role-desc">
+              {role ? ROLE_META[role]?.description : "Contactez un administrateur pour obtenir un rôle."}
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* ── Commune settings ── */}
       <section className="profile-card">
@@ -384,6 +445,51 @@ export default function ProfilePage() {
           margin-bottom: 6px;
         }
         .profile-header p { font-size: 15px; color: #888; }
+
+        /* Role / Statut du compte */
+        .role-card { padding: 20px 24px; }
+        .role-card-top { display: flex; gap: 16px; align-items: flex-start; }
+        .role-avatar {
+          width: 44px; height: 44px;
+          border-radius: 12px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .role-info { flex: 1; min-width: 0; }
+        .role-label-small {
+          display: block;
+          font-size: 11px;
+          font-weight: 600;
+          color: #a8a8a8;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 4px;
+        }
+        .role-title-row {
+          display: flex; align-items: center; gap: 10px;
+          margin-bottom: 4px;
+          flex-wrap: wrap;
+        }
+        .role-title-row strong {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1a2744;
+          font-family: 'Playfair Display', serif;
+        }
+        .role-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 12px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .role-desc {
+          font-size: 14px;
+          color: #666;
+          line-height: 1.5;
+        }
 
         .profile-card {
           background: #fff;

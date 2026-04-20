@@ -19,6 +19,7 @@
   /* Brand CiviQ */
   --civiq-primary: #1a2744;        /* navy */
   --civiq-primary-soft: #243a5e;
+  --bleu-nuit: #1a2744;            /* alias sémantique */
   --civiq-accent: #ff5a5f;         /* signature coral (Airbnb) */
   --civiq-accent-soft: #ff7a7f;
   --civiq-gold: #c9a84c;
@@ -170,6 +171,7 @@ body {
   font-family: inherit;
   font-size: 15px;
   font-weight: 600;
+  color: #fff;                 /* texte blanc par défaut */
   cursor: pointer;
   border: none;
   transition: var(--civiq-transition);
@@ -293,9 +295,11 @@ body {
   gap: 6px;
 }
 .civiq-field-label {
-  font-size: 13px;
+  display: block;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--civiq-text);
+  color: var(--bleu-nuit);
+  margin-bottom: 8px;
 }
 .civiq-field-hint {
   font-size: 12px;
