@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════
@@ -51,6 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // La page /admin/setup n'a pas besoin de la sidebar
@@ -62,18 +64,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [isSetup]);
 
   async function loadCommune() {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("communes(name, slug)")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.communes) {
-      setCommune(profile.communes as { name: string; slug: string });
+    // Passe par /api/auth/me qui renvoie role + is_super_admin + commune
+    try {
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.commune) setCommune(data.commune);
+      if (data.is_super_admin) setIsSuperAdmin(true);
+    } catch {
+      // silencieux — la page reste fonctionnelle sans ces données
     }
   }
 
@@ -137,6 +136,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span>/{commune.slug}</span>
             </div>
           </div>
+        )}
+
+        {/* Lien super-admin (affiché uniquement si role=super_admin) */}
+        {isSuperAdmin && (
+          <Link
+            href="/super-admin/dashboard"
+            className="al-super-link"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <ShieldCheck size={15} />
+            <span>Espace Super Admin</span>
+            <ChevronRight size={14} className="al-nav-arrow" />
+          </Link>
         )}
 
         {/* Navigation */}
@@ -275,6 +287,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           color: #fff;
         }
         .al-nav-icon { flex-shrink: 0; opacity: 0.8; }
+
+        .al-super-link {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 12px 12px 0;
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #ff5a5f, #e0454a);
+          color: #fff;
+          font-size: 13px;
+          font-weight: 600;
+          text-decoration: none;
+          box-shadow: 0 4px 14px rgba(255,90,95,0.25);
+          transition: 0.15s;
+        }
+        .al-super-link:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,90,95,0.4); }
+        .al-super-link span { flex: 1; }
         .al-nav-arrow {
           margin-left: auto;
           opacity: 0.5;
