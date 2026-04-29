@@ -78,9 +78,17 @@ export async function POST(request: Request) {
   let tempPassword: string | null = null;
 
   if (send_invite) {
+    // URL absolue de retour : on prend NEXT_PUBLIC_SITE_URL en prod ;
+    // sinon Vercel injecte VERCEL_URL ; en dernier recours localhost.
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      "http://localhost:3000";
+
     // Magic link / invitation par email — pas de mot de passe à transmettre
     const { data, error } = await service.auth.admin.inviteUserByEmail(email, {
       data: { full_name },
+      redirectTo: `${siteUrl}/auth/callback`,
     });
     if (error || !data.user) {
       return NextResponse.json({ error: error?.message || "Échec invitation" }, { status: 500 });
