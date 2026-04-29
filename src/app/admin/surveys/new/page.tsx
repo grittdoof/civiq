@@ -71,6 +71,7 @@ export default function NewSurveyPage() {
     urbanisme: "🏗",
     satisfaction: "⭐",
     environnement: "🌱",
+    associations: "🤝",
   };
 
   return (

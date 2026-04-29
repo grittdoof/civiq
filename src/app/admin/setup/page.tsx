@@ -50,7 +50,7 @@ export default function SetupPage() {
     <div className="setup-page">
       <div className="setup-card">
         <Link href="/" className="setup-logo">
-          🏛 CiviQ
+          🏛 GoCiviQ
         </Link>
 
         <div className="setup-step-badge">Étape 2 / 2</div>

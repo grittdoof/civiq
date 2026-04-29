@@ -5,8 +5,8 @@ import Link from "next/link";
 // ═══════════════════════════════════════════════════
 
 export const metadata = {
-  title: "Mentions légales — CiviQ",
-  description: "Mentions légales de la plateforme CiviQ",
+  title: "Mentions légales — GoCiviQ",
+  description: "Mentions légales de la plateforme GoCiviQ",
 };
 
 export default function MentionsLegalesPage() {
@@ -23,7 +23,7 @@ export default function MentionsLegalesPage() {
         <section>
           <h2>1. Éditeur de la plateforme</h2>
           <p>
-            La plateforme <strong>CiviQ</strong> est éditée par une entité privée proposant
+            La plateforme <strong>GoCiviQ</strong> est éditée par une entité privée proposant
             des services numériques aux collectivités territoriales françaises.
           </p>
           <p>
@@ -35,7 +35,7 @@ export default function MentionsLegalesPage() {
         <section>
           <h2>2. Hébergement</h2>
           <p>
-            La plateforme CiviQ est hébergée par :
+            La plateforme GoCiviQ est hébergée par :
           </p>
           <ul>
             <li><strong>Vercel Inc.</strong> — infrastructure Next.js (États-Unis)</li>
@@ -49,12 +49,12 @@ export default function MentionsLegalesPage() {
         <section>
           <h2>3. Propriété intellectuelle</h2>
           <p>
-            L'ensemble du contenu de la plateforme CiviQ (textes, graphismes, logos, code source)
+            L'ensemble du contenu de la plateforme GoCiviQ (textes, graphismes, logos, code source)
             est protégé par le droit d'auteur. Toute reproduction ou utilisation sans autorisation
             expresse est interdite.
           </p>
           <p>
-            Les données des sondages appartiennent aux communes qui les créent. CiviQ ne revendique
+            Les données des sondages appartiennent aux communes qui les créent. GoCiviQ ne revendique
             aucun droit sur les données collectées par les communes via la plateforme.
           </p>
         </section>
@@ -62,11 +62,11 @@ export default function MentionsLegalesPage() {
         <section>
           <h2>4. Responsabilité</h2>
           <p>
-            CiviQ met à disposition une plateforme technique. La commune est responsable du contenu
+            GoCiviQ met à disposition une plateforme technique. La commune est responsable du contenu
             de ses sondages, de leur conformité légale, et de l'information des participants.
           </p>
           <p>
-            CiviQ ne saurait être tenu responsable des interruptions de service liées à des causes
+            GoCiviQ ne saurait être tenu responsable des interruptions de service liées à des causes
             extérieures (pannes réseau, maintenance des hébergeurs, etc.).
           </p>
         </section>

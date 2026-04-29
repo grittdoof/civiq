@@ -16,7 +16,7 @@ export default async function HomePage() {
         <nav className="landing-nav">
           <div className="landing-logo">
             <span className="logo-icon">🏛</span>
-            <span className="logo-text">CiviQ</span>
+            <span className="logo-text">GoCiviQ</span>
           </div>
           <div className="landing-nav-links">
             {user ? (
@@ -44,7 +44,7 @@ export default async function HomePage() {
             <em>simplement.</em>
           </h1>
           <p className="hero-desc">
-            CiviQ est une plateforme modulaire de sondages civiques conçue pour
+            GoCiviQ est une plateforme modulaire de sondages civiques conçue pour
             les communes françaises. Créez des consultations citoyennes en
             quelques minutes, analysez les résultats et prenez des décisions
             éclairées.
@@ -196,7 +196,7 @@ export default async function HomePage() {
       <footer className="landing-footer">
         <div className="footer-inner">
           <div className="footer-brand">
-            <span className="logo-icon">🏛</span> CiviQ
+            <span className="logo-icon">🏛</span> GoCiviQ
           </div>
           <p>
             Plateforme open-source de sondages civiques.

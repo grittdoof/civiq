@@ -1,51 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import {
-  LayoutDashboard,
-  PlusCircle,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  ChevronRight,
-  ShieldCheck,
-} from "lucide-react";
+import { Settings, LogOut, Menu, X, Shield } from "lucide-react";
+import { getAdminNavForModules } from "@/modules/registry";
 
 // ═══════════════════════════════════════════════════
-// ADMIN LAYOUT — Sidebar partagée pour tout /admin
-// Exclut /admin/setup (onboarding sans sidebar)
+// ADMIN LAYOUT — Sidebar dynamique basée sur les modules activés
 // ═══════════════════════════════════════════════════
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  exact?: boolean;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  {
-    href: "/admin/dashboard",
-    label: "Tableau de bord",
-    icon: <LayoutDashboard size={18} />,
-    exact: true,
-  },
-  {
-    href: "/admin/surveys/new",
-    label: "Nouveau sondage",
-    icon: <PlusCircle size={18} />,
-    exact: true,
-  },
-  {
-    href: "/admin/profile",
-    label: "Profil & paramètres",
-    icon: <Settings size={18} />,
-    exact: false,
-  },
+// Entrée CORE (toujours présente, pas liée à un module)
+const CORE_NAV_ITEMS = [
+  { href: "/admin/profile", label: "Profil & paramètres", icon: Settings, exact: false },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -53,28 +21,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeModuleKeys, setActiveModuleKeys] = useState<string[]>([]);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  // La page /admin/setup n'a pas besoin de la sidebar
   const isSetup = pathname === "/admin/setup";
 
   useEffect(() => {
     if (isSetup) return;
-    loadCommune();
+    fetch("/api/auth/me")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        if (data.commune) setCommune(data.commune);
+        if (data.is_super_admin) setIsSuperAdmin(true);
+        if (Array.isArray(data.modules)) {
+          setActiveModuleKeys(data.modules.map((m: { id: string }) => m.id));
+        }
+      })
+      .catch(() => {});
   }, [isSetup]);
 
-  async function loadCommune() {
-    // Passe par /api/auth/me qui renvoie role + is_super_admin + commune
-    try {
-      const res = await fetch("/api/auth/me");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.commune) setCommune(data.commune);
-      if (data.is_super_admin) setIsSuperAdmin(true);
-    } catch {
-      // silencieux — la page reste fonctionnelle sans ces données
-    }
-  }
+  // Nav = items des modules activés + items core
+  const navItems = useMemo(
+    () => [...getAdminNavForModules(activeModuleKeys), ...CORE_NAV_ITEMS],
+    [activeModuleKeys]
+  );
 
   async function handleLogout() {
     const supabase = createClient();
@@ -82,333 +53,140 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push("/auth/login");
   }
 
-  function isActive(item: NavItem) {
-    if (item.exact) return pathname === item.href;
-    return pathname.startsWith(item.href);
+  function isActive(item: { href: string; exact?: boolean }) {
+    return item.exact ? pathname === item.href : pathname.startsWith(item.href);
   }
 
-  // Pas de sidebar pour la page de setup
-  if (isSetup) {
-    return <>{children}</>;
-  }
+  if (isSetup) return <>{children}</>;
 
-  return (
-    <div className="al-root">
-      {/* ── Mobile header ── */}
-      <header className="al-mobile-header">
-        <Link href="/admin/dashboard" className="al-mobile-logo">
-          🏛 CiviQ
-        </Link>
-        <button
-          type="button"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="al-hamburger"
-          aria-label="Menu"
-        >
-          {sidebarOpen ? <X size={22} /> : <Menu size={22} />}
-        </button>
-      </header>
+  const sidebar = (
+    <aside className="civiq-sidebar">
+      {/* Logo */}
+      <div className="civiq-sidebar-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <rect x="2" y="10" width="20" height="12" rx="1.5" fill="var(--accent)" />
+          <rect x="6" y="6" width="12" height="5" rx="1" fill="var(--accent)" opacity="0.6" />
+          <rect x="9" y="2" width="6" height="5" rx="1" fill="var(--accent)" opacity="0.35" />
+          <rect x="9" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
+          <rect x="13" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
+        </svg>
+        <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.03em", color: "var(--fg)" }}>
+          GoCiviQ
+        </span>
+      </div>
 
-      {/* ── Overlay mobile ── */}
-      {sidebarOpen && (
-        <div
-          className="al-overlay"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      <div style={{ height: 1, background: "var(--border)" }} />
 
-      {/* ── Sidebar ── */}
-      <aside className={`al-sidebar ${sidebarOpen ? "open" : ""}`}>
-        {/* Logo */}
-        <div className="al-sidebar-logo">
-          <Link href="/admin/dashboard" className="al-logo-link">
-            <span className="al-logo-icon">🏛</span>
-            <span className="al-logo-text">CiviQ</span>
-          </Link>
-        </div>
-
-        {/* Commune badge */}
-        {commune && (
-          <div className="al-commune-badge">
-            <div className="al-commune-dot" />
+      {/* Commune */}
+      {commune && (
+        <div className="civiq-sidebar-municipality">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", display: "block", flexShrink: 0 }} />
             <div>
-              <strong>{commune.name}</strong>
-              <span>/{commune.slug}</span>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{commune.name}</div>
+              <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 1 }}>/{commune.slug}</div>
             </div>
           </div>
-        )}
+          {isSuperAdmin && (
+            <span className="civiq-badge civiq-badge-warning">Super Admin</span>
+          )}
+        </div>
+      )}
 
-        {/* Lien super-admin (affiché uniquement si role=super_admin) */}
-        {isSuperAdmin && (
+      <div style={{ height: 1, background: "var(--border)" }} />
+
+      {/* Super admin link */}
+      {isSuperAdmin && (
+        <div style={{ padding: "8px 10px 0" }}>
           <Link
             href="/super-admin/dashboard"
-            className="al-super-link"
-            onClick={() => setSidebarOpen(false)}
+            className="civiq-nav-item"
+            style={{ color: "var(--accent)", fontWeight: 600 }}
+            onClick={() => setMobileOpen(false)}
           >
-            <ShieldCheck size={15} />
+            <Shield size={15} />
             <span>Espace Super Admin</span>
-            <ChevronRight size={14} className="al-nav-arrow" />
           </Link>
-        )}
+        </div>
+      )}
 
-        {/* Navigation */}
-        <nav className="al-nav">
-          {NAV_ITEMS.map((item) => (
+      {/* Nav */}
+      <nav className="civiq-sidebar-nav">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          return (
             <Link
               key={item.href}
               href={item.href}
-              className={`al-nav-item ${isActive(item) ? "active" : ""}`}
-              onClick={() => setSidebarOpen(false)}
+              className={`civiq-nav-item${isActive(item) ? " active" : ""}`}
+              onClick={() => setMobileOpen(false)}
             >
-              <span className="al-nav-icon">{item.icon}</span>
+              <Icon size={15} />
               <span>{item.label}</span>
-              {isActive(item) && <ChevronRight size={14} className="al-nav-arrow" />}
             </Link>
-          ))}
-        </nav>
+          );
+        })}
+      </nav>
 
-        {/* Bottom */}
-        <div className="al-sidebar-bottom">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="al-logout-btn"
-          >
-            <LogOut size={16} />
-            Déconnexion
-          </button>
+      {/* Footer */}
+      <div className="civiq-sidebar-footer">
+        <div style={{ height: 1, background: "var(--border)", marginBottom: 12 }} />
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="civiq-nav-item"
+          style={{ width: "100%", color: "var(--fg-muted)" }}
+        >
+          <div style={{
+            width: 26, height: 26, borderRadius: "50%",
+            background: "var(--accent)", color: "white",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
+          }}>
+            {commune?.name?.[0]?.toUpperCase() || "A"}
+          </div>
+          <span style={{ flex: 1, textAlign: "left", fontSize: 13 }}>Déconnexion</span>
+          <LogOut size={14} />
+        </button>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="civiq-app">
+      {/* Mobile hamburger */}
+      <button
+        className="civiq-mobile-menu-btn"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Menu"
+        type="button"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Desktop sidebar */}
+      <div className="civiq-sidebar-desktop">{sidebar}</div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="civiq-sidebar-overlay" onClick={() => setMobileOpen(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="civiq-sidebar-mobile">
+            <button
+              className="civiq-close-btn"
+              onClick={() => setMobileOpen(false)}
+              type="button"
+            >
+              <X size={18} />
+            </button>
+            {sidebar}
+          </div>
         </div>
-      </aside>
+      )}
 
-      {/* ── Main content ── */}
-      <main className="al-main">
+      {/* Main content */}
+      <div className="civiq-content">
         {children}
-      </main>
-
-      <style>{`
-        .al-root {
-          display: flex;
-          min-height: 100vh;
-          background: #f2efe8;
-          font-family: 'Source Sans 3', -apple-system, sans-serif;
-        }
-
-        /* ── Sidebar ── */
-        .al-sidebar {
-          width: 240px;
-          min-height: 100vh;
-          background: #1a2744;
-          display: flex;
-          flex-direction: column;
-          position: fixed;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          z-index: 40;
-          transition: transform 0.25s ease;
-        }
-
-        /* ── Logo ── */
-        .al-sidebar-logo {
-          padding: 24px 20px 20px;
-          border-bottom: 1px solid rgba(255,255,255,0.08);
-        }
-        .al-logo-link {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          text-decoration: none;
-        }
-        .al-logo-icon { font-size: 24px; }
-        .al-logo-text {
-          font-family: 'Playfair Display', serif;
-          font-size: 20px;
-          font-weight: 700;
-          color: #fff;
-        }
-
-        /* ── Commune badge ── */
-        .al-commune-badge {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 14px 20px;
-          background: rgba(255,255,255,0.05);
-          margin: 12px 12px 4px;
-          border-radius: 8px;
-        }
-        .al-commune-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #4ade80;
-          flex-shrink: 0;
-        }
-        .al-commune-badge strong {
-          display: block;
-          font-size: 13px;
-          font-weight: 600;
-          color: #fff;
-          line-height: 1.2;
-        }
-        .al-commune-badge span {
-          font-size: 11px;
-          color: rgba(255,255,255,0.4);
-          font-family: monospace;
-        }
-
-        /* ── Nav ── */
-        .al-nav {
-          flex: 1;
-          padding: 12px 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-        .al-nav-item {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 12px;
-          border-radius: 8px;
-          text-decoration: none;
-          color: rgba(255,255,255,0.6);
-          font-size: 14px;
-          font-weight: 500;
-          transition: 0.15s;
-          position: relative;
-        }
-        .al-nav-item:hover {
-          background: rgba(255,255,255,0.07);
-          color: #fff;
-        }
-        .al-nav-item.active {
-          background: rgba(59,111,160,0.4);
-          color: #fff;
-        }
-        .al-nav-icon { flex-shrink: 0; opacity: 0.8; }
-
-        .al-super-link {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin: 12px 12px 0;
-          padding: 10px 12px;
-          border-radius: 8px;
-          background: linear-gradient(135deg, #ff5a5f, #e0454a);
-          color: #fff;
-          font-size: 13px;
-          font-weight: 600;
-          text-decoration: none;
-          box-shadow: 0 4px 14px rgba(255,90,95,0.25);
-          transition: 0.15s;
-        }
-        .al-super-link:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255,90,95,0.4); }
-        .al-super-link span { flex: 1; }
-        .al-nav-arrow {
-          margin-left: auto;
-          opacity: 0.5;
-        }
-
-        /* ── Bottom ── */
-        .al-sidebar-bottom {
-          padding: 16px 12px;
-          border-top: 1px solid rgba(255,255,255,0.08);
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .al-preview-link {
-          display: block;
-          font-size: 12px;
-          color: rgba(255,255,255,0.5);
-          text-decoration: none;
-          padding: 6px 12px;
-          border-radius: 6px;
-          transition: 0.15s;
-        }
-        .al-preview-link:hover {
-          background: rgba(255,255,255,0.07);
-          color: rgba(255,255,255,0.8);
-        }
-        .al-logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 9px 12px;
-          border-radius: 8px;
-          background: none;
-          border: 1px solid rgba(255,255,255,0.12);
-          color: rgba(255,255,255,0.5);
-          font-size: 13px;
-          font-weight: 500;
-          cursor: pointer;
-          width: 100%;
-          transition: 0.15s;
-          font-family: inherit;
-        }
-        .al-logout-btn:hover {
-          background: rgba(255,255,255,0.07);
-          color: rgba(255,255,255,0.8);
-          border-color: rgba(255,255,255,0.2);
-        }
-
-        /* ── Main ── */
-        .al-main {
-          margin-left: 240px;
-          flex: 1;
-          min-width: 0;
-        }
-
-        /* ── Mobile ── */
-        .al-mobile-header {
-          display: none;
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          z-index: 50;
-          background: #1a2744;
-          padding: 14px 20px;
-          align-items: center;
-          justify-content: space-between;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.2);
-        }
-        .al-mobile-logo {
-          font-family: 'Playfair Display', serif;
-          font-size: 20px;
-          font-weight: 700;
-          color: #fff;
-          text-decoration: none;
-        }
-        .al-hamburger {
-          background: none;
-          border: none;
-          color: #fff;
-          cursor: pointer;
-          padding: 4px;
-          display: flex;
-        }
-        .al-overlay {
-          display: none;
-          position: fixed;
-          inset: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 35;
-        }
-
-        @media (max-width: 768px) {
-          .al-mobile-header { display: flex; }
-          .al-overlay { display: block; }
-          .al-main { margin-left: 0; padding-top: 60px; }
-          .al-sidebar {
-            transform: translateX(-100%);
-            top: 0;
-            box-shadow: 4px 0 30px rgba(0,0,0,0.3);
-          }
-          .al-sidebar.open { transform: translateX(0); }
-        }
-      `}</style>
+      </div>
     </div>
   );
 }

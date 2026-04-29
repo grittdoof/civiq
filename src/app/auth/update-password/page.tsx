@@ -77,7 +77,7 @@ export default function UpdatePasswordPage() {
     <div className="auth-page">
       <div className="auth-card">
         <Link href="/" className="auth-logo">
-          🏛 CiviQ
+          🏛 GoCiviQ
         </Link>
         <h1>Nouveau mot de passe</h1>
         <p className="auth-desc">

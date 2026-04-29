@@ -32,3 +32,10 @@ next-env.d.ts
 
 # supabase
 .supabase/
+
+# claude code (local-only)
+.claude/settings.local.json
+.claude/worktrees/
+
+# stray nested git dir (artifact)
+/civiq/

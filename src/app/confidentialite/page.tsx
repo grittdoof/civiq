@@ -5,8 +5,8 @@ import Link from "next/link";
 // ═══════════════════════════════════════════════════
 
 export const metadata = {
-  title: "Politique de confidentialité — CiviQ",
-  description: "Comment CiviQ traite et protège vos données personnelles",
+  title: "Politique de confidentialité — GoCiviQ",
+  description: "Comment GoCiviQ traite et protège vos données personnelles",
 };
 
 export default function ConfidentialitePage() {
@@ -21,7 +21,7 @@ export default function ConfidentialitePage() {
         <p className="legal-date">Dernière mise à jour : avril 2026</p>
 
         <div className="legal-highlight">
-          <strong>En résumé :</strong> CiviQ collecte uniquement les données nécessaires au
+          <strong>En résumé :</strong> GoCiviQ collecte uniquement les données nécessaires au
           fonctionnement de la plateforme. Vos données ne sont jamais vendues ni partagées
           avec des tiers à des fins commerciales.
         </div>
@@ -29,7 +29,7 @@ export default function ConfidentialitePage() {
         <section>
           <h2>1. Responsable du traitement</h2>
           <p>
-            Le responsable du traitement des données est l'éditeur de la plateforme CiviQ.
+            Le responsable du traitement des données est l'éditeur de la plateforme GoCiviQ.
             Pour exercer vos droits ou pour toute question relative à la protection de vos
             données, contactez-nous à :{" "}
             <a href="mailto:privacy@civiq.fr">privacy@civiq.fr</a>
@@ -141,7 +141,7 @@ export default function ConfidentialitePage() {
         <section>
           <h2>7. Sécurité</h2>
           <p>
-            CiviQ met en œuvre des mesures techniques et organisationnelles appropriées pour
+            GoCiviQ met en œuvre des mesures techniques et organisationnelles appropriées pour
             protéger vos données :
           </p>
           <ul>

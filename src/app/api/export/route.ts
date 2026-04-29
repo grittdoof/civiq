@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import * as XLSX from "xlsx";
 
-// GET /api/export?survey_id=xxx&format=csv
+// GET /api/export?survey_id=xxx&format=csv|xlsx|json
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -46,7 +47,31 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // CSV export
+  // Build a label map from schema (field id → human label)
+  const fieldLabels: Record<string, string> = {};
+  const fieldOptions: Record<string, Record<string, string>> = {};
+  type SchemaField = { id: string; label?: string; options?: { value: string; label: string }[] };
+  type SchemaStep = { fields?: SchemaField[] };
+  const steps = ((survey?.schema as { steps?: SchemaStep[] })?.steps) || [];
+  for (const step of steps) {
+    for (const f of step.fields || []) {
+      fieldLabels[f.id] = f.label || f.id;
+      if (Array.isArray(f.options)) {
+        fieldOptions[f.id] = {};
+        for (const o of f.options) fieldOptions[f.id][o.value] = o.label;
+      }
+    }
+  }
+
+  function humanize(fieldId: string, val: unknown): string {
+    if (val === null || val === undefined) return "";
+    const opts = fieldOptions[fieldId];
+    if (Array.isArray(val)) {
+      return val.map((v) => opts?.[String(v)] || String(v)).join("; ");
+    }
+    return opts?.[String(val)] || String(val);
+  }
+
   // Collect all unique data keys
   const allKeys = new Set<string>();
   responses.forEach((r) => {
@@ -56,8 +81,52 @@ export async function GET(request: NextRequest) {
   });
 
   const metaCols = ["submitted_at", "respondent_name", "respondent_email", "respondent_phone", "duration_seconds"];
+  const metaLabels: Record<string, string> = {
+    submitted_at: "Date de soumission",
+    respondent_name: "Nom",
+    respondent_email: "Email",
+    respondent_phone: "Téléphone",
+    duration_seconds: "Durée (sec)",
+  };
   const dataCols = Array.from(allKeys).filter((k) => !k.startsWith("_"));
   const headers = [...metaCols, ...dataCols];
+  const headerLabels = headers.map((h) => metaLabels[h] || fieldLabels[h] || h);
+
+  // ─── XLSX export ───
+  if (format === "xlsx") {
+    const aoa: unknown[][] = [headerLabels];
+    responses.forEach((r) => {
+      const data = (r.data as Record<string, unknown>) || {};
+      const row = headers.map((h) => {
+        if (metaCols.includes(h)) {
+          const v = r[h as keyof typeof r];
+          if (h === "submitted_at" && v) return new Date(v as string);
+          return v ?? "";
+        }
+        return humanize(h, data[h]);
+      });
+      aoa.push(row);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // Auto width estimate
+    ws["!cols"] = headerLabels.map((label, i) => {
+      const maxData = aoa.slice(1).reduce((m, row) => {
+        const v = row[i];
+        const len = v instanceof Date ? 10 : String(v ?? "").length;
+        return Math.max(m, len);
+      }, label.length);
+      return { wch: Math.min(60, Math.max(10, maxData + 2)) };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Réponses");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    return new NextResponse(new Uint8Array(buf), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${(survey?.title || "export").replace(/[^a-zA-Z0-9-_]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+      },
+    });
+  }
 
   const escapeCSV = (val: unknown): string => {
     if (val === null || val === undefined) return "";
@@ -69,16 +138,16 @@ export async function GET(request: NextRequest) {
   };
 
   const rows = responses.map((r) => {
-    const data = r.data as Record<string, unknown>;
+    const data = (r.data as Record<string, unknown>) || {};
     return headers
       .map((h) => {
         if (metaCols.includes(h)) return escapeCSV(r[h as keyof typeof r]);
-        return escapeCSV(data[h]);
+        return escapeCSV(humanize(h, data[h]));
       })
       .join(",");
   });
 
-  const csv = [headers.join(","), ...rows].join("\n");
+  const csv = [headerLabels.join(","), ...rows].join("\n");
   const bom = "\uFEFF"; // UTF-8 BOM for Excel
 
   return new NextResponse(bom + csv, {
