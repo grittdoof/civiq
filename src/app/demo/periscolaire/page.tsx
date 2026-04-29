@@ -1,13 +1,11 @@
+"use client";
+
 import SurveyRenderer from "@/components/survey/SurveyRenderer";
 import type { SurveySchema } from "@/types/survey";
-import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "Démonstration — Besoins périscolaires | GoCiviQ",
-  description:
-    "Découvrez GoCiviQ avec ce sondage de démonstration sur les besoins périscolaires d'une commune fictive.",
-};
+// Metadata pour cette page est définie dans `layout.tsx` (server),
+// car ce fichier est devenu un Client Component (contient onSubmit).
 
 // ─── Schema complet du sondage périscolaire ───
 // Ce schema est embarqué statiquement (pas de base de données)

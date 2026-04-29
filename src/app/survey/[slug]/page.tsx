@@ -27,7 +27,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   if (!survey) return { title: "Sondage introuvable" };
 
-  const communeName = (survey as SurveyWithCommune).communes?.name || "";
+  const communeName = (survey as unknown as SurveyWithCommune).communes?.name || "";
   return {
     title: `${survey.title} — ${communeName}`,
     description: survey.description || `Participez au sondage de ${communeName}`,
