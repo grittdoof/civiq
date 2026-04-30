@@ -603,6 +603,25 @@ body {
   margin-top: 8px;
 }
 
+/* Field error state (champs obligatoires non remplis) */
+.civiq-field-error .civiq-field-label { color: var(--destructive); }
+.civiq-field-error .civiq-input,
+.civiq-field-error .civiq-textarea,
+.civiq-field-error .civiq-select,
+.civiq-field-error .civiq-option-card {
+  border-color: var(--destructive) !important;
+  box-shadow: 0 0 0 3px oklch(0.97 0.04 25);
+}
+.civiq-field-error-msg {
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--destructive);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Consentement RGPD */
 .civiq-consent {
   background: var(--card);

@@ -65,6 +65,7 @@ export default function SurveyRenderer({
 
   const setValue = useCallback((fieldId: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
+    setMissing((prev) => prev.filter((f) => f !== fieldId));
   }, []);
 
   const toggleArrayValue = useCallback(
@@ -78,34 +79,73 @@ export default function SurveyRenderer({
             : [...arr, value],
         };
       });
+      setMissing((prev) => prev.filter((f) => f !== fieldId));
     },
     []
   );
 
   // ─── Validation ───
+  // Renvoie la liste des `field.id` manquants pour l'étape donnée.
+  // Tient compte de l'affichage conditionnel (un champ requis caché
+  // par condition n'est pas évalué).
 
-  const validateStep = useCallback(
-    (stepIndex: number): boolean => {
+  const missingFieldsForStep = useCallback(
+    (stepIndex: number): string[] => {
       const step = steps[stepIndex];
+      if (!step) return [];
+      const missing: string[] = [];
       for (const field of step.fields) {
         if (!field.required) continue;
+        // conditionnel masqué : on saute
+        if (field.conditional) {
+          const depVal = formData[field.conditional.field];
+          const visible = Array.isArray(field.conditional.value)
+            ? field.conditional.value.includes(depVal as string)
+            : depVal === field.conditional.value;
+          if (!visible) continue;
+        }
         const val = formData[field.id];
-        if (val === undefined || val === null || val === "") return false;
-        if (Array.isArray(val) && val.length === 0) return false;
+        if (val === undefined || val === null || val === "") missing.push(field.id);
+        else if (Array.isArray(val) && val.length === 0) missing.push(field.id);
       }
-      return true;
+      return missing;
     },
     [steps, formData]
   );
 
+  const validateStep = useCallback(
+    (stepIndex: number): boolean => missingFieldsForStep(stepIndex).length === 0,
+    [missingFieldsForStep]
+  );
+
+  const [showErrors, setShowErrors] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);
+
   // ─── Navigation ───
 
   const goNext = useCallback(() => {
+    const m = missingFieldsForStep(currentStep);
+    if (m.length > 0) {
+      setMissing(m);
+      setShowErrors(true);
+      // Focus sur le premier champ manquant
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(`[data-field-id="${m[0]}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          const focusable = el.querySelector<HTMLElement>("input, select, textarea, button");
+          focusable?.focus({ preventScroll: true });
+        }
+      });
+      return;
+    }
+    setShowErrors(false);
+    setMissing([]);
     if (currentStep < totalSteps - 1) {
       setCurrentStep((s) => s + 1);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [currentStep, totalSteps]);
+  }, [currentStep, totalSteps, missingFieldsForStep]);
 
   const goPrev = useCallback(() => {
     if (currentStep > 0) {
@@ -115,6 +155,13 @@ export default function SurveyRenderer({
   }, [currentStep]);
 
   const handleSubmit = useCallback(async () => {
+    // Validation finale de l'étape courante avant envoi
+    const m = missingFieldsForStep(currentStep);
+    if (m.length > 0) {
+      setMissing(m);
+      setShowErrors(true);
+      return;
+    }
     setSubmitting(true);
     try {
       const duration = Math.round((Date.now() - startTime) / 1000);
@@ -145,7 +192,7 @@ export default function SurveyRenderer({
     } finally {
       setSubmitting(false);
     }
-  }, [formData, onSubmit, surveyId, startTime]);
+  }, [formData, onSubmit, surveyId, startTime, missingFieldsForStep, currentStep, requireConsent, consentGiven, consentText]);
 
   // ─── Render field ───
 
@@ -393,8 +440,13 @@ export default function SurveyRenderer({
                 if (!show) return null;
               }
 
+              const isMissing = showErrors && missing.includes(field.id);
               return (
-                <div key={field.id} className="civiq-field">
+                <div
+                  key={field.id}
+                  data-field-id={field.id}
+                  className={`civiq-field${isMissing ? " civiq-field-error" : ""}`}
+                >
                   <label className="civiq-field-label">
                     {field.label}
                     {field.required && (
@@ -405,6 +457,9 @@ export default function SurveyRenderer({
                     <p className="civiq-field-hint">{field.hint}</p>
                   )}
                   {renderField(field)}
+                  {isMissing && (
+                    <p className="civiq-field-error-msg">⚠ Cette réponse est obligatoire</p>
+                  )}
                 </div>
               );
             })}

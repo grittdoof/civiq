@@ -1,192 +1,64 @@
-"use client";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import AdminShell from "./AdminShell";
+import { createClient, createServiceClient } from "@/lib/supabase-server";
 
-import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase-browser";
-import { Settings, LogOut, Menu, X, Shield } from "lucide-react";
-import { getAdminNavForModules } from "@/modules/registry";
+// ═══════════════════════════════════════════════════════════════
+// /admin/** — Server-side guard
+//
+// Cette layout SERVER vérifie l'authentification AVANT d'envoyer le
+// HTML. Si non connecté → redirect 307 vers /auth/login.
+// L'UI client (sidebar) est dans AdminShell.tsx.
+// ═══════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════
-// ADMIN LAYOUT — Sidebar dynamique basée sur les modules activés
-// ═══════════════════════════════════════════════════
+export const dynamic = "force-dynamic";
 
-// Entrée CORE (toujours présente, pas liée à un module)
-const CORE_NAV_ITEMS = [
-  { href: "/admin/profile", label: "Profil & paramètres", icon: Settings, exact: false },
-];
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const h = await headers();
+  const pathname = h.get("x-pathname") || h.get("x-invoke-path") || "/admin";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [activeModuleKeys, setActiveModuleKeys] = useState<string[]>([]);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  // /admin/setup est l'onboarding post-magic-link : on vérifie juste
+  // l'auth, pas la commune (qui est en cours de création)
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const isSetup = pathname === "/admin/setup";
-
-  useEffect(() => {
-    if (isSetup) return;
-    fetch("/api/auth/me")
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (!data) return;
-        if (data.commune) setCommune(data.commune);
-        if (data.is_super_admin) setIsSuperAdmin(true);
-        if (Array.isArray(data.modules)) {
-          setActiveModuleKeys(data.modules.map((m: { id: string }) => m.id));
-        }
-      })
-      .catch(() => {});
-  }, [isSetup]);
-
-  // Nav = items des modules activés + items core
-  const navItems = useMemo(
-    () => [...getAdminNavForModules(activeModuleKeys), ...CORE_NAV_ITEMS],
-    [activeModuleKeys]
-  );
-
-  async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/auth/login");
+  if (!user) {
+    const target = encodeURIComponent(pathname);
+    redirect(`/auth/login?redirect=${target}`);
   }
 
-  function isActive(item: { href: string; exact?: boolean }) {
-    return item.exact ? pathname === item.href : pathname.startsWith(item.href);
+  // Lire le profil + modules actifs côté serveur (pas de flash UI)
+  const service = await createServiceClient();
+  const { data: profile } = await service
+    .from("profiles")
+    .select(`role, commune_id, communes(name, slug)`)
+    .eq("id", user.id)
+    .single();
+
+  const role = profile?.role ?? null;
+  const isSuperAdmin = role === "super_admin";
+  const commune = (profile?.communes as unknown as { name: string; slug: string } | null) ?? null;
+
+  // Modules activés (super-admin = tous, sinon ceux de la commune)
+  let modules: string[] = [];
+  if (isSuperAdmin) {
+    const { data: all } = await service.from("modules").select("id").eq("is_available", true);
+    modules = (all ?? []).map((m) => m.id);
+  } else if (profile?.commune_id) {
+    const { data: cm } = await service
+      .from("commune_modules")
+      .select("module_id")
+      .eq("commune_id", profile.commune_id);
+    modules = (cm ?? []).map((c) => c.module_id);
   }
-
-  if (isSetup) return <>{children}</>;
-
-  const sidebar = (
-    <aside className="civiq-sidebar">
-      {/* Logo */}
-      <div className="civiq-sidebar-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-          <rect x="2" y="10" width="20" height="12" rx="1.5" fill="var(--accent)" />
-          <rect x="6" y="6" width="12" height="5" rx="1" fill="var(--accent)" opacity="0.6" />
-          <rect x="9" y="2" width="6" height="5" rx="1" fill="var(--accent)" opacity="0.35" />
-          <rect x="9" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
-          <rect x="13" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
-        </svg>
-        <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.03em", color: "var(--fg)" }}>
-          GoCiviQ
-        </span>
-      </div>
-
-      <div style={{ height: 1, background: "var(--border)" }} />
-
-      {/* Commune */}
-      {commune && (
-        <div className="civiq-sidebar-municipality">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", display: "block", flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{commune.name}</div>
-              <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 1 }}>/{commune.slug}</div>
-            </div>
-          </div>
-          {isSuperAdmin && (
-            <span className="civiq-badge civiq-badge-warning">Super Admin</span>
-          )}
-        </div>
-      )}
-
-      <div style={{ height: 1, background: "var(--border)" }} />
-
-      {/* Super admin link */}
-      {isSuperAdmin && (
-        <div style={{ padding: "8px 10px 0" }}>
-          <Link
-            href="/super-admin/dashboard"
-            className="civiq-nav-item"
-            style={{ color: "var(--accent)", fontWeight: 600 }}
-            onClick={() => setMobileOpen(false)}
-          >
-            <Shield size={15} />
-            <span>Espace Super Admin</span>
-          </Link>
-        </div>
-      )}
-
-      {/* Nav */}
-      <nav className="civiq-sidebar-nav">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`civiq-nav-item${isActive(item) ? " active" : ""}`}
-              onClick={() => setMobileOpen(false)}
-            >
-              <Icon size={15} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="civiq-sidebar-footer">
-        <div style={{ height: 1, background: "var(--border)", marginBottom: 12 }} />
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="civiq-nav-item"
-          style={{ width: "100%", color: "var(--fg-muted)" }}
-        >
-          <div style={{
-            width: 26, height: 26, borderRadius: "50%",
-            background: "var(--accent)", color: "white",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 700, flexShrink: 0,
-          }}>
-            {commune?.name?.[0]?.toUpperCase() || "A"}
-          </div>
-          <span style={{ flex: 1, textAlign: "left", fontSize: 13 }}>Déconnexion</span>
-          <LogOut size={14} />
-        </button>
-      </div>
-    </aside>
-  );
 
   return (
-    <div className="civiq-app">
-      {/* Mobile hamburger */}
-      <button
-        className="civiq-mobile-menu-btn"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Menu"
-        type="button"
-      >
-        <Menu size={18} />
-      </button>
-
-      {/* Desktop sidebar */}
-      <div className="civiq-sidebar-desktop">{sidebar}</div>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="civiq-sidebar-overlay" onClick={() => setMobileOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="civiq-sidebar-mobile">
-            <button
-              className="civiq-close-btn"
-              onClick={() => setMobileOpen(false)}
-              type="button"
-            >
-              <X size={18} />
-            </button>
-            {sidebar}
-          </div>
-        </div>
-      )}
-
-      {/* Main content */}
-      <div className="civiq-content">
-        {children}
-      </div>
-    </div>
+    <AdminShell
+      commune={commune}
+      isSuperAdmin={isSuperAdmin}
+      initialActiveModuleKeys={modules}
+    >
+      {children}
+    </AdminShell>
   );
 }

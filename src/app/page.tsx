@@ -225,16 +225,31 @@ export default async function HomePage() {
           justify-content: space-between;
           align-items: center;
           padding: 20px 0;
+          position: relative;
+          z-index: 10;
         }
         .landing-logo { display: flex; align-items: center; gap: 10px; }
         .logo-icon { font-size: 28px; }
         .logo-text { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; color: #fff; }
-        .landing-nav-links { display: flex; gap: 12px; }
-        .nav-btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: 0.2s; }
-        .nav-btn.secondary { color: #fff; border: 1px solid rgba(255,255,255,0.3); }
-        .nav-btn.secondary:hover { background: rgba(255,255,255,0.1); }
-        .nav-btn.primary { background: #c9a84c; color: #1a2744; }
-        .nav-btn.primary:hover { background: #d4b65f; }
+        .landing-nav-links { display: flex; gap: 12px; align-items: center; position: relative; z-index: 5; }
+        .nav-btn {
+          display: inline-flex;
+          align-items: center;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          transition: 0.2s;
+          cursor: pointer;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .nav-btn.secondary { color: #fff; border: 1px solid rgba(255,255,255,0.4); background: transparent; }
+        .nav-btn.secondary:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.6); }
+        .nav-btn.primary { background: #c9a84c; color: #1a2744; border: 1px solid #c9a84c; }
+        .nav-btn.primary:hover { background: #d4b65f; border-color: #d4b65f; }
+        .nav-btn:focus-visible { outline: 2px solid #c9a84c; outline-offset: 2px; }
 
         /* ─── HERO ─── */
         .landing-hero {
