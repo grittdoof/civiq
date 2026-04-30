@@ -107,10 +107,6 @@ export default function OnboardingPage() {
     if (res.ok) await load();
   }
 
-  if (loading) {
-    return <main className="onb-page"><p>Chargement…</p></main>;
-  }
-
   // ─── État : demande en cours ───
   if (pending && pending.status === "pending") {
     return (
@@ -158,6 +154,7 @@ export default function OnboardingPage() {
           <p style={{ fontSize: 15, color: "var(--fg-muted)", maxWidth: 540, margin: "0 auto", lineHeight: 1.6 }}>
             Pour accéder aux fonctionnalités d&apos;administration, vous devez être rattaché·e à une commune. Choisissez l&apos;option qui vous correspond ci-dessous.
           </p>
+          {loading && <p style={{ fontSize: 12, color: "var(--fg-xmuted)", marginTop: 8 }}>Chargement des communes…</p>}
         </div>
 
         {showRejected && pending && (
