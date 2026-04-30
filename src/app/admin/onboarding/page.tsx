@@ -44,18 +44,32 @@ export default function OnboardingPage() {
 
   async function load() {
     setLoading(true);
-    const [reqRes, commRes] = await Promise.all([
-      fetch("/api/commune-requests").then((r) => r.ok ? r.json() : []),
-      fetch("/api/communes/public").then((r) => r.ok ? r.json() : []),
-    ]);
-    if (Array.isArray(reqRes) && reqRes.length) {
-      // Affiche la dernière (pending ou rejected)
-      setPending(reqRes[0]);
-    } else {
-      setPending(null);
+    try {
+      const reqRes = await fetch("/api/commune-requests").catch(() => null);
+      const commRes = await fetch("/api/communes/public").catch(() => null);
+
+      if (reqRes?.ok) {
+        try {
+          const data = await reqRes.json();
+          if (Array.isArray(data) && data.length) setPending(data[0]);
+          else setPending(null);
+        } catch { setPending(null); }
+      } else if (reqRes && reqRes.status >= 500) {
+        setErrorMsg("Le service de demandes est temporairement indisponible. La migration 009 doit peut-être être appliquée côté Supabase.");
+      }
+
+      if (commRes?.ok) {
+        try {
+          const data = await commRes.json();
+          if (Array.isArray(data)) setCommunes(data);
+        } catch { /* keep empty */ }
+      }
+    } catch (e) {
+      console.error("onboarding load:", e);
+      setErrorMsg("Erreur de chargement. Réessayez dans un instant.");
+    } finally {
+      setLoading(false);
     }
-    if (Array.isArray(commRes)) setCommunes(commRes);
-    setLoading(false);
   }
 
   useEffect(() => { load(); }, []);

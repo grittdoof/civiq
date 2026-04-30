@@ -36,14 +36,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const isSuperAdmin = role === "super_admin";
   const commune = (profile?.communes as unknown as { name: string; slug: string } | null) ?? null;
 
-  // Pas de commune et pas super-admin → onboarding
-  // Exceptions : /admin/onboarding lui-même, /admin/setup (legacy)
-  if (!commune && !isSuperAdmin) {
-    const isOnboarding = pathname.startsWith("/admin/onboarding");
-    const isSetup = pathname === "/admin/setup";
-    if (!isOnboarding && !isSetup) {
-      redirect("/admin/onboarding");
-    }
+  const isOnboarding = pathname.startsWith("/admin/onboarding");
+  const isSetup = pathname === "/admin/setup";
+
+  // Pas de commune et pas super-admin → onboarding obligatoire
+  if (!commune && !isSuperAdmin && !isOnboarding && !isSetup) {
+    redirect("/admin/onboarding");
+  }
+
+  // Pour /admin/onboarding et /admin/setup : on bypasse le shell
+  // (sidebar inutile avant l'attribution d'une commune)
+  if (isOnboarding || isSetup) {
+    return <>{children}</>;
   }
 
   // Modules activés (super-admin = tous, sinon ceux de la commune)
