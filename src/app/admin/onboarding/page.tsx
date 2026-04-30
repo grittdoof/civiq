@@ -1,18 +1,21 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createClient, createServiceClient } from "@/lib/supabase-server";
+import OnboardingForm from "./OnboardingForm";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import {
-  Building2, Plus, Search, ArrowRight, Clock, CheckCircle2, AlertCircle, X,
-} from "lucide-react";
+// ═══════════════════════════════════════════════════════════════
+// /admin/onboarding — Server Component
+//
+// Pré-charge côté serveur :
+//  • la commune existante de l'utilisateur (pour redirect si déjà
+//    rattaché)
+//  • la liste des communes publiques (pour le formulaire « join »)
+//  • la demande pending éventuelle de l'utilisateur
+//
+// Le rendu HTML est garanti même si le JS client est cassé.
+// La logique interactive est dans OnboardingForm.tsx (Client).
+// ═══════════════════════════════════════════════════════════════
 
-interface CommuneOption {
-  id: string;
-  name: string;
-  slug: string;
-  code_postal: string | null;
-}
+export const dynamic = "force-dynamic";
 
 interface PendingRequest {
   id: string;
@@ -24,292 +27,54 @@ interface PendingRequest {
   communes?: { name: string; slug: string } | null;
 }
 
-export default function OnboardingPage() {
-  const router = useRouter();
-  const [pending, setPending] = useState<PendingRequest | null>(null);
-  const [communes, setCommunes] = useState<CommuneOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"join" | "create">("join");
+interface CommuneOption {
+  id: string;
+  name: string;
+  slug: string;
+  code_postal: string | null;
+}
 
-  // Form state
-  const [search, setSearch] = useState("");
-  const [selectedCommune, setSelectedCommune] = useState<string | null>(null);
-  const [proposedName, setProposedName] = useState("");
-  const [codePostal, setCodePostal] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [message, setMessage] = useState("");
+export default async function OnboardingPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login?redirect=/admin/onboarding");
 
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const service = await createServiceClient();
 
-  async function load() {
-    setLoading(true);
-    try {
-      const reqRes = await fetch("/api/commune-requests").catch(() => null);
-      const commRes = await fetch("/api/communes/public").catch(() => null);
-
-      if (reqRes?.ok) {
-        try {
-          const data = await reqRes.json();
-          if (Array.isArray(data) && data.length) setPending(data[0]);
-          else setPending(null);
-        } catch { setPending(null); }
-      } else if (reqRes && reqRes.status >= 500) {
-        setErrorMsg("Le service de demandes est temporairement indisponible. La migration 009 doit peut-être être appliquée côté Supabase.");
-      }
-
-      if (commRes?.ok) {
-        try {
-          const data = await commRes.json();
-          if (Array.isArray(data)) setCommunes(data);
-        } catch { /* keep empty */ }
-      }
-    } catch (e) {
-      console.error("onboarding load:", e);
-      setErrorMsg("Erreur de chargement. Réessayez dans un instant.");
-    } finally {
-      setLoading(false);
-    }
+  // Si déjà rattaché → dashboard
+  const { data: profile } = await service
+    .from("profiles")
+    .select("commune_id, role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.commune_id || profile?.role === "super_admin") {
+    redirect("/admin/dashboard");
   }
 
-  useEffect(() => { load(); }, []);
+  // Demande en cours / rejetée la plus récente
+  const { data: requests } = await service
+    .from("commune_requests")
+    .select("id, request_type, status, proposed_name, rejection_reason, created_at, communes(name, slug)")
+    .eq("user_id", user.id)
+    .in("status", ["pending", "rejected"])
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const pending = (requests?.[0] ?? null) as PendingRequest | null;
 
-  async function submit() {
-    setErrorMsg(null);
-    setSubmitting(true);
-    const body = tab === "join"
-      ? { request_type: "join", commune_id: selectedCommune, message }
-      : {
-          request_type: "create",
-          proposed_name: proposedName,
-          proposed_code_postal: codePostal,
-          proposed_email: contactEmail,
-          message,
-        };
-    const res = await fetch("/api/commune-requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setSubmitting(false);
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErrorMsg(data.error || "Erreur lors de l'envoi de la demande");
-      return;
-    }
-    await load();
-  }
-
-  async function cancelRequest() {
-    if (!pending || pending.status !== "pending") return;
-    if (!confirm("Annuler votre demande en cours ?")) return;
-    const res = await fetch(`/api/commune-requests?id=${pending.id}`, { method: "DELETE" });
-    if (res.ok) await load();
-  }
-
-  // ─── État : demande en cours ───
-  if (pending && pending.status === "pending") {
-    return (
-      <main className="onb-page">
-        <div className="civiq-card" style={{ padding: 32, maxWidth: 540, margin: "60px auto", textAlign: "center" }}>
-          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--warning-light)", color: "var(--warning)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <Clock size={26} />
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: "var(--fg)" }}>Demande en cours d&apos;examen</h1>
-          <p style={{ fontSize: 14, color: "var(--fg-muted)", marginBottom: 16, lineHeight: 1.6 }}>
-            {pending.request_type === "join"
-              ? <>Votre demande de rattachement à <strong>{pending.communes?.name}</strong> a été transmise à un super-administrateur.</>
-              : <>Votre demande de création de la commune <strong>{pending.proposed_name}</strong> a été transmise à un super-administrateur.</>}
-          </p>
-          <p style={{ fontSize: 13, color: "var(--fg-xmuted)", marginBottom: 20 }}>
-            Vous recevrez un email dès la décision. En attendant, vous pouvez consulter la plateforme en lecture seule.
-          </p>
-          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-            <button type="button" onClick={cancelRequest} className="civiq-btn civiq-btn-outline">
-              <X size={14} /> Annuler ma demande
-            </button>
-            <Link href="/auth/login" className="civiq-btn civiq-btn-ghost" onClick={(e) => {
-              e.preventDefault();
-              fetch("/auth/logout", { method: "POST" }).finally(() => router.push("/"));
-            }}>
-              Me déconnecter
-            </Link>
-          </div>
-        </div>
-        <style>{onbCss}</style>
-      </main>
-    );
-  }
-
-  // ─── État : demande refusée → permet d'en refaire une ───
-  const showRejected = pending && pending.status === "rejected";
+  // Liste des communes (pour le tab « join »)
+  const { data: communesRaw } = await service
+    .from("communes")
+    .select("id, name, slug, code_postal, archived_at")
+    .order("name");
+  const communes: CommuneOption[] = (communesRaw ?? [])
+    .filter((c) => !(c as { archived_at?: string }).archived_at)
+    .map(({ id, name, slug, code_postal }) => ({ id, name, slug, code_postal }));
 
   return (
-    <main className="onb-page">
-      <div style={{ maxWidth: 720, margin: "40px auto", padding: "0 20px" }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.03em", marginBottom: 6 }}>
-            Bienvenue sur GoCiviQ
-          </h1>
-          <p style={{ fontSize: 15, color: "var(--fg-muted)", maxWidth: 540, margin: "0 auto", lineHeight: 1.6 }}>
-            Pour accéder aux fonctionnalités d&apos;administration, vous devez être rattaché·e à une commune. Choisissez l&apos;option qui vous correspond ci-dessous.
-          </p>
-          {loading && <p style={{ fontSize: 12, color: "var(--fg-xmuted)", marginTop: 8 }}>Chargement des communes…</p>}
-        </div>
-
-        {showRejected && pending && (
-          <div className="civiq-card" style={{ padding: 14, background: "oklch(0.97 0.04 25)", borderColor: "var(--destructive)", marginBottom: 20 }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <AlertCircle size={18} style={{ color: "var(--destructive)", flexShrink: 0, marginTop: 2 }} />
-              <div style={{ fontSize: 13, color: "var(--fg)" }}>
-                <strong>Demande précédente refusée.</strong> {pending.rejection_reason && <em>« {pending.rejection_reason} »</em>}
-                <br />Vous pouvez en soumettre une nouvelle ci-dessous.
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: 20 }}>
-          <button type="button" onClick={() => setTab("join")} style={tabStyle(tab === "join")}>
-            <Search size={14} /> Rejoindre une commune existante
-          </button>
-          <button type="button" onClick={() => setTab("create")} style={tabStyle(tab === "create")}>
-            <Plus size={14} /> Créer ma commune
-          </button>
-        </div>
-
-        {errorMsg && (
-          <div style={{ padding: "10px 14px", background: "oklch(0.97 0.04 25)", border: "1px solid var(--destructive)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 13, marginBottom: 14 }}>
-            {errorMsg}
-          </div>
-        )}
-
-        {tab === "join" ? (
-          <div className="civiq-card" style={{ padding: 20 }}>
-            <label className="civiq-field-label">Rechercher votre commune</label>
-            <input
-              type="text"
-              className="civiq-input"
-              placeholder="Nom ou code postal…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <div style={{ marginTop: 12, maxHeight: 280, overflowY: "auto", display: "grid", gap: 6 }}>
-              {communes
-                .filter((c) =>
-                  !search.trim() ||
-                  c.name.toLowerCase().includes(search.toLowerCase()) ||
-                  c.code_postal?.includes(search)
-                )
-                .slice(0, 30)
-                .map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedCommune(c.id)}
-                    style={{
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      borderRadius: "var(--radius-sm)",
-                      border: `1px solid ${selectedCommune === c.id ? "var(--accent)" : "var(--border)"}`,
-                      background: selectedCommune === c.id ? "var(--accent-light)" : "var(--card)",
-                      cursor: "pointer",
-                      display: "flex", alignItems: "center", gap: 10, fontFamily: "inherit",
-                    }}
-                  >
-                    <Building2 size={16} style={{ color: "var(--fg-muted)" }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--fg-muted)" }}>
-                        {c.code_postal || ""} · /{c.slug}
-                      </div>
-                    </div>
-                    {selectedCommune === c.id && <CheckCircle2 size={16} style={{ color: "var(--accent)" }} />}
-                  </button>
-                ))}
-              {communes.length === 0 && (
-                <p style={{ padding: 16, textAlign: "center", fontSize: 13, color: "var(--fg-muted)" }}>
-                  Aucune commune disponible pour le moment.
-                </p>
-              )}
-            </div>
-
-            <label className="civiq-field-label" style={{ marginTop: 16 }}>Message (optionnel)</label>
-            <textarea
-              className="civiq-input civiq-textarea"
-              rows={3}
-              placeholder="Expliquez votre rôle dans cette commune"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
-
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!selectedCommune || submitting}
-              className="civiq-btn civiq-btn-default"
-              style={{ width: "100%", justifyContent: "center", marginTop: 14, padding: "12px 22px" }}
-            >
-              {submitting ? "Envoi…" : <>Demander le rattachement <ArrowRight size={14} /></>}
-            </button>
-          </div>
-        ) : (
-          <div className="civiq-card" style={{ padding: 20 }}>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div>
-                <label className="civiq-field-label">Nom de la commune *</label>
-                <input type="text" className="civiq-input" value={proposedName} onChange={(e) => setProposedName(e.target.value)} placeholder="Châteauneuf" />
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <div>
-                  <label className="civiq-field-label">Code postal</label>
-                  <input type="text" className="civiq-input" value={codePostal} onChange={(e) => setCodePostal(e.target.value)} placeholder="06390" />
-                </div>
-                <div>
-                  <label className="civiq-field-label">Email de contact</label>
-                  <input type="email" className="civiq-input" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="mairie@…" />
-                </div>
-              </div>
-              <div>
-                <label className="civiq-field-label">Précisions (recommandé)</label>
-                <textarea
-                  className="civiq-input civiq-textarea"
-                  rows={3}
-                  placeholder="Justifiez votre rôle (maire, DGS, élu mandaté…) pour accélérer la validation."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!proposedName.trim() || submitting}
-              className="civiq-btn civiq-btn-default"
-              style={{ width: "100%", justifyContent: "center", marginTop: 14, padding: "12px 22px" }}
-            >
-              {submitting ? "Envoi…" : <>Demander la création <ArrowRight size={14} /></>}
-            </button>
-          </div>
-        )}
-      </div>
-      <style>{onbCss}</style>
-    </main>
+    <OnboardingForm
+      initialPending={pending}
+      initialCommunes={communes}
+      userEmail={user.email ?? null}
+    />
   );
 }
-
-function tabStyle(active: boolean): React.CSSProperties {
-  return {
-    display: "inline-flex", alignItems: "center", gap: 6,
-    padding: "10px 16px", fontSize: 13, fontWeight: 600,
-    background: "transparent", border: "none",
-    borderBottom: `2px solid ${active ? "var(--accent)" : "transparent"}`,
-    color: active ? "var(--accent)" : "var(--fg-muted)",
-    cursor: "pointer", marginBottom: -1, fontFamily: "inherit",
-  };
-}
-
-const onbCss = `
-  .onb-page { min-height: calc(100vh - 60px); padding: 16px; background: var(--bg); }
-`;

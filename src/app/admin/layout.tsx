@@ -30,7 +30,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .from("profiles")
     .select(`role, commune_id, communes(name, slug)`)
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
+
+  // Auto-création du profil si manquant (filet de sécurité au cas où
+  // /auth/callback aurait échoué à le créer)
+  if (!profile) {
+    await service.from("profiles").upsert({
+      id: user.id,
+      role: "viewer",
+      job_title: "citoyen",
+    });
+  }
 
   const role = profile?.role ?? null;
   const isSuperAdmin = role === "super_admin";
