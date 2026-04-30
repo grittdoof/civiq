@@ -2,27 +2,30 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
 // ═══════════════════════════════════════════════════════════════
-// Middleware — Garde principale du back-office
+// Middleware
 //
-//   • /admin/**       → user connecté requis ; sinon redirect login
-//   • /super-admin/** → user connecté ET role=super_admin ; sinon
-//                        redirect login (pas connecté) ou /admin
-//                        (connecté mais pas super_admin)
-//   • /admin/setup    → exception : on laisse passer pour pouvoir
-//                        terminer l'onboarding (commune_id manquant)
-//   • /auth/login|register quand déjà connecté → /admin/dashboard
+// 1. Crée le client Supabase, refresh les cookies de session
+//    (pattern officiel @supabase/ssr — ne PAS modifier la
+//     mécanique cookies sans risque de "Invalid Refresh Token")
+// 2. Injecte x-pathname dans les headers pour les Server Components
+// 3. Garde-fous redirects : /admin/**, /super-admin/**, /api/super-admin/**
+//
+// Ordre crucial : on instancie d'abord supabase + on appelle
+// getUser() (qui peut fire le setAll de cookies) AVANT toute autre
+// modification du response.
 // ═══════════════════════════════════════════════════════════════
 
 const PUBLIC_AUTH_ROUTES = ["/auth/login", "/auth/register", "/auth/reset-password"];
 
 export async function middleware(request: NextRequest) {
-  // Injecter le pathname dans les headers pour qu'il soit lisible par
-  // les Server Components via headers() — sans cela, layouts ne peuvent
-  // pas connaître l'URL en cours et risquent les boucles de redirect.
+  // Headers de requête forwardés aux Server Components — on injecte
+  // x-pathname pour que les layouts puissent connaître l'URL en cours
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
-  let response = NextResponse.next({ request: { headers: requestHeaders } });
+  let response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,8 +38,13 @@ export async function middleware(request: NextRequest) {
         setAll(
           cookiesToSet: { name: string; value: string; options: CookieOptions }[]
         ) {
+          // 1. Mettre à jour les cookies sur la requête (lus par getAll suivants)
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request: { headers: requestHeaders } });
+          // 2. Recréer la response en conservant nos custom headers (x-pathname)
+          response = NextResponse.next({
+            request: { headers: requestHeaders },
+          });
+          // 3. Écrire les cookies sur la response → renvoyés au navigateur
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -45,7 +53,17 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // IMPORTANT : getUser() peut déclencher un refresh + setAll
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Refresh token invalide → on traite comme non connecté (le client
+    // se reconnectera ou le user sera redirigé vers /auth/login)
+    user = null;
+  }
+
   const path = request.nextUrl.pathname;
 
   // ── 1. Routes admin : auth requis ──
@@ -64,7 +82,6 @@ export async function middleware(request: NextRequest) {
       url.searchParams.set("redirect", path);
       return NextResponse.redirect(url);
     }
-    // On lit le rôle depuis profiles (via service role pour bypass RLS)
     const role = await getUserRole(user.id);
     if (role !== "super_admin") {
       const url = request.nextUrl.clone();
@@ -92,8 +109,7 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-// Lit le rôle depuis profiles via fetch direct (le service role n'est
-// pas dispo en edge runtime, on passe par REST avec l'anon key + RLS)
+// Lit le rôle depuis profiles via fetch REST (service role)
 async function getUserRole(userId: string): Promise<string | null> {
   try {
     const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=role`;
