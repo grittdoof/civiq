@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
     .from("surveys")
     .select("*, responses(count)")
     .eq("commune_id", profile.commune_id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -70,8 +71,10 @@ export async function POST(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  if (!profile?.commune_id || !["admin", "super_admin", "editor"].includes(profile.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
+  // Création réservée aux admins (et super_admin). Les éditeurs ne créent
+  // que via la duplication d'un sondage existant — pas via cette API.
+  if (!profile?.commune_id || !["admin", "super_admin"].includes(profile.role)) {
+    return NextResponse.json({ error: "Seuls les administrateurs peuvent créer un sondage" }, { status: 403 });
   }
 
   const body = await request.json();

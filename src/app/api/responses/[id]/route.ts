@@ -39,13 +39,14 @@ async function authorize(responseId: string) {
 
   const isSuperAdmin = profile.role === "super_admin";
   const sameCommune = profile.commune_id === resp.commune_id;
-  const allowedRole = ["admin", "editor"].includes(profile.role);
+  const canEdit = ["admin", "editor"].includes(profile.role);
+  const canDelete = profile.role === "admin";
 
-  if (!isSuperAdmin && !(sameCommune && allowedRole)) {
+  if (!isSuperAdmin && !(sameCommune && canEdit)) {
     return { ok: false as const, response: NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 }) };
   }
 
-  return { ok: true as const, service, profile, response: resp };
+  return { ok: true as const, service, profile, canDelete: isSuperAdmin || (sameCommune && canDelete), response: resp };
 }
 
 // PATCH /api/responses/[id] — modifier la data d'une réponse
@@ -77,14 +78,35 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ success: true });
 }
 
-// DELETE /api/responses/[id]
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+// DELETE /api/responses/[id] — soft delete (admin uniquement)
+//   ?hard=true → suppression définitive (super-admin uniquement)
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const auth = await authorize(id);
   if (!auth.ok) return auth.response;
+  if (!auth.canDelete) {
+    return NextResponse.json({ error: "Seuls les administrateurs peuvent supprimer une réponse" }, { status: 403 });
+  }
 
-  const { error } = await auth.service.from("responses").delete().eq("id", id);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const url = new URL(request.url);
+  const hard = url.searchParams.get("hard") === "true";
+
+  if (hard) {
+    if (auth.profile.role !== "super_admin") {
+      return NextResponse.json({ error: "Suppression définitive réservée aux super-admins" }, { status: 403 });
+    }
+    const { error } = await auth.service.from("responses").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, mode: "hard" });
+  }
+
+  const { error } = await auth.service
+    .from("responses")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user?.id })
+    .eq("id", id);
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, mode: "soft" });
 }

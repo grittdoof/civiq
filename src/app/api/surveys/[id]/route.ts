@@ -135,39 +135,85 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   return NextResponse.json(survey);
 }
 
-// DELETE /api/surveys/[id]
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+// DELETE /api/surveys/[id]?hard=true
+//
+// Comportement par défaut : SOFT delete (deleted_at = now()).
+// Le sondage reste 30 jours en corbeille puis est purgé automatiquement.
+//
+// hard=true : suppression définitive immédiate, super-admin uniquement.
+//
+// Réservé aux admins+. Les éditeurs ne peuvent pas supprimer.
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
-  // Service client → bypass RLS récursif sur profiles
   const service = await createServiceClient();
-
   const { data: profile } = await service
     .from("profiles")
     .select("commune_id, role")
     .eq("id", user.id)
     .single();
 
-  if (
-    !profile?.commune_id ||
-    !["admin", "super_admin", "editor"].includes(profile.role)
-  ) {
+  if (!profile?.commune_id || !["admin", "super_admin"].includes(profile.role)) {
+    return NextResponse.json({ error: "Seuls les administrateurs peuvent supprimer un sondage" }, { status: 403 });
+  }
+
+  const url = new URL(request.url);
+  const hard = url.searchParams.get("hard") === "true";
+
+  if (hard) {
+    if (profile.role !== "super_admin") {
+      return NextResponse.json({ error: "Suppression définitive réservée aux super-admins" }, { status: 403 });
+    }
+    const { error } = await service.from("surveys").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, mode: "hard" });
+  }
+
+  // Soft delete : place en corbeille (30 j de rétention)
+  const { error } = await service
+    .from("surveys")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
+    .eq("id", id)
+    .eq("commune_id", profile.commune_id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, mode: "soft" });
+}
+
+// POST /api/surveys/[id]?action=restore — restaurer un sondage de la corbeille
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action");
+  if (action !== "restore") {
+    return NextResponse.json({ error: "Action inconnue" }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+
+  const service = await createServiceClient();
+  const { data: profile } = await service
+    .from("profiles")
+    .select("commune_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.commune_id || !["admin", "super_admin"].includes(profile.role)) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
 
   const { error } = await service
     .from("surveys")
-    .delete()
+    .update({ deleted_at: null, deleted_by: null })
     .eq("id", id)
     .eq("commune_id", profile.commune_id);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

@@ -69,6 +69,7 @@ export default function SurveyResultsPage() {
           .from("responses")
           .select("*")
           .eq("survey_id", surveyId)
+          .is("deleted_at", null)
           .order("submitted_at", { ascending: true }),
         fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null)),
       ]);

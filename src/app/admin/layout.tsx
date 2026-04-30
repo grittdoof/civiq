@@ -6,9 +6,11 @@ import { createClient, createServiceClient } from "@/lib/supabase-server";
 // ═══════════════════════════════════════════════════════════════
 // /admin/** — Server-side guard
 //
-// Cette layout SERVER vérifie l'authentification AVANT d'envoyer le
-// HTML. Si non connecté → redirect 307 vers /auth/login.
-// L'UI client (sidebar) est dans AdminShell.tsx.
+// 1. Auth obligatoire (sinon /auth/login)
+// 2. Si pas de commune attribuée :
+//      - super-admin : pass-through (peut tout administrer)
+//      - sinon → /admin/onboarding (sauf si on y est déjà ou /setup)
+// 3. AdminShell injecte la sidebar avec les données pré-fetchées
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -17,17 +19,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const h = await headers();
   const pathname = h.get("x-pathname") || h.get("x-invoke-path") || "/admin";
 
-  // /admin/setup est l'onboarding post-magic-link : on vérifie juste
-  // l'auth, pas la commune (qui est en cours de création)
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
   if (!user) {
-    const target = encodeURIComponent(pathname);
-    redirect(`/auth/login?redirect=${target}`);
+    redirect(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
   }
 
-  // Lire le profil + modules actifs côté serveur (pas de flash UI)
   const service = await createServiceClient();
   const { data: profile } = await service
     .from("profiles")
@@ -38,6 +35,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const role = profile?.role ?? null;
   const isSuperAdmin = role === "super_admin";
   const commune = (profile?.communes as unknown as { name: string; slug: string } | null) ?? null;
+
+  // Pas de commune et pas super-admin → onboarding
+  // Exceptions : /admin/onboarding lui-même, /admin/setup (legacy)
+  if (!commune && !isSuperAdmin) {
+    const isOnboarding = pathname.startsWith("/admin/onboarding");
+    const isSetup = pathname === "/admin/setup";
+    if (!isOnboarding && !isSetup) {
+      redirect("/admin/onboarding");
+    }
+  }
 
   // Modules activés (super-admin = tous, sinon ceux de la commune)
   let modules: string[] = [];
@@ -56,6 +63,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminShell
       commune={commune}
       isSuperAdmin={isSuperAdmin}
+      role={role}
       initialActiveModuleKeys={modules}
     >
       {children}

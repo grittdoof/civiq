@@ -39,6 +39,10 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({ totalSurveys: 0, activeSurveys: 0, totalResponses: 0 });
   const [loading, setLoading] = useState(true);
   const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+
+  const canCreate = role === "admin" || role === "super_admin";
+  const canDelete = role === "admin" || role === "super_admin";
 
   useEffect(() => { loadData(); }, []);
 
@@ -49,15 +53,16 @@ export default function AdminDashboard() {
         fetch("/api/auth/me"),
       ]);
 
-      if (surveysRes.status === 403) return;
-      if (!surveysRes.ok) return;
-
-      const surveyData = await surveysRes.json() as SurveyRow[];
-      setSurveys(surveyData);
+      let surveyData: SurveyRow[] = [];
+      if (surveysRes.ok) {
+        surveyData = await surveysRes.json() as SurveyRow[];
+        setSurveys(surveyData);
+      }
 
       if (profileRes.ok) {
         const profileData = await profileRes.json();
         if (profileData.commune) setCommune(profileData.commune);
+        if (profileData.role) setRole(profileData.role);
       }
 
       setStats({
@@ -121,11 +126,24 @@ export default function AdminDashboard() {
         <div>
           <h1 className="civiq-page-title">Tableau de bord</h1>
           {commune && <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>{commune.name}</p>}
+          {role === "viewer" && (
+            <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>
+              Accès en lecture seule. Demandez à un administrateur de vous promouvoir éditeur pour modifier les sondages.
+            </p>
+          )}
         </div>
-        <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
-          <Plus size={15} />
-          Nouveau sondage
-        </Link>
+        <div style={{ display: "flex", gap: 8 }}>
+          {canDelete && (
+            <Link href="/admin/surveys/trash" className="civiq-btn civiq-btn-outline" title="Corbeille">
+              <Trash2 size={14} /> Corbeille
+            </Link>
+          )}
+          {canCreate && (
+            <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
+              <Plus size={15} /> Nouveau sondage
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* KPI cards */}
@@ -169,10 +187,12 @@ export default function AdminDashboard() {
           <div className="civiq-card" style={{ textAlign: "center", padding: "56px 24px", borderStyle: "dashed" }}>
             <FileText size={40} style={{ color: "var(--fg-xmuted)", margin: "0 auto 16px" }} strokeWidth={1.5} />
             <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 8 }}>Aucun sondage pour le moment</h3>
-            <p style={{ fontSize: 14, color: "var(--fg-muted)", marginBottom: 20 }}>Créez votre premier sondage ou partez d'un modèle.</p>
-            <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
+            <p style={{ fontSize: 14, color: "var(--fg-muted)", marginBottom: 20 }}>
+              {canCreate ? "Créez votre premier sondage ou partez d'un modèle." : "Aucun sondage publié dans cette commune."}
+            </p>
+            {canCreate && <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
               <Plus size={14} /> Créer un sondage
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="civiq-card" style={{ padding: 0, overflow: "hidden" }}>
@@ -245,14 +265,14 @@ export default function AdminDashboard() {
                             <a href={`/api/export?survey_id=${s.id}&format=xlsx`} className="civiq-icon-btn" title="Exporter Excel">
                               <Download size={14} />
                             </a>
-                            <button
+                            {canDelete && <button
                               type="button"
                               onClick={() => deleteSurvey(s.id, s.title)}
                               className="civiq-icon-btn danger"
-                              title="Supprimer"
+                              title="Mettre à la corbeille"
                             >
                               <Trash2 size={14} />
-                            </button>
+                            </button>}
                           </div>
                         </td>
                       </tr>

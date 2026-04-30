@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     .from("responses")
     .select("*")
     .eq("survey_id", surveyId)
+    .is("deleted_at", null)
     .order("submitted_at", { ascending: true });
 
   if (error || !responses) {

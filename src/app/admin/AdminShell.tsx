@@ -21,20 +21,26 @@ interface Props {
   children: React.ReactNode;
   commune: { name: string; slug: string } | null;
   isSuperAdmin: boolean;
+  role: string | null;
   initialActiveModuleKeys: string[];
 }
 
-export default function AdminShell({ children, commune, isSuperAdmin, initialActiveModuleKeys }: Props) {
+export default function AdminShell({ children, commune, isSuperAdmin, role, initialActiveModuleKeys }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [activeModuleKeys] = useState<string[]>(initialActiveModuleKeys);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isSetup = pathname === "/admin/setup";
 
-  const navItems = useMemo(
-    () => [...getAdminNavForModules(activeModuleKeys), ...CORE_NAV_ITEMS],
-    [activeModuleKeys]
-  );
+  // Filtre la nav selon le rôle :
+  // - viewer (administré) : pas de "Nouveau sondage"
+  // - editor : peut éditer mais pas créer
+  // - admin / super_admin : tout
+  const navItems = useMemo(() => {
+    const all = [...getAdminNavForModules(activeModuleKeys), ...CORE_NAV_ITEMS];
+    if (role === "admin" || role === "super_admin") return all;
+    return all.filter((it) => !it.href.endsWith("/new"));
+  }, [activeModuleKeys, role]);
 
   async function handleLogout() {
     const supabase = createClient();

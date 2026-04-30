@@ -10,6 +10,7 @@ import {
   Users,
   Boxes,
   ShieldCheck,
+  Inbox,
   LogOut,
   Shield,
   Menu,
@@ -23,6 +24,7 @@ import {
 
 const NAV = [
   { href: "/super-admin/dashboard", label: "Vue d'ensemble", icon: LayoutDashboard },
+  { href: "/super-admin/requests",  label: "Demandes",         icon: Inbox },
   { href: "/super-admin/communes",  label: "Communes",        icon: Building2 },
   { href: "/super-admin/users",     label: "Utilisateurs",    icon: Users },
   { href: "/super-admin/modules",   label: "Modules",          icon: Boxes },
