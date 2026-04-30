@@ -106,10 +106,8 @@ export default async function SurveyPage({ params, searchParams }: Props) {
           {survey.description && <p>{survey.description}</p>}
           <div className="civiq-meta">
             <span>⏱ {survey.schema?.settings?.estimated_time || "5 min"}</span>
-            {survey.schema?.settings?.allow_anonymous ? (
+            {survey.schema?.settings?.allow_anonymous && (
               <span>🔒 Réponses anonymes</span>
-            ) : (
-              <span>👤 Identification requise</span>
             )}
             {survey.ends_at && (
               <span>
