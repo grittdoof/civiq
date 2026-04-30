@@ -603,6 +603,33 @@ body {
   margin-top: 8px;
 }
 
+/* Consentement RGPD */
+.civiq-consent {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-top: 20px;
+  font-size: 13px;
+}
+.civiq-consent-header {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px;
+}
+.civiq-consent-meta { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 4px; font-size: 12px; color: var(--fg-muted); }
+.civiq-consent-meta a { color: var(--accent); text-decoration: none; }
+.civiq-consent-meta a:hover { text-decoration: underline; }
+.civiq-consent-check {
+  display: flex; gap: 10px; align-items: flex-start;
+  cursor: pointer; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: var(--bg); border: 1px solid var(--border);
+  line-height: 1.5; color: var(--fg);
+}
+.civiq-consent-check input[type="checkbox"] {
+  margin-top: 3px; flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--accent);
+}
+
 /* Navigation */
 .civiq-nav {
   display: flex;

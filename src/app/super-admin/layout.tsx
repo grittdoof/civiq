@@ -9,6 +9,7 @@ import {
   Building2,
   Users,
   Boxes,
+  ShieldCheck,
   LogOut,
   Shield,
   Menu,
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/super-admin/communes",  label: "Communes",        icon: Building2 },
   { href: "/super-admin/users",     label: "Utilisateurs",    icon: Users },
   { href: "/super-admin/modules",   label: "Modules",          icon: Boxes },
+  { href: "/super-admin/rgpd",      label: "RGPD",             icon: ShieldCheck },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

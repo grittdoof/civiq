@@ -19,6 +19,9 @@ import {
   ChevronRight,
   X,
   FileSpreadsheet,
+  Pencil,
+  Save,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import QrShare from "@/components/survey/QrShare";
@@ -385,6 +388,11 @@ export default function SurveyResultsPage() {
           index={activeResponseIdx}
           onClose={() => setActiveResponseIdx(null)}
           onChange={(i) => setActiveResponseIdx(i)}
+          onUpdate={(updated) => setResponses((prev) => prev.map((r) => r.id === updated.id ? { ...r, ...updated } : r))}
+          onDelete={(deletedId) => {
+            setResponses((prev) => prev.filter((r) => r.id !== deletedId));
+            setActiveResponseIdx(null);
+          }}
         />
       )}
     </main>
@@ -467,16 +475,67 @@ function ResponseDrawer({
   index,
   onClose,
   onChange,
+  onUpdate,
+  onDelete,
 }: {
   survey: Survey;
   responses: SurveyResponse[];
   index: number;
   onClose: () => void;
   onChange: (i: number) => void;
+  onUpdate: (updated: SurveyResponse) => void;
+  onDelete: (id: string) => void;
 }) {
   const r = responses[index];
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Record<string, unknown>>(() => ({ ...((r?.data as Record<string, unknown>) || {}) }));
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Reset draft quand on change de réponse
+  useEffect(() => {
+    if (r) {
+      setDraft({ ...((r.data as Record<string, unknown>) || {}) });
+      setEditing(false);
+    }
+  }, [r?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!r) return null;
-  const data = (r.data as Record<string, unknown>) || {};
+  const data = editing ? draft : ((r.data as Record<string, unknown>) || {});
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`/api/responses/${r.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: draft }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Erreur lors de la sauvegarde");
+      return;
+    }
+    onUpdate({ ...r, data: draft });
+    setEditing(false);
+  }
+
+  async function remove() {
+    if (!confirm("Supprimer définitivement cette réponse ? Cette action est irréversible.")) return;
+    setDeleting(true);
+    const res = await fetch(`/api/responses/${r.id}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      alert(body.error || "Erreur lors de la suppression");
+      return;
+    }
+    onDelete(r.id);
+  }
+
+  function setFieldValue(fieldId: string, value: unknown) {
+    setDraft((prev) => ({ ...prev, [fieldId]: value }));
+  }
 
   function renderValue(field: SurveyField, value: unknown): React.ReactNode {
     if (value === undefined || value === null || value === "") return <span style={{ color: "var(--fg-xmuted)", fontStyle: "italic" }}>(non renseigné)</span>;
@@ -487,6 +546,72 @@ function ResponseDrawer({
     }
     const lbl = opts?.find((o) => o.value === String(value))?.label;
     return <span>{lbl || String(value)}</span>;
+  }
+
+  function renderEditor(field: SurveyField, value: unknown): React.ReactNode {
+    const v = value;
+    switch (field.type) {
+      case "text":
+      case "email":
+      case "tel":
+        return <input type={field.type} className="civiq-input" value={(v as string) || ""} onChange={(e) => setFieldValue(field.id, e.target.value)} />;
+      case "textarea":
+        return <textarea className="civiq-input civiq-textarea" rows={3} value={(v as string) || ""} onChange={(e) => setFieldValue(field.id, e.target.value)} />;
+      case "number":
+        return <input type="number" className="civiq-input" value={(v as number | string) ?? ""} onChange={(e) => setFieldValue(field.id, e.target.value === "" ? "" : Number(e.target.value))} />;
+      case "date":
+        return <input type="date" className="civiq-input" value={(v as string) || ""} onChange={(e) => setFieldValue(field.id, e.target.value)} />;
+      case "select":
+      case "radio":
+        return (
+          <select className="civiq-select" value={(v as string) || ""} onChange={(e) => setFieldValue(field.id, e.target.value)}>
+            <option value="">— Sélectionner —</option>
+            {field.options?.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        );
+      case "checkbox":
+      case "checkbox_grid": {
+        const arr = Array.isArray(v) ? (v as string[]) : [];
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {field.options?.map((o) => {
+              const checked = arr.includes(o.value);
+              return (
+                <label key={o.value} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 6, border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`, background: checked ? "var(--accent-light)" : "var(--card)", fontSize: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={checked} onChange={() => {
+                    const next = checked ? arr.filter((x) => x !== o.value) : [...arr, o.value];
+                    setFieldValue(field.id, next);
+                  }} />
+                  {o.label}
+                </label>
+              );
+            })}
+          </div>
+        );
+      }
+      case "scale": {
+        const min = field.min ?? 1;
+        const max = field.max ?? 5;
+        return (
+          <div style={{ display: "flex", gap: 6 }}>
+            {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((n) => {
+              const sel = Number(v) === n;
+              return (
+                <button key={n} type="button" onClick={() => setFieldValue(field.id, n)} style={{
+                  width: 36, height: 36, borderRadius: 99, border: `1px solid ${sel ? "var(--accent)" : "var(--border)"}`,
+                  background: sel ? "var(--accent)" : "var(--card)", color: sel ? "#fff" : "var(--fg)",
+                  fontWeight: 600, cursor: "pointer",
+                }}>{n}</button>
+              );
+            })}
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
   }
 
   return (
@@ -511,13 +636,32 @@ function ResponseDrawer({
               {new Date(r.submitted_at).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button type="button" disabled={index === 0} onClick={() => onChange(index - 1)} className="civiq-icon-btn" title="Précédente">
-              <ChevronLeft size={16} />
-            </button>
-            <button type="button" disabled={index === responses.length - 1} onClick={() => onChange(index + 1)} className="civiq-icon-btn" title="Suivante">
-              <ChevronRight size={16} />
-            </button>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {!editing ? (
+              <>
+                <button type="button" onClick={() => setEditing(true)} className="civiq-icon-btn" title="Modifier">
+                  <Pencil size={16} />
+                </button>
+                <button type="button" onClick={remove} disabled={deleting} className="civiq-icon-btn danger" title="Supprimer">
+                  <Trash2 size={16} />
+                </button>
+                <button type="button" disabled={index === 0} onClick={() => onChange(index - 1)} className="civiq-icon-btn" title="Précédente">
+                  <ChevronLeft size={16} />
+                </button>
+                <button type="button" disabled={index === responses.length - 1} onClick={() => onChange(index + 1)} className="civiq-icon-btn" title="Suivante">
+                  <ChevronRight size={16} />
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => { setEditing(false); setDraft({ ...((r.data as Record<string, unknown>) || {}) }); }} className="civiq-btn civiq-btn-ghost civiq-btn-sm">
+                  Annuler
+                </button>
+                <button type="button" onClick={save} disabled={saving} className="civiq-btn civiq-btn-default civiq-btn-sm">
+                  <Save size={13} /> {saving ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </>
+            )}
             <button type="button" onClick={onClose} className="civiq-icon-btn" title="Fermer">
               <X size={16} />
             </button>
@@ -543,10 +687,10 @@ function ResponseDrawer({
               <div style={{ display: "grid", gap: 12 }}>
                 {step.fields.map((field) => (
                   <div key={field.id}>
-                    <div style={{ fontSize: 12, color: "var(--fg-muted)", marginBottom: 3, fontWeight: 500 }}>{field.label}</div>
-                    <div style={{ fontSize: 14, color: "var(--fg)", lineHeight: 1.5 }}>
-                      {renderValue(field, data[field.id])}
-                    </div>
+                    <div style={{ fontSize: 12, color: "var(--fg-muted)", marginBottom: 6, fontWeight: 500 }}>{field.label}</div>
+                    {editing
+                      ? renderEditor(field, data[field.id])
+                      : <div style={{ fontSize: 14, color: "var(--fg)", lineHeight: 1.5 }}>{renderValue(field, data[field.id])}</div>}
                   </div>
                 ))}
               </div>

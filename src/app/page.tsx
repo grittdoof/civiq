@@ -20,15 +20,15 @@ export default async function HomePage() {
           </div>
           <div className="landing-nav-links">
             {user ? (
-              <Link href="/admin/dashboard" className="nav-btn primary">
-                Mon tableau de bord
+              <Link href="/admin" className="nav-btn primary">
+                Administration
               </Link>
             ) : (
               <>
                 <Link href="/auth/login" className="nav-btn secondary">
                   Connexion
                 </Link>
-                <Link href="/auth/register" className="nav-btn primary">
+                <Link href="/auth/signup" className="nav-btn primary">
                   Créer un compte
                 </Link>
               </>
@@ -51,10 +51,10 @@ export default async function HomePage() {
           </p>
           <div className="hero-actions">
             <Link href="/auth/register" className="hero-btn primary">
-              Démarrer gratuitement →
+              Créer un espace commune →
             </Link>
-            <Link href="/demo/periscolaire" className="hero-btn secondary">
-              Voir la démo
+            <Link href="/auth/signup" className="hero-btn secondary">
+              Inscription rapide (lien magique)
             </Link>
           </div>
           <div className="hero-stats">

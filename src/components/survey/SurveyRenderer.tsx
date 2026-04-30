@@ -24,6 +24,12 @@ interface SurveyRendererProps {
   accentColor?: string;
   headerText?: string;
   thankYouText?: string;
+  // RGPD
+  requireConsent?: boolean;
+  consentText?: string;
+  rgpdFinalite?: string;
+  rgpdDureeJours?: number;
+  rgpdContactEmail?: string;
   onSubmit?: (data: Record<string, unknown>) => Promise<void>;
 }
 
@@ -35,6 +41,11 @@ export default function SurveyRenderer({
   accentColor = "#c9a84c",
   headerText,
   thankYouText,
+  requireConsent = true,
+  consentText = "Je consens à ce que mes réponses soient collectées et analysées dans le cadre de cette consultation. Je peux exercer mes droits (accès, rectification, suppression) en contactant la commune.",
+  rgpdFinalite,
+  rgpdDureeJours,
+  rgpdContactEmail,
   onSubmit,
 }: SurveyRendererProps) {
   const [currentStep, setCurrentStep] = useState(0);
@@ -42,6 +53,7 @@ export default function SurveyRenderer({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [startTime] = useState(Date.now());
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const steps = schema.steps;
   const totalSteps = steps.length;
@@ -122,6 +134,8 @@ export default function SurveyRenderer({
             respondent_email: formData.email as string,
             respondent_phone: formData.telephone as string,
             duration_seconds: duration,
+            consent_given: requireConsent ? consentGiven : true,
+            consent_text: requireConsent ? consentText : null,
           }),
         });
       }
@@ -398,6 +412,30 @@ export default function SurveyRenderer({
         </motion.div>
       </AnimatePresence>
 
+      {/* Consentement RGPD — affiché à la dernière étape */}
+      {isLast && requireConsent && (
+        <div className="civiq-consent">
+          <div className="civiq-consent-header">
+            <Lock size={14} /> Protection de vos données
+          </div>
+          {(rgpdFinalite || rgpdDureeJours) && (
+            <ul className="civiq-consent-meta">
+              {rgpdFinalite && <li><strong>Finalité :</strong> {rgpdFinalite}</li>}
+              {rgpdDureeJours ? <li><strong>Durée de conservation :</strong> {rgpdDureeJours} jours</li> : null}
+              {rgpdContactEmail && <li><strong>Vos droits :</strong> contact à <a href={`mailto:${rgpdContactEmail}`}>{rgpdContactEmail}</a></li>}
+            </ul>
+          )}
+          <label className="civiq-consent-check">
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(e) => setConsentGiven(e.target.checked)}
+            />
+            <span>{consentText}</span>
+          </label>
+        </div>
+      )}
+
       {/* Navigation */}
       <div className="civiq-nav">
         {currentStep > 0 ? (
@@ -413,7 +451,7 @@ export default function SurveyRenderer({
             type="button"
             className="civiq-btn submit"
             style={{ background: accentColor, color: primaryColor }}
-            disabled={submitting}
+            disabled={submitting || (requireConsent && !consentGiven)}
             onClick={handleSubmit}
           >
             {submitting ? "Envoi…" : "Envoyer mes réponses"} <Check size={18} />

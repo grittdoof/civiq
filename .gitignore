@@ -20,8 +20,11 @@
 # debug
 npm-debug.log*
 
-# local env
+# local env (NE JAMAIS committer)
 .env*.local
+.env
+env.local
+env*.local
 
 # vercel
 .vercel

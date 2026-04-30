@@ -128,6 +128,11 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         primaryColor={commune?.primary_color}
         accentColor={commune?.accent_color}
         thankYouText={survey.custom_thank_you}
+        requireConsent={survey.rgpd_require_consent !== false}
+        consentText={survey.rgpd_consent_text || undefined}
+        rgpdFinalite={survey.rgpd_finalite || undefined}
+        rgpdDureeJours={survey.rgpd_duree_conservation_jours || undefined}
+        rgpdContactEmail={commune?.contact_email}
       />
 
       <footer className="civiq-footer">

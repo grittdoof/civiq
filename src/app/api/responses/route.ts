@@ -5,7 +5,13 @@ import { createHash } from "crypto";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { survey_id, data, respondent_name, respondent_email, respondent_phone, duration_seconds } = body;
+    const {
+      survey_id, data,
+      respondent_name, respondent_email, respondent_phone,
+      duration_seconds,
+      consent_given,
+      consent_text,
+    } = body;
 
     if (!survey_id || !data) {
       return NextResponse.json(
@@ -19,7 +25,7 @@ export async function POST(request: NextRequest) {
     // Vérifier que le sondage existe et est publié
     const { data: survey, error: surveyError } = await supabase
       .from("surveys")
-      .select("id, commune_id, status, ends_at, max_responses")
+      .select("id, commune_id, status, ends_at, max_responses, rgpd_require_consent, rgpd_consent_text")
       .eq("id", survey_id)
       .single();
 
@@ -34,6 +40,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Ce sondage n'accepte plus de réponses" },
         { status: 403 }
+      );
+    }
+
+    // RGPD : exiger le consentement si le sondage le demande
+    if (survey.rgpd_require_consent !== false && !consent_given) {
+      return NextResponse.json(
+        { error: "Le consentement RGPD est requis pour soumettre ce sondage" },
+        { status: 400 }
       );
     }
 
@@ -81,6 +95,9 @@ export async function POST(request: NextRequest) {
         ip_hash: ipHash,
         user_agent: ua.slice(0, 255),
         duration_seconds: duration_seconds || null,
+        consent_given: consent_given === true,
+        consent_text: consent_text || survey.rgpd_consent_text || null,
+        consent_at: consent_given ? new Date().toISOString() : null,
       })
       .select("id, submitted_at")
       .single();
