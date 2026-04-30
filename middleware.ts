@@ -16,7 +16,13 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 const PUBLIC_AUTH_ROUTES = ["/auth/login", "/auth/register", "/auth/reset-password"];
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  // Injecter le pathname dans les headers pour qu'il soit lisible par
+  // les Server Components via headers() — sans cela, layouts ne peuvent
+  // pas connaître l'URL en cours et risquent les boucles de redirect.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,7 +36,7 @@ export async function middleware(request: NextRequest) {
           cookiesToSet: { name: string; value: string; options: CookieOptions }[]
         ) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
