@@ -59,7 +59,16 @@ export default function SignupPage() {
 
     setBusy(false);
     if (error) {
-      setErrorMsg(error.message);
+      const m = (error.message || "").toLowerCase();
+      if (m.includes("rate limit") || m.includes("rate_limit")) {
+        setErrorMsg(
+          "Limite d'envoi atteinte. Patientez quelques minutes ou contactez l'administrateur si le problème persiste."
+        );
+      } else if (m.includes("invalid")) {
+        setErrorMsg("Adresse email invalide. Vérifiez et réessayez.");
+      } else {
+        setErrorMsg(error.message);
+      }
       return;
     }
     setSent(true);

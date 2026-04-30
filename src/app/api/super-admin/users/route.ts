@@ -91,7 +91,17 @@ export async function POST(request: Request) {
       redirectTo: `${siteUrl}/auth/callback`,
     });
     if (error || !data.user) {
-      return NextResponse.json({ error: error?.message || "Échec invitation" }, { status: 500 });
+      const msg = (error?.message || "").toLowerCase();
+      const isRateLimit = msg.includes("rate") || (error as { status?: number })?.status === 429;
+      return NextResponse.json(
+        {
+          error: isRateLimit
+            ? "Quota d'envoi d'emails dépassé. Configurez un SMTP custom dans Supabase (voir docs/SMTP.md) ou choisissez « Mot de passe temporaire »."
+            : (error?.message || "Échec invitation"),
+          rate_limit: isRateLimit,
+        },
+        { status: isRateLimit ? 429 : 500 }
+      );
     }
     userId = data.user.id;
   } else {
