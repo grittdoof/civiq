@@ -35,3 +35,21 @@ export function isSuperAdmin(ctx: AuthContext | null): boolean {
 export function isCommuneAdmin(ctx: AuthContext | null): boolean {
   return ctx?.role === "admin" || ctx?.role === "super_admin";
 }
+
+// Server Component helper : redirige selon le statut de l'utilisateur
+//   - non connecté → /auth/login
+//   - super-admin → pass-through
+//   - rattaché à une commune → pass-through
+//   - sans commune → /admin/onboarding
+export async function requireCommune(): Promise<AuthContext> {
+  const { redirect } = await import("next/navigation");
+  const ctx = await getAuthContext();
+  if (!ctx) {
+    redirect("/auth/login");
+  }
+  if (ctx!.role === "super_admin") return ctx!;
+  if (!ctx!.communeId) {
+    redirect("/admin/onboarding");
+  }
+  return ctx!;
+}

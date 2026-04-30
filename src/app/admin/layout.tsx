@@ -6,23 +6,33 @@ import { createClient, createServiceClient } from "@/lib/supabase-server";
 // ═══════════════════════════════════════════════════════════════
 // /admin/** — Server-side guard
 //
+// IMPORTANT : ce layout NE redirige PAS vers /admin/onboarding pour
+// éviter les boucles. Les pages individuelles (dashboard, surveys…)
+// le font elles-mêmes via requireCommune().
+//
 // 1. Auth obligatoire (sinon /auth/login)
-// 2. Si pas de commune attribuée :
-//      - super-admin : pass-through (peut tout administrer)
-//      - sinon → /admin/onboarding (sauf si on y est déjà ou /setup)
-// 3. AdminShell injecte la sidebar avec les données pré-fetchées
+// 2. Bypass sidebar pour /admin/onboarding et /admin/setup
+// 3. Sinon : AdminShell avec données pré-fetchées
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const h = await headers();
-  const pathname = h.get("x-pathname") || h.get("x-invoke-path") || "/admin";
+  const pathname = h.get("x-pathname") || "/admin";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     redirect(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
+  }
+
+  const isOnboarding = pathname.startsWith("/admin/onboarding");
+  const isSetup = pathname === "/admin/setup";
+
+  // Bypass shell pour onboarding / setup (sidebar inutile)
+  if (isOnboarding || isSetup) {
+    return <>{children}</>;
   }
 
   const service = await createServiceClient();
@@ -32,8 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq("id", user.id)
     .maybeSingle();
 
-  // Auto-création du profil si manquant (filet de sécurité au cas où
-  // /auth/callback aurait échoué à le créer)
+  // Filet de sécurité : auto-créer le profil si manquant
   if (!profile) {
     await service.from("profiles").upsert({
       id: user.id,
@@ -42,25 +51,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     });
   }
 
-  const role = profile?.role ?? null;
+  const role = profile?.role ?? "viewer";
   const isSuperAdmin = role === "super_admin";
   const commune = (profile?.communes as unknown as { name: string; slug: string } | null) ?? null;
 
-  const isOnboarding = pathname.startsWith("/admin/onboarding");
-  const isSetup = pathname === "/admin/setup";
-
-  // Pas de commune et pas super-admin → onboarding obligatoire
-  if (!commune && !isSuperAdmin && !isOnboarding && !isSetup) {
-    redirect("/admin/onboarding");
-  }
-
-  // Pour /admin/onboarding et /admin/setup : on bypasse le shell
-  // (sidebar inutile avant l'attribution d'une commune)
-  if (isOnboarding || isSetup) {
-    return <>{children}</>;
-  }
-
-  // Modules activés (super-admin = tous, sinon ceux de la commune)
+  // Modules activés
   let modules: string[] = [];
   if (isSuperAdmin) {
     const { data: all } = await service.from("modules").select("id").eq("is_available", true);
