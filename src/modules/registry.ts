@@ -14,9 +14,11 @@ import { budgetModule } from "./budget";
 import { eventsModule } from "./events";
 import { alertsModule } from "./alerts";
 import { urbanismModule } from "./urbanism";
+import { ticketsModule } from "./tickets";
 
 export const MODULES: ModuleDefinition[] = [
   surveysModule,
+  ticketsModule,
   budgetModule,
   eventsModule,
   alertsModule,
