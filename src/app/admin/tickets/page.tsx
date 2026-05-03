@@ -7,6 +7,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import TicketCard from "@/components/tickets/TicketCard";
 import TicketsFilters, { type TicketsFilterValue } from "./TicketsFilters";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
+import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/tickets — Liste des tickets de la commune
@@ -123,6 +124,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
       )}
 
       <TicketsRealtime communeId={ctx.communeId} />
+      <PushSubscriptionPrompt />
     </main>
   );
 }

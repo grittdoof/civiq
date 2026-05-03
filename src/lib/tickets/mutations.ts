@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { TicketCanal, TicketCategorie, TicketPriorite, TicketStatut } from "./types";
+import {
+  notifyTicketAssigned,
+  notifyUrgentUnassigned,
+  notifyTicketCommented,
+  notifyTicketClosed,
+} from "./push";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -80,7 +86,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   const { data: created, error } = await service
     .from("tickets")
     .insert(insertPayload)
-    .select("id, numero")
+    .select("id, numero, assigne_a")
     .single();
 
   if (error || !created) {
@@ -99,6 +105,26 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     if (photoErr) {
       console.error("ticket photos insert:", photoErr);
     }
+  }
+
+  // ─── Notifications push ───
+  // Si assignation directe à la création → notif au destinataire
+  if (created.assigne_a) {
+    notifyTicketAssigned({
+      ticketId: created.id,
+      ticketNumero: created.numero,
+      titre: input.titre,
+      assignedTo: created.assigne_a,
+    }).catch((e) => console.error("[push] notify assigned:", e));
+  }
+  // Sinon, ticket urgent non assigné → notif à tous les agents techniques
+  else if (input.priorite === "urgente" && ctx.communeId) {
+    notifyUrgentUnassigned({
+      ticketId: created.id,
+      ticketNumero: created.numero,
+      titre: input.titre,
+      communeId: ctx.communeId,
+    }).catch((e) => console.error("[push] notify urgent:", e));
   }
 
   revalidatePath("/admin/tickets");
@@ -242,6 +268,23 @@ export async function assignTicket(ticketId: string, profileId: string | null): 
   const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
   if (error) throw new Error(error.message);
 
+  // Notif push au nouvel assigné (seulement si nouveau destinataire)
+  if (profileId && profileId !== ticket.assigne_a) {
+    const { data: t } = await service
+      .from("tickets")
+      .select("titre, numero")
+      .eq("id", ticketId)
+      .maybeSingle();
+    if (t) {
+      notifyTicketAssigned({
+        ticketId,
+        ticketNumero: t.numero,
+        titre: t.titre,
+        assignedTo: profileId,
+      }).catch((e) => console.error("[push] notify assigned:", e));
+    }
+  }
+
   revalidatePath(`/admin/tickets/${ticketId}`);
   revalidatePath("/admin/tickets");
 }
@@ -270,7 +313,7 @@ export async function addTicketComment(ticketId: string, contenu: string): Promi
   if (!text) throw new Error("Le commentaire ne peut pas être vide");
   if (text.length > 5000) throw new Error("Commentaire trop long (max 5000 caractères)");
 
-  const { ctx, service } = await authorizeTicketMutation(ticketId);
+  const { ctx, ticket, service } = await authorizeTicketMutation(ticketId);
   const { error } = await service.from("ticket_commentaires").insert({
     ticket_id: ticketId,
     auteur_id: ctx.userId,
@@ -278,6 +321,24 @@ export async function addTicketComment(ticketId: string, contenu: string): Promi
     is_systeme: false,
   });
   if (error) throw new Error(error.message);
+
+  // Notif à l'agent assigné si différent de l'auteur du commentaire
+  if (ticket.assigne_a && ticket.assigne_a !== ctx.userId) {
+    const { data: t } = await service
+      .from("tickets")
+      .select("numero")
+      .eq("id", ticketId)
+      .maybeSingle();
+    if (t) {
+      notifyTicketCommented({
+        ticketId,
+        ticketNumero: t.numero,
+        assignedTo: ticket.assigne_a,
+        excerpt: text,
+      }).catch((e) => console.error("[push] notify commented:", e));
+    }
+  }
+
   revalidatePath(`/admin/tickets/${ticketId}`);
 }
 
@@ -347,6 +408,21 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   }
   const { error: tErr } = await service.from("tickets").update(updates).eq("id", input.ticketId);
   if (tErr) throw new Error(tErr.message);
+
+  // Notif au créateur du ticket
+  const { data: tFull } = await service
+    .from("tickets")
+    .select("titre, numero, created_by")
+    .eq("id", input.ticketId)
+    .maybeSingle();
+  if (tFull?.created_by) {
+    notifyTicketClosed({
+      ticketId: input.ticketId,
+      ticketNumero: tFull.numero,
+      titre: tFull.titre,
+      createdBy: tFull.created_by,
+    }).catch((e) => console.error("[push] notify closed:", e));
+  }
 
   revalidatePath(`/admin/tickets/${input.ticketId}`);
   revalidatePath("/admin/tickets");
