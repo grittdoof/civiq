@@ -6,16 +6,22 @@ import {
 } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { getTicket, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { listAssignableAgents } from "@/lib/tickets/mutations";
 import { isModuleActive } from "@/lib/module-guard";
 import { PrioriteBadge, StatutBadge, CategorieBadge } from "@/components/tickets/TicketBadge";
 import {
-  CANAL_LABELS, STATUT_LABELS, type TicketCommentaire,
+  CANAL_LABELS, type TicketCommentaire,
 } from "@/lib/tickets/types";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
+import TicketActions from "@/components/tickets/TicketActions";
+import TicketCommentForm from "@/components/tickets/TicketCommentForm";
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/tickets/[id] — Détail (lecture seule en Session 1)
-// Les actions de transition de statut viendront en Session 3.
+// /admin/tickets/[id] — Détail interactif (Session 3)
+// • Panel d'actions contextuelles (transitions de statut, prio,
+//   assignation)
+// • Wizard de clôture sous /cloturer
+// • Ajout de commentaires libres dans la timeline
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -33,8 +39,21 @@ export default async function TicketDetailPage({ params }: Props) {
   }
 
   const { id } = await params;
-  const { ticket, photos, commentaires, rapport } = await getTicket(ctx.communeId, id);
+  const [{ ticket, photos, commentaires, rapport }, agents] = await Promise.all([
+    getTicket(ctx.communeId, id),
+    listAssignableAgents(),
+  ]);
   if (!ticket) notFound();
+
+  // Permissions sur ce ticket
+  const isSuperAdmin = ctx.role === "super_admin";
+  const isAdmin = ctx.role === "admin";
+  const isEditor = ctx.role === "editor";
+  const isAssignee = ticket.assigne_a === ctx.userId;
+  const isCreator = ticket.created_by === ctx.userId;
+  const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
+  const canAssign = isSuperAdmin || isAdmin || isEditor;
+  const canComment = canEdit;
 
   // URLs signées pour les photos
   const photoUrls = await Promise.all(
@@ -182,50 +201,35 @@ export default async function TicketDetailPage({ params }: Props) {
           )}
 
           {/* Timeline */}
-          {commentaires.length > 0 && (
-            <div>
-              <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 12 }}>
-                Journal d&apos;activité
-              </h2>
+          <div>
+            <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 12 }}>
+              Journal d&apos;activité
+            </h2>
+            {commentaires.length > 0 ? (
               <Timeline items={commentaires} />
-            </div>
-          )}
+            ) : (
+              <p style={{ fontSize: 13, color: "var(--fg-muted)", fontStyle: "italic" }}>
+                Aucune activité enregistrée pour le moment.
+              </p>
+            )}
+            {canComment && <TicketCommentForm ticketId={ticket.id} />}
+          </div>
         </section>
 
-        {/* Colonne droite : panel d'infos */}
+        {/* Colonne droite : panel d'actions + infos */}
         <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div className="civiq-card" style={{ padding: 14 }}>
-            <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
-              Statut
-            </h2>
-            <p style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>
-              {STATUT_LABELS[ticket.statut]}
-            </p>
-            <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>
-              Les transitions arrivent en Session 3.
-            </p>
-          </div>
-
-          <div className="civiq-card" style={{ padding: 14 }}>
-            <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
-              Agent assigné
-            </h2>
-            {ticket.assignee_profile ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13 }}>
-                  {(ticket.assignee_profile.full_name?.[0] ?? "?").toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{ticket.assignee_profile.full_name ?? "—"}</div>
-                  {ticket.assignee_profile.job_title && (
-                    <div style={{ fontSize: 11, color: "var(--fg-muted)", textTransform: "capitalize" }}>{ticket.assignee_profile.job_title.replace("_", " ")}</div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p style={{ fontSize: 13, color: "var(--fg-muted)", fontStyle: "italic" }}>Non assigné</p>
-            )}
-          </div>
+          <TicketActions
+            ticketId={ticket.id}
+            ticketNumero={ticket.numero}
+            statut={ticket.statut}
+            priorite={ticket.priorite}
+            assigneId={ticket.assigne_a}
+            assigneeName={ticket.assignee_profile?.full_name ?? null}
+            canEdit={canEdit}
+            canAssign={canAssign}
+            agents={agents}
+            hasReport={!!rapport}
+          />
 
           <div className="civiq-card" style={{ padding: 14 }}>
             <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>

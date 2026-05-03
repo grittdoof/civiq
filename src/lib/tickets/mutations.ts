@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
-import type { TicketCanal, TicketCategorie, TicketPriorite } from "./types";
+import type { TicketCanal, TicketCategorie, TicketPriorite, TicketStatut } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -130,4 +130,224 @@ export async function listAssignableAgents(): Promise<
 export async function createTicketAndRedirect(input: CreateTicketInput) {
   const result = await createTicket(input);
   redirect(`/admin/tickets/${result.id}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Helpers d'autorisation pour les mutations sur un ticket existant
+// ═══════════════════════════════════════════════════════════════
+
+async function authorizeTicketMutation(ticketId: string) {
+  const ctx = await getAuthContext();
+  if (!ctx) throw new Error("Non authentifié");
+
+  const service = await createServiceClient();
+  const { data: ticket } = await service
+    .from("tickets")
+    .select("id, commune_id, assigne_a, created_by, statut")
+    .eq("id", ticketId)
+    .maybeSingle();
+
+  if (!ticket) throw new Error("Ticket introuvable");
+
+  const isSuperAdmin = ctx.role === "super_admin";
+  const isAdmin = ctx.role === "admin";
+  const isEditor = ctx.role === "editor";
+  const sameCommune = ctx.communeId === ticket.commune_id;
+  const isAssignee = ticket.assigne_a === ctx.userId;
+  const isCreator = ticket.created_by === ctx.userId;
+
+  if (!isSuperAdmin && !sameCommune) {
+    throw new Error("Permissions insuffisantes (commune différente)");
+  }
+  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee && !isCreator) {
+    throw new Error("Permissions insuffisantes");
+  }
+
+  return { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Transition de statut
+// ═══════════════════════════════════════════════════════════════
+
+const ALLOWED_TRANSITIONS: Record<TicketStatut, TicketStatut[]> = {
+  nouveau: ["assigne", "pris_en_charge", "annule"],
+  assigne: ["pris_en_charge", "en_cours", "en_attente", "annule"],
+  pris_en_charge: ["en_cours", "en_attente", "resolu", "annule"],
+  en_cours: ["en_attente", "resolu", "annule"],
+  en_attente: ["en_cours", "resolu", "annule"],
+  resolu: ["clos", "en_cours"], // possibilité de réouvrir
+  clos: [], // terminal sauf super-admin
+  annule: ["nouveau"], // possibilité de désannuler
+};
+
+export async function updateTicketStatus(ticketId: string, newStatut: TicketStatut): Promise<void> {
+  const { ctx, ticket, service, isSuperAdmin } = await authorizeTicketMutation(ticketId);
+
+  const allowed = ALLOWED_TRANSITIONS[ticket.statut as TicketStatut] ?? [];
+  if (!isSuperAdmin && !allowed.includes(newStatut)) {
+    throw new Error(`Transition non autorisée : ${ticket.statut} → ${newStatut}`);
+  }
+
+  const updates: Record<string, unknown> = { statut: newStatut };
+  const now = new Date().toISOString();
+
+  if (newStatut === "pris_en_charge" && !("pris_en_charge_at" in ticket)) {
+    updates.pris_en_charge_at = now;
+  } else if (newStatut === "pris_en_charge") {
+    updates.pris_en_charge_at = now;
+  }
+  if (newStatut === "resolu") updates.resolu_at = now;
+  if (newStatut === "clos") {
+    updates.clos_at = now;
+    updates.clos_by = ctx.userId;
+  }
+
+  // Si on prend en charge mais qu'on n'est pas assigné → s'auto-assigner
+  if (newStatut === "pris_en_charge" && !ticket.assigne_a) {
+    updates.assigne_a = ctx.userId;
+    updates.assigne_at = now;
+  }
+
+  const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Assignation
+// ═══════════════════════════════════════════════════════════════
+
+export async function assignTicket(ticketId: string, profileId: string | null): Promise<void> {
+  const { service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
+  if (!isSuperAdmin && !isAdmin && !isEditor) {
+    throw new Error("Seuls les éditeurs et administrateurs peuvent réassigner un ticket");
+  }
+
+  const updates: Record<string, unknown> = {
+    assigne_a: profileId,
+    assigne_at: profileId ? new Date().toISOString() : null,
+  };
+  // Si on assigne et le ticket est encore "nouveau" → passe en "assigne"
+  if (profileId && ticket.statut === "nouveau") {
+    updates.statut = "assigne";
+  }
+  // Si on désassigne et le ticket est "assigne" → repasse en "nouveau"
+  if (!profileId && ticket.statut === "assigne") {
+    updates.statut = "nouveau";
+  }
+
+  const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Priorité (modifiable inline depuis le panel)
+// ═══════════════════════════════════════════════════════════════
+
+export async function updateTicketPriorite(ticketId: string, priorite: TicketPriorite): Promise<void> {
+  const { service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(ticketId);
+  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+    throw new Error("Permissions insuffisantes");
+  }
+  const { error } = await service.from("tickets").update({ priorite }).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Commentaires
+// ═══════════════════════════════════════════════════════════════
+
+export async function addTicketComment(ticketId: string, contenu: string): Promise<void> {
+  const text = contenu.trim();
+  if (!text) throw new Error("Le commentaire ne peut pas être vide");
+  if (text.length > 5000) throw new Error("Commentaire trop long (max 5000 caractères)");
+
+  const { ctx, service } = await authorizeTicketMutation(ticketId);
+  const { error } = await service.from("ticket_commentaires").insert({
+    ticket_id: ticketId,
+    auteur_id: ctx.userId,
+    contenu: text,
+    is_systeme: false,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/admin/tickets/${ticketId}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Rapport d'intervention (clôture)
+// ═══════════════════════════════════════════════════════════════
+
+export interface CloseTicketInput {
+  ticketId: string;
+  // Photo "service fait" déjà uploadée dans Storage
+  servicePhotoPaths: string[];
+  description_intervention?: string | null;
+  duree_minutes?: number | null;
+  materiaux_utilises?: string | null;
+  cout_estime?: number | null;
+  necessite_suivi?: boolean;
+  notes_suivi?: string | null;
+  /** Mode final : "resolu" (à valider par l'admin) ou "clos" (définitif) */
+  finalStatut: "resolu" | "clos";
+}
+
+export async function closeTicketWithReport(input: CloseTicketInput): Promise<void> {
+  const { ctx, service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(input.ticketId);
+
+  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+    throw new Error("Permissions insuffisantes pour clôturer");
+  }
+  if (input.servicePhotoPaths.length === 0) {
+    throw new Error("Au moins une photo « service fait » est requise");
+  }
+
+  // 1. Upsert du rapport
+  const { error: rapportErr } = await service
+    .from("ticket_rapports")
+    .upsert({
+      ticket_id: input.ticketId,
+      redige_par: ctx.userId,
+      service_fait: true,
+      description_intervention: input.description_intervention?.trim() || null,
+      duree_minutes: input.duree_minutes ?? null,
+      materiaux_utilises: input.materiaux_utilises?.trim() || null,
+      cout_estime: input.cout_estime ?? null,
+      necessite_suivi: !!input.necessite_suivi,
+      notes_suivi: input.notes_suivi?.trim() || null,
+    }, { onConflict: "ticket_id" });
+  if (rapportErr) throw new Error(rapportErr.message);
+
+  // 2. Insertion des photos service_fait
+  const photoRows = input.servicePhotoPaths.map((path) => ({
+    ticket_id: input.ticketId,
+    storage_path: path,
+    type: "service_fait" as const,
+    uploaded_by: ctx.userId,
+  }));
+  const { error: photoErr } = await service.from("ticket_photos").insert(photoRows);
+  if (photoErr) throw new Error(photoErr.message);
+
+  // 3. Transition de statut
+  const now = new Date().toISOString();
+  const updates: Record<string, unknown> = {
+    statut: input.finalStatut,
+    resolu_at: now,
+  };
+  if (input.finalStatut === "clos") {
+    updates.clos_at = now;
+    updates.clos_by = ctx.userId;
+  }
+  const { error: tErr } = await service.from("tickets").update(updates).eq("id", input.ticketId);
+  if (tErr) throw new Error(tErr.message);
+
+  revalidatePath(`/admin/tickets/${input.ticketId}`);
+  revalidatePath("/admin/tickets");
 }
