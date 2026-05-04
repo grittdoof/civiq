@@ -39,7 +39,7 @@ export default async function TicketDetailPage({ params }: Props) {
   }
 
   const { id } = await params;
-  const [{ ticket, photos, commentaires, rapport }, agents] = await Promise.all([
+  const [{ ticket, photos, commentaires, rapport, assignees }, agents] = await Promise.all([
     getTicket(ctx.communeId, id),
     listAssignableAgents(),
   ]);
@@ -225,6 +225,9 @@ export default async function TicketDetailPage({ params }: Props) {
             priorite={ticket.priorite}
             assigneId={ticket.assigne_a}
             assigneeName={ticket.assignee_profile?.full_name ?? null}
+            assigneeIds={assignees.map((a) => a.id)}
+            assigneeProfiles={assignees.map((a) => ({ id: a.id, full_name: a.full_name }))}
+            isSuperAdmin={isSuperAdmin}
             canEdit={canEdit}
             canAssign={canAssign}
             agents={agents}

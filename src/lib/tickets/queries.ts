@@ -113,10 +113,11 @@ export async function getTicket(communeId: string, ticketId: string): Promise<{
   photos: TicketPhoto[];
   commentaires: TicketCommentaire[];
   rapport: TicketRapport | null;
+  assignees: Array<{ id: string; full_name: string | null; job_title: string | null }>;
 }> {
   const service = await createServiceClient();
 
-  const [{ data: ticket }, { data: photos }, { data: commentaires }, { data: rapport }] = await Promise.all([
+  const [{ data: ticket }, { data: photos }, { data: commentaires }, { data: rapport }, { data: assigneesRaw }] = await Promise.all([
     service
       .from("tickets")
       .select(`
@@ -142,13 +143,26 @@ export async function getTicket(communeId: string, ticketId: string): Promise<{
       .select("*")
       .eq("ticket_id", ticketId)
       .maybeSingle(),
+    // Multi-assignés (table V2). Si la migration 012 n'est pas appliquée,
+    // la requête échoue silencieusement → on retombe sur assigne_a.
+    service
+      .from("ticket_assignees")
+      .select("profile_id, profiles:profile_id ( id, full_name, job_title )")
+      .eq("ticket_id", ticketId)
+      .order("assigned_at", { ascending: true }),
   ]);
+
+  type AssigneeRow = { profile_id: string; profiles: { id: string; full_name: string | null; job_title: string | null } | null };
+  const assignees = ((assigneesRaw ?? []) as unknown as AssigneeRow[])
+    .map((r) => r.profiles)
+    .filter((p): p is { id: string; full_name: string | null; job_title: string | null } => !!p);
 
   return {
     ticket: ticket as unknown as TicketWithRelations | null,
     photos: (photos ?? []) as TicketPhoto[],
     commentaires: (commentaires ?? []) as TicketCommentaire[],
     rapport: (rapport ?? null) as TicketRapport | null,
+    assignees,
   };
 }
 

@@ -1,20 +1,77 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import { Settings, LogOut, Menu, X, Shield } from "lucide-react";
-import { getAdminNavForModules } from "@/modules/registry";
+import {
+  Settings, LogOut, Menu, X, Shield,
+  LayoutDashboard, FileText, Plus, BarChart3,
+  Wrench, Map as MapIcon, HelpCircle, Inbox,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-// ═══════════════════════════════════════════════════
-// ADMIN SHELL — UI client (sidebar dynamique)
-// La garde d'authentification est faite en amont par
-// src/app/admin/layout.tsx (Server Component).
-// ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// ADMIN SHELL — Sidebar 4 groupes (design Claude Design / chat
+// transcript). La garde d'auth est en amont (Server Layout).
+//
+// Groupes :
+//   • (no label) — Tableau de bord (toujours visible)
+//   • Sondages   — Mes sondages, Statistiques, + Nouveau sondage
+//   • Support    — Tickets, Carte tickets, + Nouveau ticket
+//   • Outil      — Profil & paramètres, Aide
+//
+// Les actions « + Nouveau … » utilisent le style civiq-nav-action
+// (tiret pointillé bleu) pour se distinguer des pages.
+// ═══════════════════════════════════════════════════════════════
 
-const CORE_NAV_ITEMS = [
-  { href: "/admin/profile", label: "Profil & paramètres", icon: Settings, exact: false },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  /** Affiché en style « action » (tiret pointillé) */
+  action?: boolean;
+  /** Modules requis pour afficher l'item — undefined = toujours */
+  modules?: string[];
+  /** Rôles autorisés — undefined = tous */
+  roles?: string[];
+}
+
+interface NavGroup {
+  label?: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    items: [
+      { href: "/admin/dashboard", label: "Tableau de bord", icon: LayoutDashboard, exact: true },
+    ],
+  },
+  {
+    label: "Sondages",
+    items: [
+      { href: "/admin/dashboard", label: "Mes sondages", icon: FileText, exact: true, modules: ["surveys"] },
+      { href: "/admin/surveys/new", label: "Nouveau sondage", icon: Plus, exact: true, modules: ["surveys"], action: true, roles: ["admin", "super_admin"] },
+    ],
+  },
+  {
+    label: "Support",
+    items: [
+      { href: "/admin/tickets", label: "Tickets", icon: Inbox, exact: true, modules: ["tickets"] },
+      { href: "/admin/tickets/carte", label: "Carte", icon: MapIcon, exact: true, modules: ["tickets"] },
+      { href: "/admin/tickets/stats", label: "Statistiques", icon: BarChart3, exact: true, modules: ["tickets"] },
+      { href: "/admin/tickets/nouveau", label: "Nouveau ticket", icon: Plus, exact: true, modules: ["tickets"], action: true, roles: ["admin", "editor", "super_admin"] },
+    ],
+  },
+  {
+    label: "Outil",
+    items: [
+      { href: "/admin/aide", label: "Aide", icon: HelpCircle, exact: true },
+      { href: "/admin/profile", label: "Profil & paramètres", icon: Settings, exact: false },
+    ],
+  },
 ];
 
 interface Props {
@@ -32,15 +89,17 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
   const [mobileOpen, setMobileOpen] = useState(false);
   const isSetup = pathname === "/admin/setup";
 
-  // Filtre la nav selon le rôle :
-  // - viewer (administré) : pas de "Nouveau sondage"
-  // - editor : peut éditer mais pas créer
-  // - admin / super_admin : tout
-  const navItems = useMemo(() => {
-    const all = [...getAdminNavForModules(activeModuleKeys), ...CORE_NAV_ITEMS];
-    if (role === "admin" || role === "super_admin") return all;
-    return all.filter((it) => !it.href.endsWith("/new"));
-  }, [activeModuleKeys, role]);
+  // Filtre les groupes selon les modules activés et le rôle
+  const visibleGroups = useMemo(() => {
+    return NAV_GROUPS.map((group) => {
+      const items = group.items.filter((it) => {
+        if (it.modules && !it.modules.some((m) => activeModuleKeys.includes(m) || isSuperAdmin)) return false;
+        if (it.roles && role && !it.roles.includes(role)) return false;
+        return true;
+      });
+      return { ...group, items };
+    }).filter((g) => g.items.length > 0);
+  }, [activeModuleKeys, role, isSuperAdmin]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -48,16 +107,24 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
     router.push("/auth/login");
   }
 
-  function isActive(item: { href: string; exact?: boolean }) {
+  function isActive(item: NavItem) {
     return item.exact ? pathname === item.href : pathname.startsWith(item.href);
   }
 
   if (isSetup) return <>{children}</>;
 
+  const userInitial = (commune?.name?.[0] ?? "U").toUpperCase();
+  const roleLabel =
+    role === "super_admin" ? "Super Admin" :
+    role === "admin" ? "Administrateur" :
+    role === "editor" ? "Éditeur" :
+    role === "viewer" ? "Lecteur" : "—";
+
   const sidebar = (
     <aside className="civiq-sidebar">
+      {/* Logo */}
       <div className="civiq-sidebar-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
           <rect x="2" y="10" width="20" height="12" rx="1.5" fill="var(--accent)" />
           <rect x="6" y="6" width="12" height="5" rx="1" fill="var(--accent)" opacity="0.6" />
           <rect x="9" y="2" width="6" height="5" rx="1" fill="var(--accent)" opacity="0.35" />
@@ -66,65 +133,136 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
         </svg>
         <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.03em", color: "var(--fg)" }}>GoCiviQ</span>
       </div>
-      <div style={{ height: 1, background: "var(--border)" }} />
 
+      {/* Bloc commune */}
       {commune && (
-        <div className="civiq-sidebar-municipality">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--success)", display: "block", flexShrink: 0 }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{commune.name}</div>
-              <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 1 }}>/{commune.slug}</div>
+        <div style={{ padding: "6px 10px 10px" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 9,
+            padding: "9px 10px",
+            background: "var(--border-light)",
+            borderRadius: "var(--radius-sm)",
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: "var(--radius-sm)", flexShrink: 0,
+              background: "var(--accent)", color: "white",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 13, fontWeight: 700,
+            }}>{userInitial}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {commune.name}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 1, fontFamily: "ui-monospace, monospace" }}>/{commune.slug}</div>
             </div>
+            {isSuperAdmin && (
+              <span className="civiq-badge civiq-badge-warning" style={{ flexShrink: 0 }}>
+                Super Admin
+              </span>
+            )}
           </div>
-          {isSuperAdmin && <span className="civiq-badge civiq-badge-warning">Super Admin</span>}
         </div>
       )}
 
       <div style={{ height: 1, background: "var(--border)" }} />
 
+      {/* Lien super-admin (uniquement si rôle super_admin) */}
       {isSuperAdmin && (
         <div style={{ padding: "8px 10px 0" }}>
-          <Link href="/super-admin/dashboard" className="civiq-nav-item" style={{ color: "var(--accent)", fontWeight: 600 }} onClick={() => setMobileOpen(false)}>
-            <Shield size={15} /> <span>Espace Super Admin</span>
+          <Link
+            href="/super-admin/dashboard"
+            className="civiq-nav-item"
+            style={{ color: "var(--accent)", fontWeight: 600 }}
+            onClick={() => setMobileOpen(false)}
+          >
+            <Shield size={15} />
+            <span>Espace Super Admin</span>
           </Link>
         </div>
       )}
 
-      <nav className="civiq-sidebar-nav">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.href} href={item.href} className={`civiq-nav-item${isActive(item) ? " active" : ""}`} onClick={() => setMobileOpen(false)}>
-              <Icon size={15} /><span>{item.label}</span>
-            </Link>
-          );
-        })}
+      {/* Groupes de nav */}
+      <nav className="civiq-sidebar-nav" style={{ gap: 0, paddingTop: 6 }}>
+        {visibleGroups.map((group, gi) => (
+          <div key={gi} style={{ marginBottom: gi < visibleGroups.length - 1 ? 4 : 0 }}>
+            {group.label && (
+              <div style={{
+                fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                letterSpacing: "0.09em", color: "var(--fg-xmuted)",
+                padding: "8px 10px 4px",
+              }}>
+                {group.label}
+              </div>
+            )}
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href + item.label}
+                  href={item.href}
+                  className={`civiq-nav-item${isActive(item) ? " active" : ""}${item.action ? " civiq-nav-action" : ""}`}
+                  onClick={() => setMobileOpen(false)}
+                >
+                  <Icon size={15} />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
+      {/* Footer : avatar + logout */}
       <div className="civiq-sidebar-footer">
-        <div style={{ height: 1, background: "var(--border)", marginBottom: 12 }} />
-        <button type="button" onClick={handleLogout} className="civiq-nav-item" style={{ width: "100%", color: "var(--fg-muted)" }}>
-          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent)", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-            {commune?.name?.[0]?.toUpperCase() || "A"}
+        <div style={{ height: 1, background: "var(--border)", marginBottom: 10 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 10px" }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%",
+            background: "var(--accent)", color: "white",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700, flexShrink: 0,
+          }}>{userInitial}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {commune?.name ?? "Mon compte"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--fg-muted)" }}>{roleLabel}</div>
           </div>
-          <span style={{ flex: 1, textAlign: "left", fontSize: 13 }}>Déconnexion</span>
-          <LogOut size={14} />
-        </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="civiq-icon-btn"
+            title="Déconnexion"
+            aria-label="Déconnexion"
+            style={{ flexShrink: 0 }}
+          >
+            <LogOut size={14} />
+          </button>
+        </div>
       </div>
     </aside>
   );
 
   return (
     <div className="civiq-app">
-      <button className="civiq-mobile-menu-btn" onClick={() => setMobileOpen(true)} aria-label="Menu" type="button">
+      <button
+        className="civiq-mobile-menu-btn"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Menu"
+        type="button"
+      >
         <Menu size={18} />
       </button>
       <div className="civiq-sidebar-desktop">{sidebar}</div>
       {mobileOpen && (
         <div className="civiq-sidebar-overlay" onClick={() => setMobileOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} className="civiq-sidebar-mobile">
-            <button className="civiq-close-btn" onClick={() => setMobileOpen(false)} type="button">
+            <button
+              className="civiq-close-btn"
+              onClick={() => setMobileOpen(false)}
+              aria-label="Fermer le menu"
+              type="button"
+            >
               <X size={18} />
             </button>
             {sidebar}

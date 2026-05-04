@@ -11,9 +11,10 @@ import { Search } from "lucide-react";
 // ═══════════════════════════════════════════════════════════════
 
 export type TicketsFilterValue =
-  | "tous" | "nouveau" | "en_cours" | "urgents" | "mes_tickets" | "clos";
+  | "ouverts" | "tous" | "nouveau" | "en_cours" | "urgents" | "mes_tickets" | "clos";
 
 interface Counts {
+  ouverts: number;
   tous: number;
   nouveau: number;
   en_cours: number;
@@ -29,12 +30,13 @@ interface Props {
 }
 
 const PILLS: { value: TicketsFilterValue; label: string }[] = [
-  { value: "tous", label: "Tous" },
+  { value: "ouverts", label: "Ouverts" },
   { value: "nouveau", label: "Nouveaux" },
   { value: "en_cours", label: "En cours" },
   { value: "urgents", label: "Urgents" },
   { value: "mes_tickets", label: "Mes tickets" },
   { value: "clos", label: "Clos" },
+  { value: "tous", label: "Tous" },
 ];
 
 export default function TicketsFilters({ currentFilter, currentSearch, counts }: Props) {
@@ -72,7 +74,7 @@ export default function TicketsFilters({ currentFilter, currentSearch, counts }:
             key={p.value}
             type="button"
             className={`tk-pill${currentFilter === p.value ? " active" : ""}`}
-            onClick={() => setParam("filter", p.value === "tous" ? "" : p.value)}
+            onClick={() => setParam("filter", p.value === "ouverts" ? "" : p.value)}
           >
             {p.label}
             <span className="tk-pill-count">{counts[p.value]}</span>

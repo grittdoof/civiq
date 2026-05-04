@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PlayCircle, Pause, CheckCircle2, XCircle, RotateCcw,
-  UserPlus, FileEdit, AlertCircle, Loader2, ChevronRight,
+  UserPlus, FileEdit, AlertCircle, Loader2, ChevronRight, Trash2,
 } from "lucide-react";
-import { updateTicketStatus, assignTicket, updateTicketPriorite } from "@/lib/tickets/mutations";
+import { updateTicketStatus, setTicketAssignees, updateTicketPriorite, deleteTicketHard } from "@/lib/tickets/mutations";
 import {
   STATUT_LABELS, PRIORITE_LABELS, PRIORITE_COLORS,
   type TicketStatut, type TicketPriorite,
@@ -78,15 +78,19 @@ interface Props {
   priorite: TicketPriorite;
   assigneId: string | null;
   assigneeName: string | null;
+  assigneeIds?: string[];                 // V2 : multi-assignés
+  assigneeProfiles?: Array<{ id: string; full_name: string | null }>;
   canEdit: boolean;
   canAssign: boolean;
+  isSuperAdmin?: boolean;                 // V2 : pour le hard delete
   agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
   hasReport: boolean;
 }
 
 export default function TicketActions({
   ticketId, ticketNumero, statut, priorite, assigneId, assigneeName,
-  canEdit, canAssign, agents, hasReport,
+  assigneeIds, assigneeProfiles,
+  canEdit, canAssign, isSuperAdmin, agents, hasReport,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -127,12 +131,26 @@ export default function TicketActions({
     });
   }
 
-  function reassign(profileId: string | null) {
+  function saveAssignees(profileIds: string[]) {
     setError(null);
     startTransition(async () => {
       try {
-        await assignTicket(ticketId, profileId);
+        await setTicketAssignees(ticketId, profileIds);
         setShowAssign(false);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
+      }
+    });
+  }
+
+  function hardDelete() {
+    if (!confirm(`Supprimer DÉFINITIVEMENT le ticket #${ticketNumero} ? Cette action est irréversible et efface aussi les photos, commentaires et rapport.`)) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteTicketHard(ticketId);
+        router.push("/admin/tickets");
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur");
@@ -202,12 +220,12 @@ export default function TicketActions({
         </div>
       )}
 
-      {/* Assignation */}
+      {/* Assignation (multi) */}
       {canAssign && (
         <div className="civiq-card" style={{ padding: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)" }}>
-              Assignation
+              Assignés
             </span>
             <button
               type="button"
@@ -219,7 +237,32 @@ export default function TicketActions({
               <UserPlus size={12} /> Modifier
             </button>
           </div>
-          {assigneeName ? (
+          {assigneeProfiles && assigneeProfiles.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {assigneeProfiles.map((p) => (
+                <span
+                  key={p.id}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 8px", borderRadius: 99,
+                    background: "var(--accent-light)", color: "var(--accent)",
+                    fontSize: 12, fontWeight: 500,
+                  }}
+                  title={p.full_name ?? "—"}
+                >
+                  <span style={{
+                    width: 16, height: 16, borderRadius: "50%",
+                    background: "var(--accent)", color: "#fff",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 9, fontWeight: 700,
+                  }}>
+                    {(p.full_name?.[0] ?? "?").toUpperCase()}
+                  </span>
+                  {p.full_name ?? "—"}
+                </span>
+              ))}
+            </div>
+          ) : assigneeName ? (
             <div style={{ fontSize: 13, color: "var(--fg)" }}>{assigneeName}</div>
           ) : (
             <div style={{ fontSize: 13, color: "var(--fg-muted)", fontStyle: "italic" }}>Non assigné</div>
@@ -298,12 +341,37 @@ export default function TicketActions({
         </Link>
       )}
 
+      {/* Zone danger : super-admin uniquement */}
+      {isSuperAdmin && (
+        <div
+          className="civiq-card"
+          style={{ padding: 12, borderColor: "var(--destructive)", borderStyle: "dashed" }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--destructive)" }}>
+            Zone d&apos;administration
+          </span>
+          <p style={{ fontSize: 12, color: "var(--fg-muted)", margin: "6px 0 10px", lineHeight: 1.5 }}>
+            La suppression définitive efface le ticket et tous ses contenus liés (photos, commentaires, rapport).
+          </p>
+          <button
+            type="button"
+            onClick={hardDelete}
+            disabled={pending}
+            className="civiq-btn civiq-btn-outline"
+            style={{ width: "100%", justifyContent: "center", color: "var(--destructive)", borderColor: "var(--destructive)" }}
+          >
+            <Trash2 size={14} /> Supprimer définitivement
+          </button>
+        </div>
+      )}
+
       {showAssign && (
         <TicketAssignDialog
           currentAssigneId={assigneId}
+          currentAssigneeIds={assigneeIds}
           agents={agents}
           onClose={() => setShowAssign(false)}
-          onAssign={reassign}
+          onSave={saveAssignees}
           busy={pending}
         />
       )}

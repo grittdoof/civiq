@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { Save, Loader2, Check, KeyRound, Building2, User, Shield, ShieldCheck, Edit3, Eye } from "lucide-react";
+import NotificationsSettings from "@/components/notifications/NotificationsSettings";
+
+// `smsAvailable` est résolu côté serveur via /api/notifications/preferences
+// — on passe undefined ici pour laisser le composant le récupérer.
+const smsAvailable = false; // valeur initiale; vraie source = API
 
 // Mapping des rôles vers un libellé + description + couleur
 const ROLE_META: Record<string, { label: string; description: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -414,6 +419,17 @@ export default function ProfilePage() {
             label="Mettre à jour le mot de passe"
             disabled={!newPassword}
           />
+        </div>
+      </section>
+
+      {/* Notifications */}
+      <section className="profile-card" style={{ marginTop: 24 }}>
+        <header className="profile-card-header">
+          <h2>Notifications</h2>
+          <p>Choisissez comment vous voulez être prévenu·e des événements importants.</p>
+        </header>
+        <div style={{ padding: "0 24px 24px" }}>
+          <NotificationsSettings smsAvailable={smsAvailable} />
         </div>
       </section>
 

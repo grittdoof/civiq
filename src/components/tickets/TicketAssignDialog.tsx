@@ -1,27 +1,51 @@
 "use client";
 
 import { useState } from "react";
-import { X, Check, Search, UserMinus } from "lucide-react";
+import { X, Check, Search, UserMinus, Users } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
-// Modal de réassignation d'un ticket
-// Utilisé dans le panel TicketActions et potentiellement depuis
-// la liste (action rapide).
+// Modal d'assignation d'un ticket
+//
+// V2 : multi-sélection.
+//   - currentAssigneeIds : IDs actuellement assignés
+//   - onSave(ids[]) : sauvegarde la liste complète
+//   - onAssign : callback legacy mono-assigné (toujours supporté)
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   currentAssigneId: string | null;
+  currentAssigneeIds?: string[];
   agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
   onClose: () => void;
-  onAssign: (profileId: string | null) => void;
+  onAssign?: (profileId: string | null) => void;
+  onSave?: (profileIds: string[]) => void;
   busy?: boolean;
 }
 
 export default function TicketAssignDialog({
-  currentAssigneId, agents, onClose, onAssign, busy,
+  currentAssigneId, currentAssigneeIds, agents, onClose, onAssign, onSave, busy,
 }: Props) {
-  const [search, setSearch] = useState("");
+  const initial = currentAssigneeIds ?? (currentAssigneId ? [currentAssigneId] : []);
+  const [selected, setSelected] = useState<Set<string>>(new Set(initial));
 
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleSave() {
+    if (onSave) {
+      onSave(Array.from(selected));
+    } else if (onAssign) {
+      // Mode legacy : on prend le premier (ou null)
+      onAssign(Array.from(selected)[0] ?? null);
+    }
+  }
+  const [search, setSearch] = useState("");
   const filtered = agents.filter((a) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -75,24 +99,34 @@ export default function TicketAssignDialog({
             </p>
           )}
           {filtered.map((a) => {
-            const isCurrent = a.id === currentAssigneId;
+            const isSelected = selected.has(a.id);
             return (
               <button
                 key={a.id}
                 type="button"
-                onClick={() => onAssign(a.id)}
+                onClick={() => toggle(a.id)}
                 disabled={busy}
+                aria-pressed={isSelected}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "10px 12px",
-                  border: `1px solid ${isCurrent ? "var(--accent)" : "var(--border)"}`,
-                  background: isCurrent ? "var(--accent-light)" : "var(--card)",
+                  border: `1px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                  background: isSelected ? "var(--accent-light)" : "var(--card)",
                   borderRadius: "var(--radius-sm)",
                   cursor: busy ? "wait" : "pointer",
                   fontFamily: "inherit",
                   textAlign: "left",
                 }}
               >
+                <div style={{
+                  width: 22, height: 22, borderRadius: 5,
+                  border: `1.5px solid ${isSelected ? "var(--accent)" : "var(--border)"}`,
+                  background: isSelected ? "var(--accent)" : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  {isSelected && <Check size={14} style={{ color: "#fff" }} />}
+                </div>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
                   {(a.full_name?.[0] ?? "?").toUpperCase()}
                 </div>
@@ -106,32 +140,45 @@ export default function TicketAssignDialog({
                     </div>
                   )}
                 </div>
-                {isCurrent && <Check size={16} style={{ color: "var(--accent)" }} />}
               </button>
             );
           })}
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-          {currentAssigneId && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "var(--fg-muted)", display: "inline-flex", gap: 5, alignItems: "center" }}>
+            <Users size={13} />
+            {selected.size === 0 ? "Aucun assigné" : `${selected.size} assigné${selected.size > 1 ? "s" : ""}`}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            {selected.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                disabled={busy}
+                className="civiq-btn civiq-btn-ghost"
+                style={{ color: "var(--destructive)" }}
+              >
+                <UserMinus size={14} /> Tout retirer
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => onAssign(null)}
+              onClick={onClose}
               disabled={busy}
-              className="civiq-btn civiq-btn-ghost"
-              style={{ flex: 1, justifyContent: "center", color: "var(--destructive)" }}
+              className="civiq-btn civiq-btn-outline"
             >
-              <UserMinus size={14} /> Désassigner
+              Annuler
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="civiq-btn civiq-btn-outline"
-            style={{ flex: 1, justifyContent: "center" }}
-          >
-            Fermer
-          </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={busy}
+              className="civiq-btn civiq-btn-default"
+            >
+              <Check size={14} /> Enregistrer
+            </button>
+          </div>
         </div>
       </div>
     </div>

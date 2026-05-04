@@ -160,6 +160,17 @@ body {
 }
 .civiq-nav-item:hover { background: var(--border-light); color: var(--fg); }
 .civiq-nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.civiq-nav-action {
+  color: var(--fg-muted);
+  border: 1.5px dashed var(--border);
+  margin: 2px 0;
+  background: transparent;
+}
+.civiq-nav-action:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 .civiq-mobile-menu-btn {
   display: none;
@@ -170,7 +181,13 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: 10px;
+  /* min 44×44 px pour respect des guidelines tactiles iOS/Android */
+  min-width: 44px;
+  min-height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   box-shadow: var(--card-shadow);
 }
@@ -244,6 +261,12 @@ body {
 }
 .civiq-icon-btn:hover { background: var(--border-light); color: var(--fg); }
 .civiq-icon-btn.danger:hover { background: oklch(0.97 0.03 25); color: var(--destructive); }
+
+/* Sur mobile : agrandit la zone de tap des icon buttons (≥ 40px) */
+@media (max-width: 768px) {
+  .civiq-icon-btn { width: 40px; height: 40px; }
+  .civiq-btn-sm { padding: 8px 12px; font-size: 13px; min-height: 40px; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Buttons

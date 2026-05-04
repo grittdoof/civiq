@@ -37,11 +37,13 @@ export default async function TicketsListPage({ searchParams }: Props) {
     redirect("/admin/onboarding");
   }
 
-  const { filter = "tous", search = "" } = await searchParams;
+  // Filtre par défaut = "ouverts" (tous les statuts non-clos / non-annulés)
+  const { filter = "ouverts", search = "" } = await searchParams;
 
   // Mapping filter → critères queries
   const filters: Parameters<typeof listTickets>[1] = { search };
-  if (filter === "nouveau") filters.statut = ["nouveau", "assigne"];
+  if (filter === "ouverts") filters.statut = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
+  else if (filter === "nouveau") filters.statut = ["nouveau", "assigne"];
   else if (filter === "en_cours") filters.statut = ["pris_en_charge", "en_cours", "en_attente"];
   else if (filter === "urgents") filters.priorite = "urgente";
   else if (filter === "mes_tickets") filters.assignedToMe = ctx.userId;
@@ -52,6 +54,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
   // Compteurs pour les pills (sans filtre)
   const allTickets = await listTickets(ctx.communeId, {});
   const counts = {
+    ouverts: allTickets.filter((t) => !["resolu", "clos", "annule"].includes(t.statut)).length,
     tous: allTickets.length,
     nouveau: allTickets.filter((t) => ["nouveau", "assigne"].includes(t.statut)).length,
     en_cours: allTickets.filter((t) => ["pris_en_charge", "en_cours", "en_attente"].includes(t.statut)).length,

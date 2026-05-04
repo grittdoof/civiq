@@ -243,7 +243,91 @@ export async function updateTicketStatus(ticketId: string, newStatut: TicketStat
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Assignation
+// Suppression définitive (super-admin uniquement)
+// ═══════════════════════════════════════════════════════════════
+
+export async function deleteTicketHard(ticketId: string): Promise<void> {
+  const ctx = await getAuthContext();
+  if (!ctx) throw new Error("Non authentifié");
+  if (ctx.role !== "super_admin") {
+    throw new Error("Suppression définitive réservée aux super-admins");
+  }
+  const service = await createServiceClient();
+  // Cascade FK efface ticket_photos / commentaires / rapports / assignees
+  const { error } = await service.from("tickets").delete().eq("id", ticketId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Multi-assignés (V2)
+//
+// `setTicketAssignees(ticketId, profileIds[])` remplace l'ensemble
+// des assignés d'un ticket. Le trigger SQL maintient
+// `tickets.assigne_a` = premier de la liste.
+// ═══════════════════════════════════════════════════════════════
+
+export async function setTicketAssignees(ticketId: string, profileIds: string[]): Promise<void> {
+  const { service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
+  if (!isSuperAdmin && !isAdmin && !isEditor) {
+    throw new Error("Seuls les éditeurs et administrateurs peuvent assigner un ticket");
+  }
+  // Récupère assignés actuels
+  const { data: existing } = await service
+    .from("ticket_assignees")
+    .select("profile_id")
+    .eq("ticket_id", ticketId);
+  const existingIds = new Set((existing ?? []).map((r) => r.profile_id));
+  const desired = new Set(profileIds);
+
+  const toAdd = profileIds.filter((id) => !existingIds.has(id));
+  const toRemove = Array.from(existingIds).filter((id) => !desired.has(id));
+
+  if (toRemove.length) {
+    const { error: dErr } = await service
+      .from("ticket_assignees")
+      .delete()
+      .eq("ticket_id", ticketId)
+      .in("profile_id", toRemove);
+    if (dErr) throw new Error(dErr.message);
+  }
+  if (toAdd.length) {
+    const ctx = await getAuthContext();
+    const { error: iErr } = await service
+      .from("ticket_assignees")
+      .insert(toAdd.map((profile_id) => ({ ticket_id: ticketId, profile_id, assigned_by: ctx?.userId })));
+    if (iErr) throw new Error(iErr.message);
+  }
+
+  // Notifications aux nouveaux assignés (sauf l'auteur de la modif)
+  const ctx = await getAuthContext();
+  const recipients = toAdd.filter((id) => id !== ctx?.userId);
+  if (recipients.length) {
+    const { data: t } = await service
+      .from("tickets")
+      .select("titre, numero")
+      .eq("id", ticketId)
+      .maybeSingle();
+    if (t) {
+      // notif via push helper (séquentielle pour éviter throttle)
+      for (const r of recipients) {
+        notifyTicketAssigned({
+          ticketId,
+          ticketNumero: t.numero,
+          titre: t.titre,
+          assignedTo: r,
+        }).catch((e) => console.error("[push] notify multi-assign:", e));
+      }
+    }
+  }
+
+  void ticket; // (lint)
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Assignation (legacy : un seul assigné)
 // ═══════════════════════════════════════════════════════════════
 
 export async function assignTicket(ticketId: string, profileId: string | null): Promise<void> {

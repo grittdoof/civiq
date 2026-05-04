@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { createServiceClient } from "@/lib/supabase-server";
+import { sendOptInSms } from "@/lib/notifications/sms";
 
 // ═══════════════════════════════════════════════════════════════
 // Wrapper d'envoi Web Push
@@ -111,13 +112,20 @@ export async function sendTicketNotification(input: NotifyInput): Promise<SendRe
 
 /** Notif lors d'une assignation directe à un agent. */
 export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumero: number; titre: string; assignedTo: string }) {
-  return sendTicketNotification({
+  const push = sendTicketNotification({
     profileIds: [opts.assignedTo],
     title: `Ticket #${opts.ticketNumero} vous a été assigné`,
     body: opts.titre.length > 100 ? opts.titre.slice(0, 100) + "…" : opts.titre,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `ticket-${opts.ticketId}`,
   });
+  // SMS opt-in en parallèle (pas bloquant si Twilio indispo)
+  sendOptInSms({
+    profileIds: [opts.assignedTo],
+    category: "assignment",
+    body: `[GoCiviQ] Ticket #${opts.ticketNumero} vous a été assigné : ${opts.titre.slice(0, 80)}`,
+  }).catch(() => {});
+  return push;
 }
 
 /** Notif quand un ticket urgent est créé sans assignation : tous les agents techniques + adjoints travaux. */
@@ -129,35 +137,54 @@ export async function notifyUrgentUnassigned(opts: { ticketId: string; ticketNum
     .eq("commune_id", opts.communeId)
     .or("job_title.eq.agent_technique,job_title.eq.adjoint,role.eq.admin");
 
-  return sendTicketNotification({
-    profileIds: (targets ?? []).map((t) => t.id),
+  const ids = (targets ?? []).map((t) => t.id);
+  const push = sendTicketNotification({
+    profileIds: ids,
     title: `🚨 Ticket urgent #${opts.ticketNumero}`,
     body: opts.titre,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `urgent-${opts.ticketId}`,
   });
+  sendOptInSms({
+    profileIds: ids,
+    category: "urgent_unassigned",
+    body: `[GoCiviQ] URGENT #${opts.ticketNumero} : ${opts.titre.slice(0, 100)}`,
+  }).catch(() => {});
+  return push;
 }
 
 /** Notif quand un commentaire est ajouté sur un ticket en cours : agent assigné. */
 export async function notifyTicketCommented(opts: { ticketId: string; ticketNumero: number; assignedTo: string | null; excerpt: string }) {
   if (!opts.assignedTo) return { sent: 0, failed: 0, cleaned: 0 };
-  return sendTicketNotification({
+  const push = sendTicketNotification({
     profileIds: [opts.assignedTo],
     title: `Nouveau commentaire sur #${opts.ticketNumero}`,
     body: opts.excerpt.length > 120 ? opts.excerpt.slice(0, 120) + "…" : opts.excerpt,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `comment-${opts.ticketId}`,
   });
+  sendOptInSms({
+    profileIds: [opts.assignedTo],
+    category: "comment",
+    body: `[GoCiviQ] Commentaire ticket #${opts.ticketNumero}`,
+  }).catch(() => {});
+  return push;
 }
 
 /** Notif quand un ticket est clôturé : créateur du ticket. */
 export async function notifyTicketClosed(opts: { ticketId: string; ticketNumero: number; titre: string; createdBy: string | null }) {
   if (!opts.createdBy) return { sent: 0, failed: 0, cleaned: 0 };
-  return sendTicketNotification({
+  const push = sendTicketNotification({
     profileIds: [opts.createdBy],
     title: `✅ Ticket #${opts.ticketNumero} résolu`,
     body: `${opts.titre} — voir le rapport d'intervention`,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `closed-${opts.ticketId}`,
   });
+  sendOptInSms({
+    profileIds: [opts.createdBy],
+    category: "closure",
+    body: `[GoCiviQ] Ticket #${opts.ticketNumero} résolu : ${opts.titre.slice(0, 90)}`,
+  }).catch(() => {});
+  return push;
 }
