@@ -122,16 +122,14 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
 
   const sidebar = (
     <aside className="civiq-sidebar">
-      {/* Logo */}
+      {/* Logo officiel GoCiviq (charte République) */}
       <div className="civiq-sidebar-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <rect x="2" y="10" width="20" height="12" rx="1.5" fill="var(--accent)" />
-          <rect x="6" y="6" width="12" height="5" rx="1" fill="var(--accent)" opacity="0.6" />
-          <rect x="9" y="2" width="6" height="5" rx="1" fill="var(--accent)" opacity="0.35" />
-          <rect x="9" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
-          <rect x="13" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
-        </svg>
-        <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.03em", color: "var(--fg)" }}>GoCiviQ</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/logo-horizontal.svg"
+          alt="GoCiviq"
+          style={{ height: 28, width: "auto", display: "block" }}
+        />
       </div>
 
       {/* Bloc commune */}

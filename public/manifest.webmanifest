@@ -1,0 +1,27 @@
+{
+  "name": "GoCiviq — Plateforme citoyenne",
+  "short_name": "GoCiviq",
+  "description": "Plateforme modulaire pour les collectivités engagées dans une démarche de participation citoyenne.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#042F64",
+  "lang": "fr-FR",
+  "icons": [
+    {
+      "src": "/favicon/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon/icon-ios.svg",
+      "sizes": "1024x1024",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["government", "productivity"]
+}

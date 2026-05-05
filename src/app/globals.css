@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   CIVIQ — Design System v2 (handoff 2026-04)
-   Inter · oklch tokens · Fluid design
+   GoCiviq — Design System (handoff 2026-05, charte République)
+   Montserrat · oklch tokens · Marine #042F64 / Azur #2F6FDB
    ═══════════════════════════════════════════════════════════════ */
 
 @import "tailwindcss";
@@ -9,7 +9,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--fg);
   line-height: 1.5;
@@ -24,23 +24,35 @@ body {
 
 /* ── Design Tokens (Light mode) ──────────────────────────────────── */
 :root {
-  /* Colors */
-  --bg:            oklch(0.984 0.003 258);
+  /* ─── Charte République (couleurs officielles) ─── */
+  --marine:        #042F64;          /* Bleu marine principal */
+  --azur:          #2F6FDB;          /* Azur secondaire — accent app */
+  --azur-clair:    #7AAAF8;          /* Azur clair (fond marine) */
+  --bleu-profond:  #0B3D91;
+  --rouge:         #E00114;          /* Rouge République */
+  --rouge-fonce:   #C1121F;
+  --gris-bg:       #F2F3F7;          /* Gris fond doux */
+  --gris-txt:      #6B7080;
+  --gris-soft:     #4a5068;
+
+  /* ─── Tokens applicatifs ─── */
+  --bg:            oklch(from var(--gris-bg) l c h);
   --card:          oklch(1 0 0);
   --fg:            oklch(0.13 0.008 258);
   --fg-muted:      oklch(0.50 0.014 258);
   --fg-xmuted:     oklch(0.70 0.008 258);
   --border:        oklch(0.895 0.007 258);
   --border-light:  oklch(0.945 0.004 258);
-  --accent:        oklch(0.48 0.200 258);
-  --accent-hover:  oklch(0.42 0.200 258);
+  /* Accent = Azur #2F6FDB ≈ oklch(0.55 0.20 258) */
+  --accent:        #2F6FDB;
+  --accent-hover:  #1a55b8;
   --accent-light:  oklch(0.965 0.040 258);
   --accent-fg:     #fff;
   --success:       oklch(0.54 0.148 152);
   --success-light: oklch(0.965 0.048 152);
   --warning:       oklch(0.68 0.130 72);
   --warning-light: oklch(0.975 0.042 72);
-  --destructive:   oklch(0.52 0.210 25);
+  --destructive:   #E00114;
   --sidebar-bg:    oklch(1 0 0);
 
   /* Shape */
