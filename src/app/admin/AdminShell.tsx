@@ -131,7 +131,18 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
           <rect x="9" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
           <rect x="13" y="14" width="2" height="5" fill="white" opacity="0.9" rx="0.5" />
         </svg>
-        <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.03em", color: "var(--fg)" }}>GoCiviQ</span>
+        <span
+          style={{
+            fontFamily: "'Fraunces', Georgia, serif",
+            fontWeight: 600,
+            fontSize: 20,
+            letterSpacing: "-0.02em",
+            color: "var(--fg)",
+            fontVariationSettings: "'opsz' 24, 'SOFT' 50",
+          }}
+        >
+          GoCiviQ
+        </span>
       </div>
 
       {/* Bloc commune */}
