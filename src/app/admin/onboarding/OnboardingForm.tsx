@@ -114,7 +114,7 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
       <div style={{ maxWidth: 720, margin: "40px auto", padding: "0 20px" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.03em", marginBottom: 6 }}>
-            Bienvenue sur GoCiviQ
+            Bienvenue sur GoCiviq
           </h1>
           <p style={{ fontSize: 15, color: "var(--fg-muted)", maxWidth: 540, margin: "0 auto", lineHeight: 1.6 }}>
             Pour accéder aux fonctionnalités d&apos;administration, vous devez être rattaché·e à une commune. Choisissez l&apos;option qui vous correspond.

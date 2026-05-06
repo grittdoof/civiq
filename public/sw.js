@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// Service Worker — GoCiviQ
+// Service Worker — GoCiviq
 //
 // Gère :
 //  • réception d'événements push (notifications du module Tickets)
@@ -22,10 +22,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch (e) {
-    payload = { title: "GoCiviQ", body: event.data.text() };
+    payload = { title: "GoCiviq", body: event.data.text() };
   }
 
-  const title = payload.title || "GoCiviQ";
+  const title = payload.title || "GoCiviq";
   const options = {
     body: payload.body || "",
     icon: "/icon-192.png",

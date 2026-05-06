@@ -123,7 +123,7 @@ export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumer
   sendOptInSms({
     profileIds: [opts.assignedTo],
     category: "assignment",
-    body: `[GoCiviQ] Ticket #${opts.ticketNumero} vous a été assigné : ${opts.titre.slice(0, 80)}`,
+    body: `[GoCiviq] Ticket #${opts.ticketNumero} vous a été assigné : ${opts.titre.slice(0, 80)}`,
   }).catch(() => {});
   return push;
 }
@@ -148,7 +148,7 @@ export async function notifyUrgentUnassigned(opts: { ticketId: string; ticketNum
   sendOptInSms({
     profileIds: ids,
     category: "urgent_unassigned",
-    body: `[GoCiviQ] URGENT #${opts.ticketNumero} : ${opts.titre.slice(0, 100)}`,
+    body: `[GoCiviq] URGENT #${opts.ticketNumero} : ${opts.titre.slice(0, 100)}`,
   }).catch(() => {});
   return push;
 }
@@ -166,7 +166,7 @@ export async function notifyTicketCommented(opts: { ticketId: string; ticketNume
   sendOptInSms({
     profileIds: [opts.assignedTo],
     category: "comment",
-    body: `[GoCiviQ] Commentaire ticket #${opts.ticketNumero}`,
+    body: `[GoCiviq] Commentaire ticket #${opts.ticketNumero}`,
   }).catch(() => {});
   return push;
 }
@@ -184,7 +184,7 @@ export async function notifyTicketClosed(opts: { ticketId: string; ticketNumero:
   sendOptInSms({
     profileIds: [opts.createdBy],
     category: "closure",
-    body: `[GoCiviQ] Ticket #${opts.ticketNumero} résolu : ${opts.titre.slice(0, 90)}`,
+    body: `[GoCiviq] Ticket #${opts.ticketNumero} résolu : ${opts.titre.slice(0, 90)}`,
   }).catch(() => {});
   return push;
 }

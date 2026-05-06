@@ -57,7 +57,7 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
           <Shield size={17} />
         </div>
         <div>
-          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-0.03em", color: "#fff" }}>GoCiviQ</div>
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-0.03em", color: "#fff" }}>GoCiviq</div>
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>Super Admin</div>
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
         justifyContent: "space-between",
       }} className="sa-mobile-header">
         <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#fff", fontWeight: 700 }}>
-          <Shield size={16} /> GoCiviQ Admin
+          <Shield size={16} /> GoCiviq Admin
         </div>
         <button onClick={() => setOpen(!open)} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", padding: 4 }}>
           {open ? <X size={20} /> : <Menu size={20} />}

@@ -24,7 +24,7 @@ export default function AidePage() {
             Aide &amp; tutoriel
           </h1>
           <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>
-            Tout ce qu&apos;il faut savoir pour utiliser GoCiviQ au quotidien.
+            Tout ce qu&apos;il faut savoir pour utiliser GoCiviq au quotidien.
           </p>
         </div>
       </div>
@@ -49,10 +49,10 @@ export default function AidePage() {
           </div>
           <div>
             <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.02em", marginBottom: 4 }}>
-              Bienvenue sur GoCiviQ !
+              Bienvenue sur GoCiviq !
             </h2>
             <p style={{ fontSize: 14, color: "var(--fg)", lineHeight: 1.55, opacity: 0.85 }}>
-              GoCiviQ est la plateforme civique de votre commune. Elle réunit deux modules complémentaires :
+              GoCiviq est la plateforme civique de votre commune. Elle réunit deux modules complémentaires :
               les <strong>sondages citoyens</strong> pour consulter vos administrés, et les <strong>tickets d&apos;intervention</strong> pour piloter
               les signalements terrain. Cette page vous guide pas à pas.
             </p>
@@ -183,9 +183,9 @@ export default function AidePage() {
 
       {/* 4. Mobile */}
       <Section id="mobile" number="4" title="Sur mobile" icon={<Smartphone size={18} />}>
-        <Step title="Installer GoCiviQ comme une vraie app">
+        <Step title="Installer GoCiviq comme une vraie app">
           <p>
-            GoCiviQ est une <strong>PWA</strong> : installez-la sur votre écran d&apos;accueil pour un accès en un tap.
+            GoCiviq est une <strong>PWA</strong> : installez-la sur votre écran d&apos;accueil pour un accès en un tap.
           </p>
           <div style={{ display: "grid", gap: 10, marginTop: 8 }}>
             <PlatformCard
@@ -235,7 +235,7 @@ export default function AidePage() {
 
         <Step title="Notifications SMS (opt-in)">
           <p>
-            Pour les agents en zone blanche ou les responsables qui ne consultent pas l&apos;app, GoCiviQ
+            Pour les agents en zone blanche ou les responsables qui ne consultent pas l&apos;app, GoCiviq
             peut envoyer des <strong>SMS</strong> via Twilio. C&apos;est <strong>opt-in strict</strong> : chaque
             utilisateur active le service depuis son profil et renseigne son numéro.
           </p>

@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
-const UA = "GoCiviQ/1.0 (contact@gociviq.fr)";
+const UA = "GoCiviq/1.0 (contact@gociviq.fr)";
 
 export interface NominatimResult {
   place_id: number;

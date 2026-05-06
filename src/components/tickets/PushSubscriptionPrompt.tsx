@@ -65,7 +65,7 @@ export default function PushSubscriptionPrompt() {
               Activer sur iPhone
             </h3>
             <p style={{ fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.5, marginBottom: 8 }}>
-              Pour recevoir les notifications, ajoutez d&apos;abord GoCiviQ à votre écran d&apos;accueil :
+              Pour recevoir les notifications, ajoutez d&apos;abord GoCiviq à votre écran d&apos;accueil :
             </p>
             <ol style={{ fontSize: 12, color: "var(--fg)", paddingLeft: 18, lineHeight: 1.6, margin: 0 }}>
               <li>Tapez <Share size={11} style={{ verticalAlign: "middle" }} /> Partager dans Safari</li>
