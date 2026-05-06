@@ -52,7 +52,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Sondages",
     items: [
-      { href: "/admin/dashboard", label: "Mes sondages", icon: FileText, exact: true, modules: ["surveys"] },
+      { href: "/admin/surveys", label: "Mes sondages", icon: FileText, exact: true, modules: ["surveys"] },
       { href: "/admin/surveys/new", label: "Nouveau sondage", icon: Plus, exact: true, modules: ["surveys"], action: true, roles: ["admin", "super_admin"] },
     ],
   },

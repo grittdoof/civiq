@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight, ShieldCheck, Sparkles, Users, MessageSquare, MapPin,
   Wrench, FileText, PiggyBank, CalendarDays, Bell, Building2,
   CheckCircle2, Clock, Lock, Award, Zap, Quote, HeartHandshake,
-  Lightbulb, TrendingUp, Mail, FileCheck, AlertTriangle,
+  Lightbulb, TrendingUp, Mail, FileCheck, AlertTriangle, Menu, X,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
@@ -25,13 +28,23 @@ import {
 const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK || "https://cal.com/gociviq/demo-15min";
 
 export default function HomePage() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  function close() { setMenuOpen(false); }
+
   return (
     <main className="lp">
       {/* ═══ NAV ═══ */}
       <header className="lp-nav">
         <div className="lp-container lp-nav-inner">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-horizontal.svg" alt="GoCiviq" className="lp-logo" />
+          {/* Logo : horizontal en desktop, coq seul en mobile */}
+          <a href="#" className="lp-logo-link" aria-label="GoCiviq">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-horizontal.svg" alt="GoCiviq" className="lp-logo lp-logo-desktop" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/coq-couleur.svg" alt="GoCiviq" className="lp-logo lp-logo-mobile" />
+          </a>
+
           <nav className="lp-nav-links">
             <a href="#modules">Modules</a>
             <a href="#cas-usage">Cas d&apos;usage</a>
@@ -41,8 +54,47 @@ export default function HomePage() {
               Réserver une démo <ArrowRight size={14} />
             </a>
           </nav>
+
+          {/* Hamburger mobile */}
+          <button
+            type="button"
+            className="lp-hamburger"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Ouvrir le menu"
+          >
+            <Menu size={22} />
+          </button>
         </div>
       </header>
+
+      {/* Drawer mobile */}
+      {menuOpen && (
+        <div className="lp-drawer-overlay" onClick={close}>
+          <div className="lp-drawer" onClick={(e) => e.stopPropagation()}>
+            <div className="lp-drawer-head">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 28 }} />
+              <button type="button" onClick={close} className="lp-drawer-close" aria-label="Fermer">
+                <X size={22} />
+              </button>
+            </div>
+            <nav className="lp-drawer-nav">
+              <a href="#modules" onClick={close}>Modules</a>
+              <a href="#cas-usage" onClick={close}>Cas d&apos;usage</a>
+              <a href="#pourquoi" onClick={close}>Pourquoi GoCiviq</a>
+              <a href="#demo" onClick={close}>Réserver une démo</a>
+              <div className="lp-drawer-footer">
+                <Link href="/auth/login" className="lp-btn lp-btn-outline lp-btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={close}>
+                  Connexion
+                </Link>
+                <a href="#demo" className="lp-btn lp-btn-primary lp-btn-lg" style={{ width: "100%", justifyContent: "center" }} onClick={close}>
+                  Réserver une démo <ArrowRight size={16} />
+                </a>
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* ═══ 1. HERO ═══ */}
       <section className="lp-hero">
@@ -485,7 +537,7 @@ export default function HomePage() {
         <div className="lp-container lp-footer-inner">
           <div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 26, width: "auto" }} />
+            <img src="/brand/logo-horizontal-blanc.svg" alt="GoCiviq" style={{ height: 28, width: "auto" }} />
             <p style={{ fontSize: 12.5, color: "rgba(255, 255, 255, 0.6)", marginTop: 10, maxWidth: 320, lineHeight: 1.55 }}>
               Plateforme citoyenne souveraine pour les collectivités françaises.
               Hébergée en Europe, conforme RGPD, conçue par et pour les élus.
@@ -633,15 +685,85 @@ function LandingStyles() {
 
       /* NAV */
       .lp-nav { position: sticky; top: 0; background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(8px); z-index: 50; border-bottom: 1px solid #E8EAF1; }
-      .lp-nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; }
-      .lp-logo { height: 30px; width: auto; }
+      .lp-nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; gap: 12px; }
+      .lp-logo-link { display: inline-flex; align-items: center; line-height: 0; }
+      .lp-logo { height: 90px; width: auto; }
+      .lp-logo-mobile { display: none; }
       .lp-nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; font-weight: 500; }
       .lp-nav-links a { color: var(--gris-soft); text-decoration: none; transition: color 0.15s; }
       .lp-nav-links a:hover { color: var(--marine); }
+      /* Spécificité — corrige texte gris hérité sur les CTA dans la nav */
       .lp-nav-links .lp-btn { font-size: 14px; }
-      @media (max-width: 880px) {
-        .lp-nav-links a:not(.lp-btn) { display: none; }
+      .lp-nav-links .lp-btn-primary { color: #fff; }
+      .lp-nav-links .lp-btn-primary:hover { color: #fff; }
+      .lp-nav-links .lp-btn-ghost { color: var(--marine); }
+      .lp-nav-links .lp-btn-ghost:hover { color: var(--marine); }
+      .lp-nav-links .lp-btn-outline { color: var(--marine); }
+
+      /* Hamburger (mobile only) */
+      .lp-hamburger {
+        display: none;
+        background: transparent;
+        border: 1px solid #E8EAF1;
+        border-radius: 10px;
+        padding: 8px;
+        color: var(--marine);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
       }
+      .lp-hamburger:hover { background: var(--gris-bg); border-color: #c8d0de; }
+
+      @media (max-width: 880px) {
+        .lp-logo-desktop { display: none; }
+        .lp-logo-mobile  { display: block; height: 56px; }
+        .lp-nav-links { display: none; }
+        .lp-hamburger { display: inline-flex; align-items: center; justify-content: center; }
+      }
+
+      /* Drawer mobile */
+      .lp-drawer-overlay {
+        position: fixed; inset: 0;
+        background: rgba(10, 14, 26, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        animation: lp-fade 0.2s ease-out;
+      }
+      .lp-drawer {
+        position: fixed; top: 0; right: 0; bottom: 0;
+        width: min(320px, 88vw);
+        background: #fff;
+        box-shadow: -16px 0 40px rgba(4, 47, 100, 0.18);
+        display: flex; flex-direction: column;
+        animation: lp-slide-right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .lp-drawer-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 18px 20px; border-bottom: 1px solid #E8EAF1;
+      }
+      .lp-drawer-close {
+        background: transparent; border: none; cursor: pointer;
+        padding: 8px; border-radius: 8px; color: var(--gris-soft);
+      }
+      .lp-drawer-close:hover { background: var(--gris-bg); color: var(--marine); }
+      .lp-drawer-nav {
+        flex: 1; display: flex; flex-direction: column;
+        padding: 12px 16px;
+      }
+      .lp-drawer-nav > a {
+        padding: 14px 12px;
+        color: var(--marine);
+        text-decoration: none;
+        font-size: 16px; font-weight: 600;
+        border-bottom: 1px solid #F2F3F7;
+        transition: color 0.15s;
+      }
+      .lp-drawer-nav > a:hover { color: var(--azur); }
+      .lp-drawer-footer {
+        margin-top: auto; padding: 16px 0 8px;
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      @keyframes lp-fade { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes lp-slide-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
       /* BUTTONS */
       .lp-btn {
@@ -682,7 +804,7 @@ function LandingStyles() {
       .lp-hero-inner { display: grid; grid-template-columns: 1.1fr 1fr; gap: 56px; align-items: center; }
       @media (max-width: 980px) {
         .lp-hero-inner { grid-template-columns: 1fr; }
-        .lp-hero-visual { order: -1; max-width: 480px; margin: 0 auto; }
+        .lp-hero-visual { display: none; }
       }
 
       .lp-eyebrow {
@@ -734,7 +856,8 @@ function LandingStyles() {
       /* SECTIONS */
       .lp-section { padding: 90px 0; }
       .lp-section-light { background: var(--gris-bg); }
-      .lp-section-marine { background: var(--marine); color: #fff; }
+      /* Section marine masquée selon demande client */
+      .lp-section-marine { display: none; }
       .lp-section-azur { background: linear-gradient(135deg, var(--azur) 0%, var(--marine) 100%); color: #fff; }
 
       .lp-section-header { text-align: center; max-width: 760px; margin: 0 auto 56px; }

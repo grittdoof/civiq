@@ -72,8 +72,9 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <Link href="/" className="auth-logo">
-          🏛 GoCiviQ
+        <Link href="/" className="auth-logo" aria-label="GoCiviq" style={{ display: "inline-flex", justifyContent: "center" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 60, width: "auto" }} />
         </Link>
         <h1>Connexion</h1>
         <p className="auth-desc">
