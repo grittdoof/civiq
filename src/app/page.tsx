@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowRight, ShieldCheck, Sparkles, Users, MessageSquare, MapPin,
   Wrench, FileText, PiggyBank, CalendarDays, Bell, Building2,
@@ -29,13 +29,22 @@ const CAL_LINK = process.env.NEXT_PUBLIC_CAL_LINK || "https://cal.com/gociviq/de
 
 export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   function close() { setMenuOpen(false); }
+
+  // Réduit la navbar (et le logo) après ~40px de scroll vertical
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <main className="lp">
       {/* ═══ NAV ═══ */}
-      <header className="lp-nav">
+      <header className={`lp-nav${scrolled ? " lp-nav-scrolled" : ""}`}>
         <div className="lp-container lp-nav-inner">
           {/* Logo : horizontal en desktop, coq seul en mobile */}
           <a href="#" className="lp-logo-link" aria-label="GoCiviq">
@@ -684,10 +693,32 @@ function LandingStyles() {
       .lp-container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 
       /* NAV */
-      .lp-nav { position: sticky; top: 0; background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(8px); z-index: 50; border-bottom: 1px solid #E8EAF1; }
-      .lp-nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; gap: 12px; }
+      .lp-nav {
+        position: sticky; top: 0;
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(8px);
+        z-index: 50;
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.25s, box-shadow 0.25s;
+      }
+      .lp-nav-scrolled {
+        background: rgba(255, 255, 255, 0.98);
+        border-bottom-color: #E8EAF1;
+        box-shadow: 0 4px 14px rgba(4, 47, 100, 0.05);
+      }
+      .lp-nav-inner {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 14px 24px;
+        gap: 12px;
+        transition: padding 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .lp-nav-scrolled .lp-nav-inner { padding: 8px 24px; }
       .lp-logo-link { display: inline-flex; align-items: center; line-height: 0; }
-      .lp-logo { height: 90px; width: auto; }
+      .lp-logo {
+        height: 90px; width: auto;
+        transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .lp-nav-scrolled .lp-logo { height: 50px; }
       .lp-logo-mobile { display: none; }
       .lp-nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; font-weight: 500; }
       .lp-nav-links a { color: var(--gris-soft); text-decoration: none; transition: color 0.15s; }
@@ -716,6 +747,7 @@ function LandingStyles() {
       @media (max-width: 880px) {
         .lp-logo-desktop { display: none; }
         .lp-logo-mobile  { display: block; height: 56px; }
+        .lp-nav-scrolled .lp-logo-mobile { height: 38px; }
         .lp-nav-links { display: none; }
         .lp-hamburger { display: inline-flex; align-items: center; justify-content: center; }
       }
