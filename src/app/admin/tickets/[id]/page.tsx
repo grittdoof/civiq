@@ -1,5 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+// Le composant a "use client" + chargement Leaflet en useEffect :
+// le SSR ne touche pas Leaflet, pas besoin de next/dynamic ssr:false.
+import TicketLocationMap from "@/components/tickets/TicketLocationMap";
 import {
   ArrowLeft, MapPin, User as UserIcon, Calendar, Phone, Mail, Clock,
   Tag, Hash, Inbox,
@@ -120,20 +123,37 @@ export default async function TicketDetailPage({ params }: Props) {
           {/* Localisation */}
           {(ticket.adresse || (ticket.latitude && ticket.longitude)) && (
             <div className="civiq-card" style={{ padding: 16 }}>
-              <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
+              <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 10 }}>
                 Localisation
               </h2>
               {ticket.adresse && (
-                <p style={{ fontSize: 14, color: "var(--fg)", display: "flex", gap: 6, alignItems: "flex-start", lineHeight: 1.5 }}>
+                <p style={{ fontSize: 14, color: "var(--fg)", display: "flex", gap: 6, alignItems: "flex-start", lineHeight: 1.5, marginBottom: 6 }}>
                   <MapPin size={15} style={{ marginTop: 2, color: "var(--fg-muted)", flexShrink: 0 }} />
                   {ticket.adresse}
                 </p>
               )}
               {ticket.latitude && ticket.longitude && (
-                <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontFamily: "ui-monospace, monospace" }}>
-                  {ticket.latitude.toFixed(5)}, {ticket.longitude.toFixed(5)}
-                  {ticket.precision_geo && <span style={{ marginLeft: 8 }}>· {ticket.precision_geo}</span>}
-                </p>
+                <>
+                  <p style={{ fontSize: 12, color: "var(--fg-muted)", marginBottom: 12, fontFamily: "ui-monospace, monospace" }}>
+                    {ticket.latitude.toFixed(5)}, {ticket.longitude.toFixed(5)}
+                    {ticket.precision_geo && <span style={{ marginLeft: 8 }}>· {ticket.precision_geo}</span>}
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${ticket.latitude},${ticket.longitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ marginLeft: 10, color: "var(--accent)", textDecoration: "none", fontFamily: "inherit", fontWeight: 600 }}
+                    >
+                      Itinéraire ↗
+                    </a>
+                  </p>
+                  <TicketLocationMap
+                    lat={ticket.latitude}
+                    lng={ticket.longitude}
+                    priorite={ticket.priorite}
+                    label={ticket.adresse ?? ticket.titre}
+                    height={260}
+                  />
+                </>
               )}
             </div>
           )}

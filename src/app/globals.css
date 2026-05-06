@@ -256,6 +256,18 @@ body {
 .civiq-table-row:last-child { border-bottom: none; }
 .civiq-table-row:hover { background: var(--bg); }
 
+/* ── Cursor pointer global pour les éléments cliquables ───────── */
+/* Cards / rows / éléments interactifs : main au survol */
+a.civiq-card,
+a.tk-card,
+button.civiq-card,
+.civiq-card-hover,
+.tk-card,
+[role="button"],
+[onclick] { cursor: pointer; }
+.civiq-table-row[onclick],
+.civiq-table-row.clickable { cursor: pointer; }
+
 /* ── Icon buttons ───────────────────────────────────────────────── */
 .civiq-icon-btn {
   width: 30px;
