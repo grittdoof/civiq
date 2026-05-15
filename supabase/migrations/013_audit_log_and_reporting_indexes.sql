@@ -109,6 +109,8 @@ create index if not exists idx_ticket_comments_recent
   on public.ticket_commentaires(ticket_id, created_at desc);
 
 -- ─── 4. Vue reporting (lecture facile depuis le dashboard) ─────
+-- NB : la table `tickets` n'a pas de soft-delete (seul `deleteTicketHard`
+-- pour les super-admins). Pas de filtre deleted_at à appliquer.
 create or replace view public.tickets_reporting_v as
   select
     t.commune_id,
@@ -148,7 +150,6 @@ create or replace view public.tickets_reporting_v as
          and c.is_systeme = true
          and c.contenu like 'Statut : resolu → %'
     ) as a_ete_reouvert
-  from public.tickets t
-  where t.deleted_at is null;
+  from public.tickets t;
 
 grant select on public.tickets_reporting_v to authenticated;
