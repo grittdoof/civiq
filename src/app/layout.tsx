@@ -26,6 +26,12 @@ export const metadata: Metadata = {
     shortcut: ["/favicon/favicon.svg"],
   },
   manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "GoCiviq",
+    statusBarStyle: "default",
+    startupImage: ["/app-icon/icon-ios.svg"],
+  },
   openGraph: {
     title: "GoCiviq — Plateforme citoyenne pour les collectivités",
     description:

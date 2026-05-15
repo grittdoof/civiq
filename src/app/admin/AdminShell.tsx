@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
+import { usePushNavigationListener } from "@/hooks/usePushNavigationListener";
 import {
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
@@ -88,6 +89,9 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
   const [activeModuleKeys] = useState<string[]>(initialActiveModuleKeys);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isSetup = pathname === "/admin/setup";
+
+  // Navigation depuis une notification push (cf. public/sw.js)
+  usePushNavigationListener();
 
   // Filtre les groupes selon les modules activés et le rôle
   const visibleGroups = useMemo(() => {

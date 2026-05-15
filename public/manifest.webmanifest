@@ -1,14 +1,17 @@
 {
+  "id": "/?source=pwa",
   "name": "GoCiviq — Plateforme citoyenne",
   "short_name": "GoCiviq",
   "description": "Plateforme modulaire pour les collectivités engagées dans une démarche de participation citoyenne.",
-  "start_url": "/",
+  "start_url": "/admin/dashboard?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FFFFFF",
   "theme_color": "#042F64",
   "lang": "fr-FR",
+  "dir": "ltr",
+  "categories": ["government", "productivity", "business"],
   "icons": [
     {
       "src": "/favicon/favicon.svg",
@@ -23,5 +26,28 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["government", "productivity"]
+  "shortcuts": [
+    {
+      "name": "Nouveau ticket",
+      "short_name": "Ticket",
+      "description": "Créer un ticket d'intervention en mobilité",
+      "url": "/admin/tickets/nouveau?source=pwa-shortcut",
+      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Mes tickets",
+      "short_name": "Tickets",
+      "description": "Liste des tickets ouverts",
+      "url": "/admin/tickets?source=pwa-shortcut",
+      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Tableau de bord",
+      "short_name": "Dashboard",
+      "description": "Vue d'ensemble de votre commune",
+      "url": "/admin/dashboard?source=pwa-shortcut",
+      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
+  "prefer_related_applications": false
 }
