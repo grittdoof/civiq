@@ -11,6 +11,7 @@ import {
   notifyTicketCommented,
   notifyTicketClosed,
 } from "./push";
+import { writeAudit } from "@/lib/audit";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -253,9 +254,24 @@ export async function deleteTicketHard(ticketId: string): Promise<void> {
     throw new Error("Suppression définitive réservée aux super-admins");
   }
   const service = await createServiceClient();
-  // Cascade FK efface ticket_photos / commentaires / rapports / assignees
+  // Snapshot pour l'audit avant suppression
+  const { data: snapshot } = await service
+    .from("tickets")
+    .select("id, numero, commune_id, titre, statut")
+    .eq("id", ticketId)
+    .maybeSingle();
+
   const { error } = await service.from("tickets").delete().eq("id", ticketId);
   if (error) throw new Error(error.message);
+
+  await writeAudit({
+    action: "ticket.hard_deleted",
+    targetType: "ticket",
+    targetId: ticketId,
+    communeId: snapshot?.commune_id ?? null,
+    metadata: snapshot ? { numero: snapshot.numero, titre: snapshot.titre, statut: snapshot.statut } : undefined,
+  });
+
   revalidatePath("/admin/tickets");
 }
 
@@ -352,6 +368,14 @@ export async function assignTicket(ticketId: string, profileId: string | null): 
   const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
   if (error) throw new Error(error.message);
 
+  await writeAudit({
+    action: profileId ? "ticket.assigned" : "ticket.unassigned",
+    targetType: "ticket",
+    targetId: ticketId,
+    communeId: ticket.commune_id,
+    metadata: { from: ticket.assigne_a, to: profileId },
+  });
+
   // Notif push au nouvel assigné (seulement si nouveau destinataire)
   if (profileId && profileId !== ticket.assigne_a) {
     const { data: t } = await service
@@ -445,7 +469,7 @@ export interface CloseTicketInput {
 }
 
 export async function closeTicketWithReport(input: CloseTicketInput): Promise<void> {
-  const { ctx, service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(input.ticketId);
+  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(input.ticketId);
 
   if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
     throw new Error("Permissions insuffisantes pour clôturer");
@@ -492,6 +516,20 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   }
   const { error: tErr } = await service.from("tickets").update(updates).eq("id", input.ticketId);
   if (tErr) throw new Error(tErr.message);
+
+  // Audit : clôture avec rapport
+  await writeAudit({
+    action: input.finalStatut === "clos" ? "ticket.closed" : "ticket.resolved",
+    targetType: "ticket",
+    targetId: input.ticketId,
+    communeId: ticket.commune_id,
+    metadata: {
+      duree_minutes: input.duree_minutes ?? null,
+      cout_estime: input.cout_estime ?? null,
+      necessite_suivi: !!input.necessite_suivi,
+      photo_count: input.servicePhotoPaths.length,
+    },
+  });
 
   // Notif au créateur du ticket
   const { data: tFull } = await service

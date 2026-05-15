@@ -10,7 +10,10 @@
     "lint": "next lint",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > src/types/database.ts"
+    "db:types": "supabase gen types typescript --local > src/types/database.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "generate:icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6",

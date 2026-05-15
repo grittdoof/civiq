@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { createHash } from "crypto";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
+  // Rate limit : 5 réponses / min / IP — protège contre les bots et le spam
+  const rl = rateLimit(request, { id: "responses-post", max: 5, windowMs: 60_000 });
+  if (!rl.ok) return rl.response;
+
   try {
     const body = await request.json();
     const {

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, Inbox, CheckCircle2, Clock, TrendingUp } from "lucide-react";
+import { ArrowLeft, Inbox, CheckCircle2, Clock, TrendingUp, AlertTriangle, RefreshCcw } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
 import { isModuleActive } from "@/lib/module-guard";
@@ -25,6 +25,34 @@ export default async function TicketsStatsPage() {
   }
 
   const tickets = await listTickets(ctx.communeId, { limit: 1000 });
+
+  // Vue reporting enrichie (migration 013)
+  const service = await (await import("@/lib/supabase-server")).createServiceClient();
+  const { data: reportingRows } = await service
+    .from("tickets_reporting_v")
+    .select("en_retard, a_ete_reouvert, canal, statut")
+    .eq("commune_id", ctx.communeId);
+
+  // Nouveaux KPIs
+  const enRetard = (reportingRows ?? []).filter((r) => r.en_retard).length;
+  const reouvertures = (reportingRows ?? []).filter((r) => r.a_ete_reouvert).length;
+  const totalResolus = (reportingRows ?? []).filter((r) => r.statut === "resolu" || r.statut === "clos").length;
+  const tauxReouverture = totalResolus > 0 ? Math.round((reouvertures / totalResolus) * 100) : 0;
+
+  // Répartition par canal
+  const canalLabels: Record<string, string> = {
+    agent_interne: "Agent municipal",
+    elu_terrain: "Élu terrain",
+    email: "Email",
+    telephone: "Téléphone",
+  };
+  const byCanalMap = new Map<string, number>();
+  (reportingRows ?? []).forEach((r) => {
+    byCanalMap.set(r.canal, (byCanalMap.get(r.canal) ?? 0) + 1);
+  });
+  const canalData = Array.from(byCanalMap.entries())
+    .map(([canal, value]) => ({ name: canalLabels[canal] ?? canal, value }))
+    .sort((a, b) => b.value - a.value);
 
   // ─── KPIs ───
   const ouvertsStatuts = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"] as const;
@@ -126,6 +154,30 @@ export default async function TicketsStatsPage() {
         <KpiCard icon={<TrendingUp size={18} />} value={`${within7dPct}%`} label="Résolus sous 7j" sub={`${within7d} tickets`} tone="accent" />
       </div>
 
+      {/* KPIs avancés (vue tickets_reporting_v) */}
+      <div className="civiq-stats-grid" style={{ marginBottom: 22 }}>
+        <KpiCard
+          icon={<AlertTriangle size={18} />}
+          value={enRetard}
+          label="Tickets en retard"
+          sub={enRetard ? "échéance dépassée" : "Aucun retard 👌"}
+          tone={enRetard > 0 ? "danger" : "default"}
+        />
+        <KpiCard
+          icon={<RefreshCcw size={18} />}
+          value={`${tauxReouverture}%`}
+          label="Taux de réouverture"
+          sub={`${reouvertures} tickets concernés`}
+        />
+        <KpiCard
+          icon={<Inbox size={18} />}
+          value={canalData[0]?.name ?? "—"}
+          label="Canal #1"
+          sub={canalData[0] ? `${canalData[0].value} tickets` : "—"}
+          tone="accent"
+        />
+      </div>
+
       <StatsCharts
         weekly={weekly}
         categorieData={categorieData}
@@ -142,14 +194,16 @@ function KpiCard({ icon, value, label, sub, tone }: {
   value: number | string;
   label: string;
   sub?: string;
-  tone?: "default" | "accent" | "success";
+  tone?: "default" | "accent" | "success" | "danger";
 }) {
   const bg =
     tone === "success" ? "oklch(0.95 0.06 155)" :
-    tone === "accent" ? "oklch(0.95 0.05 30)" :
+    tone === "danger"  ? "oklch(0.95 0.07 25)"  :
+    tone === "accent"  ? "oklch(0.95 0.05 30)"  :
     "oklch(0.95 0.04 258)";
   const fg =
     tone === "success" ? "var(--success)" :
+    tone === "danger"  ? "var(--destructive)" :
     "var(--accent)";
   return (
     <div className="civiq-card civiq-stat-card">

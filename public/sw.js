@@ -1,45 +1,127 @@
 // ═══════════════════════════════════════════════════════════════
-// Service Worker — GoCiviq
+// Service Worker — GoCiviq (v4)
 //
-//   • Réception d'événements push (notifications Tickets)
-//   • Clic sur notification : focus tab existante OU ouvre tab
-//     + deep link vers le ticket via postMessage (le client gère
-//     la navigation côté React Router pour éviter un full reload)
-//
-// Version explicite pour permettre des rolling updates contrôlés.
+// Stratégies :
+//   • Navigation HTML → network-first + fallback /offline.html
+//   • Assets statiques (/brand, /favicon, /app-icon, fonts) → cache-first
+//   • API & mutations → network-only (jamais cache)
+//   • Push notifications → showNotification + click deep-link
+//   • Background sync (Android) → file d'attente pour création ticket offline
 // ═══════════════════════════════════════════════════════════════
 
-const SW_VERSION = "v3";
-const SW_TAG = `gociviq-${SW_VERSION}`;
+const SW_VERSION = "v4";
+const STATIC_CACHE = `gociviq-static-${SW_VERSION}`;
+const OFFLINE_URL = "/offline.html";
 
-self.addEventListener("install", () => {
-  // Activation immédiate (skipWaiting) — le client peut basculer
-  // sur la nouvelle version sans attendre la fermeture des autres tabs
-  self.skipWaiting();
+const PRECACHE_URLS = [
+  OFFLINE_URL,
+  "/brand/coq-couleur.svg",
+  "/favicon/favicon.svg",
+  "/manifest.webmanifest",
+];
+
+// ── INSTALL : précache des ressources de fallback ──
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      // addAll échoue tout-ou-rien : on filtre les 404 pour éviter de bloquer
+      await Promise.allSettled(
+        PRECACHE_URLS.map((url) => cache.add(url).catch(() => null))
+      );
+      await self.skipWaiting();
+    })()
+  );
 });
 
+// ── ACTIVATE : purge des vieux caches ──
 self.addEventListener("activate", (event) => {
-  // Reprend le contrôle des clients déjà ouverts (sans reload)
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k.startsWith("gociviq-") && k !== STATIC_CACHE)
+            .map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+    })()
+  );
 });
+
+// ── FETCH : routing des stratégies ──
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Hors GET → on laisse passer (POST mutations, etc.)
+  if (request.method !== "GET") return;
+
+  // Cross-origin : pas notre problème
+  if (url.origin !== self.location.origin) return;
+
+  // 1. Navigation HTML : network-first avec fallback offline
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirstHtml(request));
+    return;
+  }
+
+  // 2. Assets statiques (brand, favicon, app-icon, manifest) : cache-first
+  if (
+    url.pathname.startsWith("/brand/") ||
+    url.pathname.startsWith("/favicon/") ||
+    url.pathname.startsWith("/app-icon/") ||
+    url.pathname === "/manifest.webmanifest"
+  ) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
+  // 3. API : toujours network (pas de cache pour les données)
+  if (url.pathname.startsWith("/api/")) {
+    return; // navigateur fait son boulot normalement
+  }
+});
+
+async function networkFirstHtml(request) {
+  try {
+    const fresh = await fetch(request);
+    return fresh;
+  } catch {
+    const cache = await caches.open(STATIC_CACHE);
+    const offline = await cache.match(OFFLINE_URL);
+    return offline ?? new Response("Hors connexion", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
+}
+
+async function cacheFirst(request) {
+  const cache = await caches.open(STATIC_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const fresh = await fetch(request);
+    if (fresh.ok) cache.put(request, fresh.clone());
+    return fresh;
+  } catch {
+    return cached ?? new Response("", { status: 504 });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
 
 self.addEventListener("push", (event) => {
   if (!event.data) return;
-
   let payload = {};
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: "GoCiviq", body: event.data.text() };
-  }
+  try { payload = event.data.json(); }
+  catch { payload = { title: "GoCiviq", body: event.data.text() }; }
 
   const title = payload.title || "GoCiviq";
   const options = {
     body: payload.body || "",
-    // Icônes utilisent les SVG existants (Chrome/Firefox/Android les acceptent)
     icon: "/favicon/favicon.svg",
     badge: "/favicon/favicon.svg",
-    tag: payload.tag,                       // fusionne les notifs identiques
+    tag: payload.tag,
     data: { url: payload.url || "/", swVersion: SW_VERSION },
     renotify: false,
     requireInteraction: false,
@@ -53,44 +135,55 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = event.notification.data?.url || "/";
 
-  event.waitUntil(
-    (async () => {
-      const allClients = await self.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true,
-      });
-
-      // 1. Chercher un client déjà ouvert sur le même origin
-      for (const client of allClients) {
-        try {
-          const url = new URL(client.url);
-          if (url.origin === self.location.origin) {
-            await client.focus();
-            // Le client React écoute "message" et navigue via router.push
-            // (cf. usePushNavigationListener côté browser)
-            client.postMessage({ type: "navigate", url: target });
-            return;
-          }
-        } catch {
-          /* ignore parse errors */
+  event.waitUntil((async () => {
+    const allClients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of allClients) {
+      try {
+        const u = new URL(client.url);
+        if (u.origin === self.location.origin) {
+          await client.focus();
+          client.postMessage({ type: "navigate", url: target });
+          return;
         }
-      }
-
-      // 2. Aucun client ouvert → ouvre une nouvelle fenêtre directement sur target
-      if (self.clients.openWindow) {
-        await self.clients.openWindow(target);
-      }
-    })()
-  );
+      } catch { /* ignore */ }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
 });
 
-// Permet au client de demander un skipWaiting via postMessage
-// (utile si on affiche un bandeau "Nouvelle version dispo, recharger")
+// ═══════════════════════════════════════════════════════════════
+// BACKGROUND SYNC (Android, Chromium) — création ticket offline
+//
+// Côté client : si POST /api/tickets/offline-queue échoue,
+// le client enregistre la requête dans IndexedDB et déclenche
+// `await registration.sync.register("tickets-flush-queue")`.
+// Le SW se réveille quand le réseau revient.
+// ═══════════════════════════════════════════════════════════════
+
+self.addEventListener("sync", (event) => {
+  if (event.tag === "tickets-flush-queue") {
+    event.waitUntil(flushTicketsQueue());
+  }
+});
+
+async function flushTicketsQueue() {
+  // Implémentation V1 : envoie un message aux clients ouverts pour
+  // qu'ils rejouent leur file d'attente eux-mêmes (où l'IndexedDB
+  // applicative vit déjà). Le SW n'a pas besoin de connaître la
+  // structure du payload.
+  const clients = await self.clients.matchAll({ type: "window" });
+  for (const c of clients) {
+    c.postMessage({ type: "flush-tickets-queue" });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MESSAGES depuis le client (skipWaiting bouton "Mettre à jour")
+// ═══════════════════════════════════════════════════════════════
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
 });
 
-// Tag exposé pour debug
-self.SW_TAG = SW_TAG;
+self.SW_TAG = `gociviq-${SW_VERSION}`;
