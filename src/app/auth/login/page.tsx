@@ -9,9 +9,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +22,6 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (password) {
-      // Password login
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -32,36 +32,90 @@ export default function LoginPage() {
         router.push("/admin/dashboard");
       }
     } else {
-      // Magic link
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
+          shouldCreateUser: false,
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) {
         setError(error.message);
       } else {
-        setMagicLinkSent(true);
+        setOtpSent(true);
       }
     }
 
     setLoading(false);
   }
 
-  if (magicLinkSent) {
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const token = otp.replace(/\s+/g, "");
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    } else {
+      router.push("/admin/dashboard");
+      router.refresh();
+    }
+  }
+
+  if (otpSent) {
     return (
       <div className="auth-page">
         <div className="auth-card">
-          <div className="auth-icon">📧</div>
-          <h1>Vérifiez votre boîte mail</h1>
-          <p>
-            Un lien de connexion a été envoyé à <strong>{email}</strong>.
-            <br />
-            Cliquez sur le lien pour vous connecter.
+          <div className="auth-icon">🔐</div>
+          <h1>Entrez votre code</h1>
+          <p className="auth-desc">
+            Un code à 6 chiffres a été envoyé à <strong>{email}</strong>.
+            Recopiez-le ci-dessous pour vous connecter.
           </p>
-          <button onClick={() => setMagicLinkSent(false)} className="auth-link">
-            ← Retour
+
+          <form onSubmit={handleVerifyOtp}>
+            {error && <div className="auth-error">{error}</div>}
+
+            <div className="auth-field">
+              <label>Code de vérification</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+                placeholder="123456"
+                maxLength={6}
+                autoFocus
+                required
+                style={{ letterSpacing: "8px", fontSize: "20px", textAlign: "center", fontWeight: 600 }}
+              />
+            </div>
+
+            <button type="submit" disabled={loading || otp.length !== 6} className="auth-btn">
+              {loading ? "Vérification…" : "Se connecter"}
+            </button>
+          </form>
+
+          <button
+            onClick={() => {
+              setOtpSent(false);
+              setOtp("");
+              setError(null);
+            }}
+            className="auth-link"
+          >
+            ← Utiliser une autre adresse
           </button>
         </div>
         <AuthStyles />
@@ -97,7 +151,7 @@ export default function LoginPage() {
           <div className="auth-field">
             <label>
               Mot de passe{" "}
-              <span className="optional">(laisser vide pour un lien magique)</span>
+              <span className="optional">(laisser vide pour recevoir un code)</span>
             </label>
             <input
               type="password"
@@ -112,7 +166,7 @@ export default function LoginPage() {
               ? "Connexion…"
               : password
               ? "Se connecter"
-              : "Recevoir un lien de connexion"}
+              : "Recevoir un code par email"}
           </button>
         </form>
 
