@@ -21,8 +21,12 @@ export const metadata: Metadata = {
       { url: "/favicon/favicon.svg", type: "image/svg+xml" },
       { url: "/favicon/favicon-light.svg", type: "image/svg+xml", media: "(prefers-color-scheme: light)" },
       { url: "/favicon/favicon-dark.svg", type: "image/svg+xml", media: "(prefers-color-scheme: dark)" },
+      // PNG fallback pour Safari iOS et les bots qui n'aiment pas le SVG
+      { url: "/app-icon/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/app-icon/icon-512.png", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/app-icon/icon-ios.svg" }],
+    // iOS exige PNG 180×180 — généré par `npm run generate:icons`
+    apple: [{ url: "/app-icon/apple-touch-icon.png", sizes: "180x180" }],
     shortcut: ["/favicon/favicon.svg"],
   },
   manifest: "/manifest.webmanifest",
@@ -30,7 +34,7 @@ export const metadata: Metadata = {
     capable: true,
     title: "GoCiviq",
     statusBarStyle: "default",
-    startupImage: ["/app-icon/icon-ios.svg"],
+    startupImage: ["/app-icon/apple-touch-icon.png"],
   },
   openGraph: {
     title: "GoCiviq — Plateforme citoyenne pour les collectivités",

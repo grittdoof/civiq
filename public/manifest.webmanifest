@@ -6,6 +6,7 @@
   "start_url": "/admin/dashboard?source=pwa",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "background_color": "#FFFFFF",
   "theme_color": "#042F64",
@@ -14,16 +15,28 @@
   "categories": ["government", "productivity", "business"],
   "icons": [
     {
+      "src": "/app-icon/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
       "src": "/favicon/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
-    },
-    {
-      "src": "/app-icon/icon-ios.svg",
-      "sizes": "1024x1024",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
@@ -32,21 +45,27 @@
       "short_name": "Ticket",
       "description": "Créer un ticket d'intervention en mobilité",
       "url": "/admin/tickets/nouveau?source=pwa-shortcut",
-      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [
+        { "src": "/app-icon/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     },
     {
       "name": "Mes tickets",
       "short_name": "Tickets",
       "description": "Liste des tickets ouverts",
       "url": "/admin/tickets?source=pwa-shortcut",
-      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [
+        { "src": "/app-icon/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     },
     {
       "name": "Tableau de bord",
       "short_name": "Dashboard",
       "description": "Vue d'ensemble de votre commune",
       "url": "/admin/dashboard?source=pwa-shortcut",
-      "icons": [{ "src": "/favicon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [
+        { "src": "/app-icon/icon-192.png", "sizes": "192x192", "type": "image/png" }
+      ]
     }
   ],
   "prefer_related_applications": false
