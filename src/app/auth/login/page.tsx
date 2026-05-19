@@ -1,13 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 type Phase = "credentials" | "otp-sent";
 
+// Next.js 15 exige que useSearchParams() soit dans un Suspense boundary
+// pour le prerender statique. On wrap le composant ici.
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="auth-page"><div className="auth-card">Chargement…</div></div>}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
