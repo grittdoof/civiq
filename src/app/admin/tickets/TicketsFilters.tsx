@@ -10,17 +10,13 @@ import { Search } from "lucide-react";
 // la page Server Component re-fetche avec les bons critères.
 // ═══════════════════════════════════════════════════════════════
 
-export type TicketsFilterValue =
-  | "ouverts" | "tous" | "nouveau" | "en_cours" | "urgents" | "mes_tickets" | "clos";
+export type TicketsFilterValue = "ouverts" | "en_cours" | "termines" | "tous";
 
 interface Counts {
   ouverts: number;
-  tous: number;
-  nouveau: number;
   en_cours: number;
-  urgents: number;
-  mes_tickets: number;
-  clos: number;
+  termines: number;
+  tous: number;
 }
 
 interface Props {
@@ -29,13 +25,11 @@ interface Props {
   counts: Counts;
 }
 
+// 4 états simples — fini les 7 pills qui surchargeaient le mobile
 const PILLS: { value: TicketsFilterValue; label: string }[] = [
   { value: "ouverts", label: "Ouverts" },
-  { value: "nouveau", label: "Nouveaux" },
-  { value: "en_cours", label: "En cours" },
-  { value: "urgents", label: "Urgents" },
-  { value: "mes_tickets", label: "Mes tickets" },
-  { value: "clos", label: "Clos" },
+  { value: "en_cours", label: "Pris en charge" },
+  { value: "termines", label: "Terminés" },
   { value: "tous", label: "Tous" },
 ];
 

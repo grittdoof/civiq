@@ -456,14 +456,18 @@ export async function addTicketComment(ticketId: string, contenu: string): Promi
 
 export interface CloseTicketInput {
   ticketId: string;
-  // Photo "service fait" déjà uploadée dans Storage
+  // Workflow simplifié — étape 1 : photo OU document OU « pas nécessaire »
   servicePhotoPaths: string[];
+  documentPaths: string[];
+  sansPieceJointe: boolean;
   description_intervention?: string | null;
   duree_minutes?: number | null;
   materiaux_utilises?: string | null;
   cout_estime?: number | null;
   necessite_suivi?: boolean;
   notes_suivi?: string | null;
+  /** Date ISO de réouverture programmée (si necessite_suivi=true) */
+  reopen_at?: string | null;
   /** Mode final : "resolu" (à valider par l'admin) ou "clos" (définitif) */
   finalStatut: "resolu" | "clos";
 }
@@ -474,8 +478,12 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
     throw new Error("Permissions insuffisantes pour clôturer");
   }
-  if (input.servicePhotoPaths.length === 0) {
-    throw new Error("Au moins une photo « service fait » est requise");
+
+  // Validation étape 1 : photo OU document OU « pas nécessaire »
+  const hasPhoto = input.servicePhotoPaths.length > 0;
+  const hasDoc = input.documentPaths.length > 0;
+  if (!hasPhoto && !hasDoc && !input.sansPieceJointe) {
+    throw new Error("Joignez une photo, un document, ou cochez « sans pièce jointe »");
   }
 
   // 1. Upsert du rapport
@@ -491,20 +499,24 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
       cout_estime: input.cout_estime ?? null,
       necessite_suivi: !!input.necessite_suivi,
       notes_suivi: input.notes_suivi?.trim() || null,
+      document_paths: input.documentPaths,
+      sans_piece_jointe: !!input.sansPieceJointe,
     }, { onConflict: "ticket_id" });
   if (rapportErr) throw new Error(rapportErr.message);
 
-  // 2. Insertion des photos service_fait
-  const photoRows = input.servicePhotoPaths.map((path) => ({
-    ticket_id: input.ticketId,
-    storage_path: path,
-    type: "service_fait" as const,
-    uploaded_by: ctx.userId,
-  }));
-  const { error: photoErr } = await service.from("ticket_photos").insert(photoRows);
-  if (photoErr) throw new Error(photoErr.message);
+  // 2. Insertion des photos service_fait (si présentes)
+  if (hasPhoto) {
+    const photoRows = input.servicePhotoPaths.map((path) => ({
+      ticket_id: input.ticketId,
+      storage_path: path,
+      type: "service_fait" as const,
+      uploaded_by: ctx.userId,
+    }));
+    const { error: photoErr } = await service.from("ticket_photos").insert(photoRows);
+    if (photoErr) throw new Error(photoErr.message);
+  }
 
-  // 3. Transition de statut
+  // 3. Transition de statut + réouverture programmée éventuelle
   const now = new Date().toISOString();
   const updates: Record<string, unknown> = {
     statut: input.finalStatut,
@@ -513,6 +525,14 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   if (input.finalStatut === "clos") {
     updates.clos_at = now;
     updates.clos_by = ctx.userId;
+  }
+  if (input.necessite_suivi && input.reopen_at) {
+    updates.reopen_at = input.reopen_at;
+    updates.reopen_reason = input.notes_suivi?.trim() || null;
+    updates.reopened_at = null;       // reset (au cas où déjà rouvert avant)
+  } else {
+    updates.reopen_at = null;
+    updates.reopen_reason = null;
   }
   const { error: tErr } = await service.from("tickets").update(updates).eq("id", input.ticketId);
   if (tErr) throw new Error(tErr.message);

@@ -7,7 +7,6 @@ import { isModuleActive } from "@/lib/module-guard";
 import TicketCard from "@/components/tickets/TicketCard";
 import TicketsFilters, { type TicketsFilterValue } from "./TicketsFilters";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
-import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/tickets — Liste des tickets de la commune
@@ -37,30 +36,24 @@ export default async function TicketsListPage({ searchParams }: Props) {
     redirect("/admin/onboarding");
   }
 
-  // Filtre par défaut = "ouverts" (tous les statuts non-clos / non-annulés)
+  // Filtre par défaut = "ouverts" (tickets pas encore pris en charge)
   const { filter = "ouverts", search = "" } = await searchParams;
 
-  // Mapping filter → critères queries
+  // Mapping filter → critères queries (simplifié — 4 états seulement)
   const filters: Parameters<typeof listTickets>[1] = { search };
-  if (filter === "ouverts") filters.statut = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
-  else if (filter === "nouveau") filters.statut = ["nouveau", "assigne"];
+  if (filter === "ouverts") filters.statut = ["nouveau", "assigne"];
   else if (filter === "en_cours") filters.statut = ["pris_en_charge", "en_cours", "en_attente"];
-  else if (filter === "urgents") filters.priorite = "urgente";
-  else if (filter === "mes_tickets") filters.assignedToMe = ctx.userId;
-  else if (filter === "clos") filters.statut = ["resolu", "clos", "annule"];
+  else if (filter === "termines") filters.statut = ["resolu", "clos", "annule"];
 
   const tickets = await listTickets(ctx.communeId, filters);
 
-  // Compteurs pour les pills (sans filtre)
+  // Compteurs pour les 4 pills
   const allTickets = await listTickets(ctx.communeId, {});
   const counts = {
-    ouverts: allTickets.filter((t) => !["resolu", "clos", "annule"].includes(t.statut)).length,
-    tous: allTickets.length,
-    nouveau: allTickets.filter((t) => ["nouveau", "assigne"].includes(t.statut)).length,
+    ouverts: allTickets.filter((t) => ["nouveau", "assigne"].includes(t.statut)).length,
     en_cours: allTickets.filter((t) => ["pris_en_charge", "en_cours", "en_attente"].includes(t.statut)).length,
-    urgents: allTickets.filter((t) => t.priorite === "urgente" && !["clos", "annule"].includes(t.statut)).length,
-    mes_tickets: allTickets.filter((t) => t.assigne_a === ctx.userId).length,
-    clos: allTickets.filter((t) => ["resolu", "clos", "annule"].includes(t.statut)).length,
+    termines: allTickets.filter((t) => ["resolu", "clos", "annule"].includes(t.statut)).length,
+    tous: allTickets.length,
   };
 
   // Pré-générer les URLs signées des premières photos
@@ -127,7 +120,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
       )}
 
       <TicketsRealtime communeId={ctx.communeId} />
-      <PushSubscriptionPrompt />
+      {/* PushSubscriptionPrompt est désormais monté dans AdminShell */}
     </main>
   );
 }

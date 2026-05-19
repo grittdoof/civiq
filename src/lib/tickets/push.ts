@@ -188,3 +188,54 @@ export async function notifyTicketClosed(opts: { ticketId: string; ticketNumero:
   }).catch(() => {});
   return push;
 }
+
+/**
+ * Notif quand un ticket est rouvert automatiquement par le cron de suivi.
+ * Cible : tous les agents qui étaient assignés au moment de la clôture.
+ * Envoie push + email (Resend si configuré) + SMS opt-in.
+ */
+export async function notifyTicketReopened(opts: {
+  ticketId: string;
+  ticketNumero: number;
+  titre: string;
+  assigneeIds: string[];
+  reason?: string | null;
+  baseUrl: string;
+}) {
+  if (opts.assigneeIds.length === 0) return { sent: 0, failed: 0, cleaned: 0 };
+
+  const ticketUrl = `${opts.baseUrl}/admin/tickets/${opts.ticketId}`;
+
+  // Push
+  const push = sendTicketNotification({
+    profileIds: opts.assigneeIds,
+    title: `🔄 Ticket #${opts.ticketNumero} rouvert`,
+    body: opts.reason
+      ? `${opts.titre} — ${opts.reason.slice(0, 80)}`
+      : `${opts.titre} — suivi programmé`,
+    url: `/admin/tickets/${opts.ticketId}`,
+    tag: `reopen-${opts.ticketId}`,
+  });
+
+  // Email (lazy import pour éviter un cycle d'import si Resend pas configuré)
+  import("@/lib/notifications/email")
+    .then(({ sendTicketReopenedEmail }) =>
+      sendTicketReopenedEmail({
+        profileIds: opts.assigneeIds,
+        ticketNumero: opts.ticketNumero,
+        titre: opts.titre,
+        ticketUrl,
+        reason: opts.reason,
+      }),
+    )
+    .catch((e) => console.error("[email] reopen:", e));
+
+  // SMS opt-in
+  sendOptInSms({
+    profileIds: opts.assigneeIds,
+    category: "reopen",
+    body: `[GoCiviq] 🔄 Ticket #${opts.ticketNumero} rouvert : ${opts.titre.slice(0, 80)}`,
+  }).catch(() => {});
+
+  return push;
+}

@@ -168,7 +168,7 @@ export default function SurveysSection() {
         ) : (
           <div className="civiq-card" style={{ padding: 0, overflow: "hidden" }}>
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table className="civiq-table-mobile-cards" style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     {["Sondage", "Statut", "Réponses", "Créé le", "Actions"].map((h) => (
@@ -206,16 +206,16 @@ export default function SurveysSection() {
                             /survey/{s.slug}
                           </a>
                         </td>
-                        <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
+                        <td data-label="Statut" style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
                           {getStatusBadge(s.status)}
                         </td>
-                        <td style={{ padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
+                        <td data-label="Réponses" style={{ padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
                           {(s.responses?.[0] as { count: number } | undefined)?.count || 0}
                         </td>
-                        <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--fg-muted)", whiteSpace: "nowrap" }}>
+                        <td data-label="Créé le" style={{ padding: "14px 16px", fontSize: 13, color: "var(--fg-muted)", whiteSpace: "nowrap" }}>
                           {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
                         </td>
-                        <td style={{ padding: "14px 16px" }}>
+                        <td className="civiq-table-actions" style={{ padding: "14px 16px" }}>
                           <div style={{ display: "flex", gap: 2 }}>
                             <Link href={`/admin/surveys/${s.id}/edit`} className="civiq-icon-btn" title="Modifier">
                               <Pencil size={14} />

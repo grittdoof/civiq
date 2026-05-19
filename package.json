@@ -16,6 +16,8 @@
     "generate:icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@sentry/browser": "^10.53.1",
+    "@sentry/nextjs": "^10.53.1",
     "@supabase/ssr": "^0.6",
     "@supabase/supabase-js": "^2.49",
     "@types/leaflet": "^1.9.21",

@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 /**
@@ -21,7 +22,7 @@ const cspDirectives = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://tile.openstreetmap.org",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://api.cal.com https://vercel.live https://*.vercel-insights.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://api.cal.com https://vercel.live https://*.vercel-insights.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
   "frame-src 'self' https://cal.com https://*.cal.com",
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
@@ -79,4 +80,32 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Org et projet depuis les variables d'environnement (Vercel CI)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Logs uniquement en CI
+  silent: !process.env.CI,
+
+  // Upload de source maps plus larges pour de meilleures stack traces
+  widenClientFileUpload: true,
+
+  // Route les requêtes Sentry via notre domaine (contourne les ad-blockers)
+  // Vérifier que "/monitoring" n'est pas intercepté par le middleware
+  tunnelRoute: "/monitoring",
+
+  // Ne pas exposer les source maps publiquement
+  sourcemaps: {
+    disable: false,        // upload activé pour les stack traces
+    deleteSourcemapsAfterUpload: true, // supprime les .map du bundle final
+  },
+
+  webpack: {
+    // Tree-shaking des logs Sentry pour réduire le bundle
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

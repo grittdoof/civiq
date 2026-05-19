@@ -5,20 +5,20 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, Camera, FileText, CheckCircle2,
-  Loader2, AlertCircle, ImageIcon,
+  Loader2, AlertCircle, ImageIcon, Paperclip, Ban, CalendarClock,
 } from "lucide-react";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { closeTicketWithReport } from "@/lib/tickets/mutations";
 import type { TicketRapport } from "@/lib/tickets/types";
 
 // ═══════════════════════════════════════════════════════════════
-// CloseTicketWizard — 3 étapes
+// CloseTicketWizard — version simplifiée 3 étapes
 //
-//   1. Photo « service fait » (au moins 1, obligatoire)
-//   2. Rapport (description + durée + matériaux + coût + suivi)
-//   3. Validation (récap + choix résolu / clos définitivement)
+//   1. Pièce jointe : photo OU document OU « pas nécessaire »
+//   2. Suivi ultérieur : checkbox + date de réouverture
+//   3. Récapitulatif + clôture
 //
-// UX mobile-first : pensé pour 90 secondes en pleine intervention.
+// Pensé pour ~60 secondes en pleine intervention sur mobile.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
@@ -29,10 +29,12 @@ interface Props {
   existingRapport?: TicketRapport;
 }
 
+type AttachmentMode = "photo" | "document" | "none";
+
 const STEPS = [
-  { num: 1, label: "Photo service fait", icon: <Camera size={14} /> },
-  { num: 2, label: "Rapport", icon: <FileText size={14} /> },
-  { num: 3, label: "Validation", icon: <CheckCircle2 size={14} /> },
+  { num: 1, label: "Pièce jointe", icon: <Camera size={14} /> },
+  { num: 2, label: "Suivi", icon: <CalendarClock size={14} /> },
+  { num: 3, label: "Récapitulatif", icon: <CheckCircle2 size={14} /> },
 ];
 
 export default function CloseTicketWizard({
@@ -43,26 +45,44 @@ export default function CloseTicketWizard({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [error, setError] = useState<string | null>(null);
 
-  // Step 1
+  // ── Step 1 : Pièce jointe ──
+  const [attachmentMode, setAttachmentMode] = useState<AttachmentMode>("photo");
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [documentPaths, setDocumentPaths] = useState<string[]>([]);
 
-  // Step 2
-  const [description, setDescription] = useState(existingRapport?.description_intervention ?? "");
-  const [duree, setDuree] = useState<string>(existingRapport?.duree_minutes?.toString() ?? "");
-  const [materiaux, setMateriaux] = useState(existingRapport?.materiaux_utilises ?? "");
-  const [cout, setCout] = useState<string>(existingRapport?.cout_estime?.toString() ?? "");
+  // ── Step 2 : Suivi ──
   const [necessiteSuivi, setNecessiteSuivi] = useState(existingRapport?.necessite_suivi ?? false);
+  const [reopenDate, setReopenDate] = useState<string>("");
   const [notesSuivi, setNotesSuivi] = useState(existingRapport?.notes_suivi ?? "");
+
+  // ── Description (optionnelle, sur la même étape que le récap) ──
+  const [description, setDescription] = useState(existingRapport?.description_intervention ?? "");
 
   function next() {
     setError(null);
     if (step === 1) {
-      if (photoPaths.length === 0) {
-        setError("Au moins une photo « service fait » est requise.");
+      if (attachmentMode === "photo" && photoPaths.length === 0) {
+        setError("Ajoutez au moins une photo, ou choisissez une autre option.");
+        return;
+      }
+      if (attachmentMode === "document" && documentPaths.length === 0) {
+        setError("Ajoutez au moins un document, ou choisissez une autre option.");
         return;
       }
       setStep(2);
     } else if (step === 2) {
+      if (necessiteSuivi && !reopenDate) {
+        setError("Choisissez une date de réouverture pour le suivi.");
+        return;
+      }
+      // Vérif date dans le futur
+      if (necessiteSuivi && reopenDate) {
+        const d = new Date(reopenDate);
+        if (d.getTime() <= Date.now()) {
+          setError("La date de réouverture doit être dans le futur.");
+          return;
+        }
+      }
       setStep(3);
     }
   }
@@ -77,13 +97,13 @@ export default function CloseTicketWizard({
       try {
         await closeTicketWithReport({
           ticketId,
-          servicePhotoPaths: photoPaths,
+          servicePhotoPaths: attachmentMode === "photo" ? photoPaths : [],
+          documentPaths: attachmentMode === "document" ? documentPaths : [],
+          sansPieceJointe: attachmentMode === "none",
           description_intervention: description,
-          duree_minutes: duree ? Number(duree) : null,
-          materiaux_utilises: materiaux,
-          cout_estime: cout ? Number(cout) : null,
           necessite_suivi: necessiteSuivi,
           notes_suivi: necessiteSuivi ? notesSuivi : null,
+          reopen_at: necessiteSuivi && reopenDate ? new Date(reopenDate).toISOString() : null,
           finalStatut,
         });
         router.push(`/admin/tickets/${ticketId}`);
@@ -93,6 +113,9 @@ export default function CloseTicketWizard({
       }
     });
   }
+
+  // Date minimum = demain (HTML date input)
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
   return (
     <main className="civiq-main" style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -140,116 +163,127 @@ export default function CloseTicketWizard({
       )}
 
       <div className="civiq-card" style={{ padding: 18 }}>
-        {/* ─── STEP 1 : Photo service fait ─── */}
+        {/* ─── STEP 1 : Pièce jointe ─── */}
         {step === 1 && (
           <>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 6 }}>
-              <Camera size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-              Photo « service fait »
+              <Paperclip size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              Pièce jointe au rapport
             </h2>
             <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 14, lineHeight: 1.5 }}>
-              Prenez au moins une photo après intervention. Cette preuve fait partie du rapport et sera conservée avec le ticket.
+              Choisissez l&apos;une des trois options ci-dessous pour documenter l&apos;intervention.
             </p>
-            <TicketPhotoUpload
-              communeId={communeId}
-              onChange={setPhotoPaths}
-              max={5}
-              type="service_fait"
-            />
+
+            {/* RadioGroup : 3 options */}
+            <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
+              <ModeOption
+                mode="photo"
+                current={attachmentMode}
+                onSelect={setAttachmentMode}
+                icon={<Camera size={16} />}
+                title="Ajouter une photo"
+                subtitle="Preuve photographique de l'intervention"
+              />
+              <ModeOption
+                mode="document"
+                current={attachmentMode}
+                onSelect={setAttachmentMode}
+                icon={<FileText size={16} />}
+                title="Ajouter un document"
+                subtitle="Devis, facture, bon d'intervention, PV…"
+              />
+              <ModeOption
+                mode="none"
+                current={attachmentMode}
+                onSelect={setAttachmentMode}
+                icon={<Ban size={16} />}
+                title="Pas de pièce nécessaire"
+                subtitle="Cette intervention ne requiert ni photo ni document"
+              />
+            </div>
+
+            {/* Zone d'upload conditionnelle */}
+            {attachmentMode === "photo" && (
+              <TicketPhotoUpload
+                communeId={communeId}
+                onChange={setPhotoPaths}
+                max={5}
+                type="service_fait"
+              />
+            )}
+            {attachmentMode === "document" && (
+              <DocumentUpload
+                communeId={communeId}
+                onChange={setDocumentPaths}
+              />
+            )}
+            {attachmentMode === "none" && (
+              <div style={{ padding: 12, background: "var(--bg)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border)", fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.5 }}>
+                ✓ L&apos;intervention sera archivée sans pièce jointe. La description ci-dessous sera votre seule trace écrite.
+              </div>
+            )}
           </>
         )}
 
-        {/* ─── STEP 2 : Rapport ─── */}
+        {/* ─── STEP 2 : Suivi ultérieur ─── */}
         {step === 2 && (
           <>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 14 }}>
-              <FileText size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-              Rapport d&apos;intervention
+              <CalendarClock size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              Un suivi est-il à prévoir ?
             </h2>
-            <div style={{ display: "grid", gap: 12 }}>
-              <Field label="Description de l'intervention">
-                <textarea
-                  className="civiq-input civiq-textarea"
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Détaillez ce qui a été fait, les difficultés rencontrées, etc."
-                />
-              </Field>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
-                <Field label="Durée (minutes)">
+            <label
+              style={{
+                display: "flex", gap: 10, padding: "12px 14px",
+                borderRadius: "var(--radius-sm)", cursor: "pointer",
+                background: necessiteSuivi ? "var(--accent-light)" : "var(--bg)",
+                border: `1px solid ${necessiteSuivi ? "var(--accent)" : "var(--border)"}`,
+                marginBottom: 12,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={necessiteSuivi}
+                onChange={(e) => setNecessiteSuivi(e.target.checked)}
+                style={{ marginTop: 3, width: 16, height: 16 }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
+                  Nécessite un suivi ultérieur
+                </div>
+                <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 3, lineHeight: 1.5 }}>
+                  Le ticket sera automatiquement rouvert à la date choisie, et les agents assignés recevront une notification (mobile + email).
+                </div>
+              </div>
+            </label>
+
+            {necessiteSuivi && (
+              <div style={{ display: "grid", gap: 12 }}>
+                <Field label="Date de réouverture">
                   <input
-                    type="number"
-                    min={0}
+                    type="date"
                     className="civiq-input"
-                    value={duree}
-                    onChange={(e) => setDuree(e.target.value)}
-                    placeholder="60"
+                    min={tomorrow}
+                    value={reopenDate}
+                    onChange={(e) => setReopenDate(e.target.value)}
                   />
                 </Field>
-                <Field label="Coût estimé (€)">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="civiq-input"
-                    value={cout}
-                    onChange={(e) => setCout(e.target.value)}
-                    placeholder="120.00"
+                <Field label="Notes pour le suivi (optionnel)">
+                  <textarea
+                    className="civiq-input civiq-textarea"
+                    rows={3}
+                    value={notesSuivi}
+                    onChange={(e) => setNotesSuivi(e.target.value)}
+                    placeholder="Ex : Vérifier la prise de l'enrobé, contrôler la peinture, etc."
                   />
                 </Field>
               </div>
-
-              <Field label="Matériaux utilisés">
-                <textarea
-                  className="civiq-input civiq-textarea"
-                  rows={2}
-                  value={materiaux}
-                  onChange={(e) => setMateriaux(e.target.value)}
-                  placeholder="2 sacs d'enrobé à froid, peinture jaune routière…"
-                />
-              </Field>
-
-              <label
-                style={{
-                  display: "flex", gap: 10, padding: "10px 12px",
-                  borderRadius: "var(--radius-sm)", cursor: "pointer",
-                  background: necessiteSuivi ? "var(--accent-light)" : "var(--bg)",
-                  border: `1px solid ${necessiteSuivi ? "var(--accent)" : "var(--border)"}`,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={necessiteSuivi}
-                  onChange={(e) => setNecessiteSuivi(e.target.checked)}
-                  style={{ marginTop: 3, width: 16, height: 16 }}
-                />
-                <span style={{ fontSize: 13, color: "var(--fg)" }}>
-                  <strong>Nécessite un suivi ultérieur</strong>
-                  <br />
-                  <span style={{ fontSize: 12, color: "var(--fg-muted)" }}>
-                    Cochez si une autre intervention est à programmer (ex : suivi de prise, contrôle visuel à 1 mois).
-                  </span>
-                </span>
-              </label>
-
-              {necessiteSuivi && (
-                <Field label="Notes pour le suivi">
-                  <textarea
-                    className="civiq-input civiq-textarea"
-                    rows={2}
-                    value={notesSuivi}
-                    onChange={(e) => setNotesSuivi(e.target.value)}
-                    placeholder="Ce qui devra être vérifié, quand, par qui…"
-                  />
-                </Field>
-              )}
-            </div>
+            )}
           </>
         )}
 
-        {/* ─── STEP 3 : Validation ─── */}
+        {/* ─── STEP 3 : Récapitulatif + clôture ─── */}
         {step === 3 && (
           <>
             <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 14 }}>
@@ -257,60 +291,67 @@ export default function CloseTicketWizard({
               Récapitulatif
             </h2>
 
-            <div style={{ display: "grid", gap: 14 }}>
-              <Recap label="Photos service fait">
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <ImageIcon size={13} /> {photoPaths.length} photo{photoPaths.length > 1 ? "s" : ""} jointe{photoPaths.length > 1 ? "s" : ""}
-                </span>
+            <div style={{ display: "grid", gap: 14, marginBottom: 18 }}>
+              <Recap label="Pièce jointe">
+                {attachmentMode === "photo" && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <ImageIcon size={13} /> {photoPaths.length} photo{photoPaths.length > 1 ? "s" : ""}
+                  </span>
+                )}
+                {attachmentMode === "document" && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <FileText size={13} /> {documentPaths.length} document{documentPaths.length > 1 ? "s" : ""}
+                  </span>
+                )}
+                {attachmentMode === "none" && (
+                  <span style={{ color: "var(--fg-muted)", fontStyle: "italic" }}>
+                    Sans pièce jointe
+                  </span>
+                )}
               </Recap>
-              {description && <Recap label="Description">{description}</Recap>}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
-                {duree && <Recap label="Durée">{duree} min</Recap>}
-                {cout && <Recap label="Coût">{Number(cout).toLocaleString("fr-FR")} €</Recap>}
+
+              {/* Description : éditable à l'étape récap */}
+              <div>
+                <label className="civiq-field-label" style={{ fontSize: 12 }}>
+                  Description de l&apos;intervention (optionnel)
+                </label>
+                <textarea
+                  className="civiq-input civiq-textarea"
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Détaillez ce qui a été fait…"
+                />
               </div>
-              {materiaux && <Recap label="Matériaux">{materiaux}</Recap>}
-              {necessiteSuivi && (
-                <Recap label="Suivi à prévoir">
-                  {notesSuivi || <em style={{ color: "var(--fg-muted)" }}>(sans précision)</em>}
+
+              {necessiteSuivi && reopenDate && (
+                <Recap label="Réouverture programmée">
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <CalendarClock size={13} style={{ color: "var(--accent)" }} />
+                    {new Date(reopenDate).toLocaleDateString("fr-FR", {
+                      weekday: "long", day: "numeric", month: "long", year: "numeric",
+                    })}
+                  </span>
+                  {notesSuivi && (
+                    <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontStyle: "italic" }}>
+                      {notesSuivi}
+                    </div>
+                  )}
                 </Recap>
               )}
             </div>
 
-            <div style={{ marginTop: 18, padding: 14, background: "var(--bg)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border)" }}>
-              <p style={{ fontSize: 13, color: "var(--fg)", marginBottom: 10, lineHeight: 1.5 }}>
-                <strong>Quel est le statut final ?</strong>
-              </p>
-              <div style={{ display: "grid", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => submit("resolu")}
-                  disabled={pending}
-                  className="civiq-btn civiq-btn-outline"
-                  style={{ justifyContent: "flex-start", padding: "10px 14px" }}
-                >
-                  {pending ? <Loader2 size={14} className="civiq-spin" /> : <CheckCircle2 size={14} />}
-                  <span style={{ flex: 1, textAlign: "left" }}>
-                    <strong>Marquer résolu</strong>
-                    <br />
-                    <span style={{ fontSize: 11, color: "var(--fg-muted)" }}>L&apos;admin pourra clôturer après validation</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => submit("clos")}
-                  disabled={pending}
-                  className="civiq-btn civiq-btn-default"
-                  style={{ justifyContent: "flex-start", padding: "10px 14px" }}
-                >
-                  {pending ? <Loader2 size={14} className="civiq-spin" /> : <CheckCircle2 size={14} />}
-                  <span style={{ flex: 1, textAlign: "left" }}>
-                    <strong>Clôturer définitivement</strong>
-                    <br />
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.85)" }}>Le ticket est terminé</span>
-                  </span>
-                </button>
-              </div>
-            </div>
+            {/* Bouton unique : Clôturer */}
+            <button
+              type="button"
+              onClick={() => submit("clos")}
+              disabled={pending}
+              className="civiq-btn civiq-btn-default"
+              style={{ width: "100%", padding: "12px 16px", fontSize: 14 }}
+            >
+              {pending ? <Loader2 size={14} className="civiq-spin" /> : <CheckCircle2 size={14} />}
+              {pending ? "Clôture en cours…" : "Clôturer le ticket"}
+            </button>
           </>
         )}
 
@@ -382,6 +423,180 @@ export default function CloseTicketWizard({
         }
       `}</style>
     </main>
+  );
+}
+
+function ModeOption({
+  mode, current, onSelect, icon, title, subtitle,
+}: {
+  mode: AttachmentMode;
+  current: AttachmentMode;
+  onSelect: (m: AttachmentMode) => void;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  const active = current === mode;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(mode)}
+      style={{
+        display: "flex", gap: 12, alignItems: "flex-start",
+        padding: "12px 14px", textAlign: "left",
+        background: active ? "var(--accent-light)" : "var(--card)",
+        border: `1.5px solid ${active ? "var(--accent)" : "var(--border)"}`,
+        borderRadius: "var(--radius-sm)",
+        cursor: "pointer", width: "100%",
+        fontFamily: "inherit",
+        transition: "background 0.15s, border-color 0.15s",
+      }}
+    >
+      <div style={{
+        width: 32, height: 32, borderRadius: "var(--radius-sm)",
+        background: active ? "var(--accent)" : "var(--border-light)",
+        color: active ? "#fff" : "var(--fg-muted)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{title}</div>
+        <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2, lineHeight: 1.4 }}>{subtitle}</div>
+      </div>
+      <div style={{
+        width: 18, height: 18, borderRadius: "50%",
+        border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`,
+        background: active ? "var(--accent)" : "transparent",
+        flexShrink: 0, marginTop: 6,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
+      </div>
+    </button>
+  );
+}
+
+/**
+ * Upload de documents PDF/Word/Excel pour le rapport d'intervention.
+ * Stockés dans le bucket Storage sous tickets/{communeId}/rapports/.
+ */
+function DocumentUpload({
+  communeId, onChange,
+}: {
+  communeId: string;
+  onChange: (paths: string[]) => void;
+}) {
+  const [paths, setPaths] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setErr(null);
+
+    try {
+      const newPaths: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "bin";
+        const path = `tickets/${communeId}/rapports/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("path", path);
+        const res = await fetch("/api/tickets/upload-document", {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || "Échec de l'upload");
+        }
+        const { path: stored } = await res.json();
+        newPaths.push(stored);
+      }
+      const updated = [...paths, ...newPaths];
+      setPaths(updated);
+      onChange(updated);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Erreur upload");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  function remove(idx: number) {
+    const updated = paths.filter((_, i) => i !== idx);
+    setPaths(updated);
+    onChange(updated);
+  }
+
+  return (
+    <div>
+      <label
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          padding: "16px", border: "1.5px dashed var(--border)",
+          borderRadius: "var(--radius-sm)", cursor: "pointer",
+          background: "var(--bg)", color: "var(--fg-muted)",
+          fontSize: 13, fontWeight: 500,
+          transition: "background 0.15s, border-color 0.15s",
+        }}
+      >
+        <Paperclip size={16} />
+        {uploading ? "Upload en cours…" : "Choisir un document (PDF, Word, Excel…)"}
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.odt,.ods"
+          onChange={handleUpload}
+          disabled={uploading}
+          style={{ display: "none" }}
+        />
+      </label>
+
+      {err && (
+        <div style={{ marginTop: 8, padding: "8px 12px", background: "oklch(0.97 0.04 25)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 12 }}>
+          {err}
+        </div>
+      )}
+
+      {paths.length > 0 && (
+        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+          {paths.map((p, i) => (
+            <div
+              key={p}
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "8px 12px", background: "var(--card)",
+                border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                fontSize: 13,
+              }}
+            >
+              <FileText size={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
+              <span style={{ flex: 1, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.split("/").pop()}
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                style={{
+                  background: "transparent", border: "none", color: "var(--destructive)",
+                  cursor: "pointer", fontSize: 12, padding: 4,
+                }}
+                aria-label="Supprimer"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

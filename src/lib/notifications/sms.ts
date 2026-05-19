@@ -23,7 +23,7 @@ interface SmsPayload {
   /** Profils destinataires — on filtrera par opt-in */
   profileIds: string[];
   /** Catégorie pour respecter les préférences fines */
-  category: "assignment" | "urgent_unassigned" | "comment" | "closure";
+  category: "assignment" | "urgent_unassigned" | "comment" | "closure" | "reopen";
   /** Corps SMS (limité à ~160 chars idéalement) */
   body: string;
 }
@@ -76,6 +76,9 @@ export async function sendOptInSms(payload: SmsPayload): Promise<SmsResult> {
       case "urgent_unassigned": return p.notify_urgent_unassigned;
       case "comment": return p.notify_comment;
       case "closure": return p.notify_closure;
+      // Réouverture = type "assignment" du point de vue de l'agent
+      // (il reprend la main sur un ticket). On ré-utilise sa pref existante.
+      case "reopen": return p.notify_assignment;
     }
   });
 
