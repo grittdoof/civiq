@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Bell, Phone, MessageSquare, Smartphone, AlertCircle, Loader2, Save, Check } from "lucide-react";
+import { Bell, Phone, MessageSquare, Smartphone, AlertCircle, Loader2, Save, Check, Share, Plus } from "lucide-react";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 // ═══════════════════════════════════════════════════════════════
 // Settings notifications — opt-in stricte par catégorie
@@ -32,6 +33,10 @@ export default function NotificationsSettings({ smsAvailable: smsAvailableProp }
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  // Souscription Web Push (PushManager + permission navigateur)
+  const { status: pushStatus, subscribe, unsubscribe } = usePushSubscription();
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     fetch("/api/notifications/preferences")
@@ -88,10 +93,70 @@ export default function NotificationsSettings({ smsAvailable: smsAvailableProp }
             </p>
           </div>
         </div>
-        <Toggle
+
+        {/* État de la souscription navigateur */}
+        {pushStatus === "denied" && (
+          <div style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "oklch(0.97 0.04 25)", border: "1px solid var(--destructive)", color: "var(--destructive)", fontSize: 12, display: "flex", gap: 6, alignItems: "flex-start", marginBottom: 12 }}>
+            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+            <span>Vous avez refusé les notifications dans votre navigateur. Pour les réactiver, allez dans les réglages du site (cadenas dans la barre d&apos;adresse) puis autorisez les notifications.</span>
+          </div>
+        )}
+
+        {pushStatus === "ios-pwa-required" && (
+          <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--accent-light)", color: "var(--accent)", fontSize: 12, marginBottom: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 6, display: "flex", gap: 6, alignItems: "center" }}>
+              <Smartphone size={14} /> Activation sur iPhone
+            </div>
+            <p style={{ marginBottom: 6, lineHeight: 1.5 }}>
+              iOS exige que l&apos;app soit installée sur l&apos;écran d&apos;accueil :
+            </p>
+            <ol style={{ paddingLeft: 18, lineHeight: 1.7, margin: 0 }}>
+              <li>Dans Safari, appuyez sur <Share size={11} style={{ verticalAlign: "middle" }} /> Partager</li>
+              <li>Puis <Plus size={11} style={{ verticalAlign: "middle" }} /> « Sur l&apos;écran d&apos;accueil »</li>
+              <li>Rouvrez GoCiviq depuis l&apos;icône installée et revenez sur cette page</li>
+            </ol>
+          </div>
+        )}
+
+        {pushStatus === "unsupported" && (
+          <div style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "oklch(0.97 0.02 240)", color: "var(--fg-muted)", fontSize: 12, marginBottom: 12 }}>
+            Ce navigateur ne supporte pas les notifications push. Utilisez Chrome, Firefox, Edge ou Safari (iOS 16.4+ en PWA installée).
+          </div>
+        )}
+
+        <PushToggle
           label="Activer les notifications push"
-          checked={prefs.push_enabled}
-          onChange={(v) => set("push_enabled", v)}
+          checked={prefs.push_enabled && pushStatus === "subscribed"}
+          status={pushStatus}
+          busy={pushBusy}
+          onChange={async (v) => {
+            setPushBusy(true);
+            try {
+              if (v) {
+                const ok = await subscribe();
+                if (ok) {
+                  set("push_enabled", true);
+                  // Sauvegarde immédiate pour éviter de perdre la pref en cas de
+                  // navigation avant le clic sur "Enregistrer"
+                  await fetch("/api/notifications/preferences", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...prefs, push_enabled: true }),
+                  });
+                }
+              } else {
+                await unsubscribe();
+                set("push_enabled", false);
+                await fetch("/api/notifications/preferences", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...prefs, push_enabled: false }),
+                });
+              }
+            } finally {
+              setPushBusy(false);
+            }
+          }}
         />
       </div>
 
@@ -200,6 +265,49 @@ export default function NotificationsSettings({ smsAvailable: smsAvailableProp }
         )}
       </div>
     </div>
+  );
+}
+
+function PushToggle({ label, checked, status, busy, onChange }: {
+  label: string;
+  checked: boolean;
+  status: ReturnType<typeof usePushSubscription>["status"];
+  busy: boolean;
+  onChange: (v: boolean) => Promise<void> | void;
+}) {
+  const disabled = busy || status === "denied" || status === "ios-pwa-required" || status === "unsupported" || status === "loading";
+  return (
+    <label
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "10px 12px", borderRadius: "var(--radius-sm)",
+        background: checked && !disabled ? "var(--accent-light)" : "var(--bg)",
+        border: `1px solid ${checked && !disabled ? "var(--accent)" : "var(--border)"}`,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      <span
+        role="switch"
+        aria-checked={checked}
+        onClick={() => !disabled && onChange(!checked)}
+        style={{
+          position: "relative", width: 36, height: 20, borderRadius: 99,
+          background: checked && !disabled ? "var(--accent)" : "var(--border)",
+          flexShrink: 0,
+          transition: "background 0.15s",
+        }}
+      >
+        <span style={{
+          position: "absolute", top: 2, left: checked ? 18 : 2,
+          width: 16, height: 16, borderRadius: "50%", background: "#fff",
+          transition: "left 0.15s",
+          boxShadow: "0 1px 3px oklch(0 0 0 / 0.2)",
+        }} />
+      </span>
+      <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{label}</div>
+      {busy && <Loader2 size={14} className="civiq-spin" style={{ color: "var(--accent)" }} />}
+    </label>
   );
 }
 

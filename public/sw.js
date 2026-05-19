@@ -9,7 +9,7 @@
 //   • Background sync (Android) → file d'attente pour création ticket offline
 // ═══════════════════════════════════════════════════════════════
 
-const SW_VERSION = "v4";
+const SW_VERSION = "v5";
 const STATIC_CACHE = `gociviq-static-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 
@@ -18,6 +18,8 @@ const PRECACHE_URLS = [
   "/brand/coq-couleur.svg",
   "/favicon/favicon.svg",
   "/manifest.webmanifest",
+  "/app-icon/icon-192.png",
+  "/app-icon/notification-badge.png",
 ];
 
 // ── INSTALL : précache des ressources de fallback ──
@@ -119,8 +121,9 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "GoCiviq";
   const options = {
     body: payload.body || "",
-    icon: "/favicon/favicon.svg",
-    badge: "/favicon/favicon.svg",
+    // PNG obligatoire : iOS PWA n'affiche pas les SVG en notification
+    icon: "/app-icon/icon-192.png",
+    badge: "/app-icon/notification-badge.png",
     tag: payload.tag,
     data: { url: payload.url || "/", swVersion: SW_VERSION },
     renotify: false,
