@@ -40,18 +40,23 @@ export default function TicketCard({
   return (
     <Link
       href={`/admin/tickets/${ticket.id}`}
-      className="flex w-full flex-col gap-3 bg-white text-left no-underline"
+      className="block w-full overflow-hidden bg-white text-left no-underline transition-shadow"
+      style={{
+        border: `1px solid ${TK.line}`,
+        borderRadius: 18,
+        boxShadow: "0 1px 2px rgba(10,14,26,0.04)",
+      }}
     >
-      {/* PHOTO HÉROS */}
-      <div className="relative overflow-hidden rounded-2xl">
+      {/* PHOTO HÉROS — coins arrondis seulement en haut (collés au cadre) */}
+      <div className="relative">
         {signedPhotoUrl ? (
           <div
-            className="relative w-full"
+            className="relative w-full overflow-hidden"
             style={{
               height: 200,
               background: "#E5E7EB",
-              overflow: "hidden",
-              borderRadius: 16,
+              borderTopLeftRadius: 17,
+              borderTopRightRadius: 17,
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -62,7 +67,15 @@ export default function TicketCard({
             />
           </div>
         ) : (
-          <TKPhoto categorie={ticket.categorie} size="lg" />
+          <div
+            className="overflow-hidden"
+            style={{
+              borderTopLeftRadius: 17,
+              borderTopRightRadius: 17,
+            }}
+          >
+            <TKPhoto categorie={ticket.categorie} size="lg" />
+          </div>
         )}
 
         <div className="absolute left-3 top-3">
@@ -82,8 +95,8 @@ export default function TicketCard({
         )}
       </div>
 
-      {/* TEXTE */}
-      <div className="px-1">
+      {/* TEXTE — dans le cadre, séparé visuellement de la photo */}
+      <div className="px-4 py-3.5">
         <div className="mb-1 flex items-baseline justify-between gap-3">
           <h3
             className="m-0 flex-1 text-base font-bold leading-tight tracking-tight"
