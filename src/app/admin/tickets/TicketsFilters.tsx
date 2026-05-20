@@ -72,7 +72,7 @@ export default function TicketsFilters({
 
   return (
     <>
-      <div className="px-[22px] pb-3.5 pt-1">
+      <div className="px-[22px] pb-3.5 pt-1 md:px-8">
         <TKSearchBar
           value={search}
           onChange={setSearch}
@@ -80,7 +80,7 @@ export default function TicketsFilters({
         />
       </div>
 
-      <div className="overflow-x-auto px-[22px] pb-3.5">
+      <div className="overflow-x-auto px-[22px] pb-3.5 md:px-8">
         <div className="inline-flex gap-2">
           {PILLS.map((p) => (
             <TKFilterPill

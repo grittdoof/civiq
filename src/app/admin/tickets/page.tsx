@@ -84,11 +84,11 @@ export default async function TicketsListPage({ searchParams }: Props) {
 
   return (
     <main
-      className="relative flex min-h-[100dvh] flex-col bg-white"
+      className="relative mx-auto flex min-h-[100dvh] w-full max-w-4xl flex-col bg-white"
       style={{ paddingBottom: "120px" }}
     >
       {/* HERO TITLE */}
-      <div className="px-[22px] pb-3.5 pt-2">
+      <div className="px-[22px] pb-3.5 pt-2 md:px-8 md:pt-6">
         <div className="mb-2 flex items-center justify-between">
           <span
             className="text-[11px] font-bold uppercase tracking-widest"
@@ -119,7 +119,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
       />
 
       {/* CARDS */}
-      <div className="flex-1 overflow-y-auto px-[22px]">
+      <div className="flex-1 overflow-y-auto px-[22px] md:px-8">
         {tickets.length === 0 ? (
           <div
             className="py-16 text-center"

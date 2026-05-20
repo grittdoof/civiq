@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Camera } from "lucide-react";
+import { Camera, MapPin, Clock } from "lucide-react";
 import type { TicketWithRelations } from "@/lib/tickets/types";
 import {
   TKStatusBadge,
@@ -11,9 +11,12 @@ import {
 import { TK } from "@/lib/tickets/design-tokens";
 
 // ═══════════════════════════════════════════════════════════════
-// Card de la liste /admin/tickets — direction Airbnb :
-// photo héros 16:9 large, badges priorité + statut en overlay,
-// titre + numéro, adresse, chip catégorie + avatars assignés.
+// Card de la liste /admin/tickets — responsive :
+//   • Mobile (< md) : photo héros en haut, badges overlay, texte en
+//     dessous (direction Airbnb).
+//   • Desktop (≥ md) : photo en miniature à gauche (180px), contenu
+//     dense à droite — meilleur pour scanner beaucoup de tickets sur
+//     écran large.
 // ═══════════════════════════════════════════════════════════════
 
 export default function TicketCard({
@@ -25,9 +28,6 @@ export default function TicketCard({
 }) {
   const elapsed = formatElapsed(ticket.created_at);
   const photoCount = ticket.signalement_photos?.length ?? 0;
-
-  // Liste d'assignés (multi-assignés à venir → assignee_profile principal + …)
-  // Pour l'instant on prend le primary uniquement
   const assignees = ticket.assignee_profile
     ? [
         {
@@ -40,53 +40,94 @@ export default function TicketCard({
   return (
     <Link
       href={`/admin/tickets/${ticket.id}`}
-      className="block w-full overflow-hidden bg-white text-left no-underline transition-shadow"
+      className="block w-full overflow-hidden bg-white text-left no-underline transition-shadow hover:shadow-md md:flex md:items-stretch"
       style={{
         border: `1px solid ${TK.line}`,
         borderRadius: 18,
         boxShadow: "0 1px 2px rgba(10,14,26,0.04)",
       }}
     >
-      {/* PHOTO HÉROS — coins arrondis seulement en haut (collés au cadre) */}
-      <div className="relative">
-        {signedPhotoUrl ? (
+      {/* ─── PHOTO ───
+          mobile : pleine largeur en haut, 200 px de haut
+          desktop : carré 180×180 à gauche                          */}
+      <div
+        className="relative md:shrink-0"
+        style={{
+          // Width handled per breakpoint via responsive class on parent
+        }}
+      >
+        <div
+          className="relative w-full overflow-hidden md:h-full"
+          style={{
+            background: "#E5E7EB",
+          }}
+        >
+          {/* Mobile : photo 200px de haut, coins arrondis seulement en haut */}
           <div
-            className="relative w-full overflow-hidden"
+            className="relative w-full md:hidden"
             style={{
               height: 200,
-              background: "#E5E7EB",
               borderTopLeftRadius: 17,
               borderTopRightRadius: 17,
+              overflow: "hidden",
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={signedPhotoUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
+            {signedPhotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={signedPhotoUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <TKPhoto categorie={ticket.categorie} size="lg" />
+            )}
           </div>
-        ) : (
-          <div
-            className="overflow-hidden"
-            style={{
-              borderTopLeftRadius: 17,
-              borderTopRightRadius: 17,
-            }}
-          >
-            <TKPhoto categorie={ticket.categorie} size="lg" />
-          </div>
-        )}
 
-        <div className="absolute left-3 top-3">
+          {/* Desktop : photo carrée 180×180, coins arrondis à gauche */}
+          <div
+            className="relative hidden md:block"
+            style={{
+              width: 180,
+              height: 180,
+              borderTopLeftRadius: 17,
+              borderBottomLeftRadius: 17,
+              overflow: "hidden",
+            }}
+          >
+            {signedPhotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={signedPhotoUrl}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div
+                className="flex h-full w-full items-center justify-center"
+                style={{
+                  background: "#E5E7EB",
+                  fontSize: 42,
+                  color: TK.muted,
+                }}
+              >
+                📋
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Badges en overlay (mobile uniquement — sur desktop ils sont
+            dans la colonne droite pour rester lisibles) */}
+        <div className="absolute left-3 top-3 md:hidden">
           <TKPriorityBadge priorite={ticket.priorite} />
         </div>
-        <div className="absolute right-3 top-3">
+        <div className="absolute right-3 top-3 md:hidden">
           <TKStatusBadge statut={ticket.statut} />
         </div>
         {photoCount > 0 && (
           <div
-            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+            className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white md:hidden"
             style={{ background: "rgba(10,14,26,0.62)" }}
           >
             <Camera size={11} strokeWidth={2} />
@@ -95,37 +136,90 @@ export default function TicketCard({
         )}
       </div>
 
-      {/* TEXTE — dans le cadre, séparé visuellement de la photo */}
-      <div className="px-4 py-3.5">
-        <div className="mb-1 flex items-baseline justify-between gap-3">
-          <h3
-            className="m-0 flex-1 text-base font-bold leading-tight tracking-tight"
-            style={{ color: TK.ink, letterSpacing: "-0.015em" }}
-          >
-            {ticket.titre}
-          </h3>
+      {/* ─── CONTENU ─── */}
+      <div className="flex flex-1 flex-col px-4 py-3.5 md:px-5 md:py-4">
+        {/* Desktop : badges + numéro en haut */}
+        <div className="mb-2 hidden flex-wrap items-center gap-2 md:flex">
+          <TKPriorityBadge priorite={ticket.priorite} />
+          <TKStatusBadge statut={ticket.statut} />
+          <TKCategoryChip categorie={ticket.categorie} size="sm" />
           <span
-            className="whitespace-nowrap text-[11px] font-semibold"
+            className="ml-auto text-[12px] font-semibold"
             style={{ color: TK.muted }}
           >
             #{ticket.numero}
           </span>
         </div>
-        {ticket.adresse && (
-          <div
-            className="mb-2.5 text-[13px] leading-snug"
+
+        {/* Titre + numéro (mobile : numéro à droite ; desktop : numéro déjà au-dessus) */}
+        <div className="mb-1 flex items-baseline justify-between gap-3">
+          <h3
+            className="m-0 flex-1 text-base font-bold leading-tight tracking-tight md:text-lg"
+            style={{ color: TK.ink, letterSpacing: "-0.015em" }}
+          >
+            {ticket.titre}
+          </h3>
+          <span
+            className="whitespace-nowrap text-[11px] font-semibold md:hidden"
             style={{ color: TK.muted }}
           >
-            {ticket.adresse.length > 60
-              ? ticket.adresse.slice(0, 60) + "…"
-              : ticket.adresse}
+            #{ticket.numero}
+          </span>
+        </div>
+
+        {/* Description (desktop seulement, pour densité de lecture) */}
+        {ticket.description && (
+          <p
+            className="mb-2 hidden text-[13px] leading-snug md:line-clamp-2 md:block"
+            style={{ color: TK.ink2 }}
+          >
+            {ticket.description}
+          </p>
+        )}
+
+        {/* Adresse */}
+        {ticket.adresse && (
+          <div
+            className="mb-2.5 flex items-start gap-1.5 text-[13px] leading-snug"
+            style={{ color: TK.muted }}
+          >
+            <MapPin
+              size={13}
+              className="mt-0.5 hidden shrink-0 md:inline"
+            />
+            <span>
+              {ticket.adresse.length > 80
+                ? ticket.adresse.slice(0, 80) + "…"
+                : ticket.adresse}
+            </span>
           </div>
         )}
-        <div className="flex items-center justify-between gap-2">
+
+        {/* Footer : chip catégorie + date · assignés (mobile et desktop
+            partagent ce footer, à quelques détails près) */}
+        <div className="mt-auto flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
-            <TKCategoryChip categorie={ticket.categorie} size="sm" />
-            <span className="text-[11px]" style={{ color: TK.muted }}>
-              · {elapsed}
+            {/* La chip catégorie est déjà dans les badges desktop. */}
+            <span className="md:hidden">
+              <TKCategoryChip categorie={ticket.categorie} size="sm" />
+            </span>
+            <span
+              className="inline-flex items-center gap-1 text-[11px] md:gap-1.5 md:text-[12px]"
+              style={{ color: TK.muted }}
+            >
+              <Clock
+                size={11}
+                className="hidden shrink-0 md:inline"
+              />
+              <span className="md:hidden">·&nbsp;</span>
+              {elapsed}
+              {photoCount > 0 && (
+                <span className="hidden items-center gap-1 md:inline-flex">
+                  <span>·</span>
+                  <Camera size={11} className="shrink-0" />
+                  {photoCount}
+                </span>
+              )}
             </span>
           </div>
           {assignees.length > 0 ? (
