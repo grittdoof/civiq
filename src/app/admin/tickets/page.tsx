@@ -39,17 +39,21 @@ export default async function TicketsListPage({ searchParams }: Props) {
   // Filtre par défaut = "ouverts" (tickets pas encore pris en charge)
   const { filter = "ouverts", search = "" } = await searchParams;
 
-  // Mapping filter → critères queries (simplifié — 4 états seulement)
+  // Mapping filter → critères queries (simplifié — 5 états)
   const filters: Parameters<typeof listTickets>[1] = { search };
   if (filter === "ouverts") filters.statut = ["nouveau", "assigne"];
   else if (filter === "en_cours") filters.statut = ["pris_en_charge", "en_cours", "en_attente"];
   else if (filter === "termines") filters.statut = ["resolu", "clos", "annule"];
+  else if (filter === "mes") filters.assignedToMe = ctx.userId;
 
   const tickets = await listTickets(ctx.communeId, filters);
 
-  // Compteurs pour les 4 pills
+  // Compteurs pour les pills — on calcule "Mes tickets" avec la même logique
+  // que la query (assigne_a OU multi-assignés via ticket_assignees).
   const allTickets = await listTickets(ctx.communeId, {});
+  const myTickets = await listTickets(ctx.communeId, { assignedToMe: ctx.userId });
   const counts = {
+    mes: myTickets.length,
     ouverts: allTickets.filter((t) => ["nouveau", "assigne"].includes(t.statut)).length,
     en_cours: allTickets.filter((t) => ["pris_en_charge", "en_cours", "en_attente"].includes(t.statut)).length,
     termines: allTickets.filter((t) => ["resolu", "clos", "annule"].includes(t.statut)).length,

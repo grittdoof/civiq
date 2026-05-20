@@ -52,7 +52,7 @@ export default async function TicketDetailPage({ params }: Props) {
   const isSuperAdmin = ctx.role === "super_admin";
   const isAdmin = ctx.role === "admin";
   const isEditor = ctx.role === "editor";
-  const isAssignee = ticket.assigne_a === ctx.userId;
+  const isAssignee = ticket.assigne_a === ctx.userId || assignees.some((a) => a.id === ctx.userId);
   const isCreator = ticket.created_by === ctx.userId;
   const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
   const canAssign = isSuperAdmin || isAdmin || isEditor;

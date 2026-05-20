@@ -10,9 +10,10 @@ import { Search } from "lucide-react";
 // la page Server Component re-fetche avec les bons critères.
 // ═══════════════════════════════════════════════════════════════
 
-export type TicketsFilterValue = "ouverts" | "en_cours" | "termines" | "tous";
+export type TicketsFilterValue = "mes" | "ouverts" | "en_cours" | "termines" | "tous";
 
 interface Counts {
+  mes: number;
   ouverts: number;
   en_cours: number;
   termines: number;
@@ -27,6 +28,7 @@ interface Props {
 
 // 4 états simples — fini les 7 pills qui surchargeaient le mobile
 const PILLS: { value: TicketsFilterValue; label: string }[] = [
+  { value: "mes", label: "Mes tickets" },
   { value: "ouverts", label: "Ouverts" },
   { value: "en_cours", label: "Pris en charge" },
   { value: "termines", label: "Terminés" },

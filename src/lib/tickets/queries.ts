@@ -75,6 +75,18 @@ export async function listTickets(communeId: string, filters: ListTicketsFilters
 
   let rows = (ticketsBase ?? []) as unknown as TicketWithRelations[];
 
+  // Pour le filtre "Mes tickets" : on prend en compte l'assigné principal
+  // ET la table multi-assignés (V2). Récupéré séparément pour ne pas alourdir
+  // la query principale (et rester compatible si la migration 012 n'est pas là).
+  let multiAssignedIds: Set<string> | null = null;
+  if (filters.assignedToMe) {
+    const { data: rels } = await service
+      .from("ticket_assignees")
+      .select("ticket_id")
+      .eq("profile_id", filters.assignedToMe);
+    multiAssignedIds = new Set((rels ?? []).map((r) => r.ticket_id as string));
+  }
+
   // Application des filtres en mémoire pour rester simple en V1
   if (filters.statut) {
     const statuses = Array.isArray(filters.statut) ? filters.statut : [filters.statut];
@@ -82,7 +94,10 @@ export async function listTickets(communeId: string, filters: ListTicketsFilters
   }
   if (filters.priorite) rows = rows.filter((t) => t.priorite === filters.priorite);
   if (filters.categorie) rows = rows.filter((t) => t.categorie === filters.categorie);
-  if (filters.assignedToMe) rows = rows.filter((t) => t.assigne_a === filters.assignedToMe);
+  if (filters.assignedToMe) {
+    const me = filters.assignedToMe;
+    rows = rows.filter((t) => t.assigne_a === me || multiAssignedIds!.has(t.id));
+  }
   if (filters.search?.trim()) {
     const s = filters.search.trim().toLowerCase();
     const numericNumero = Number(s.replace(/^#/, ""));

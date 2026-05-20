@@ -70,8 +70,14 @@ export default function NewTicketForm({ communeId, agents }: Props) {
   });
 
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
-  const [assigneA, setAssigneA] = useState<string>("");
+  const [assigneIds, setAssigneIds] = useState<string[]>([]);
   const [echeance, setEcheance] = useState<string>("");
+
+  function toggleAssignee(id: string) {
+    setAssigneIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   const showDemandeur = canal !== "elu_terrain" && canal !== "agent_interne";
 
@@ -98,7 +104,7 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           latitude: location.latitude,
           longitude: location.longitude,
           precision_geo: location.precision_geo,
-          assigne_a: assigneA || null,
+          assignee_ids: assigneIds,
           echeance: echeance || null,
           photo_paths: photoPaths,
         });
@@ -246,29 +252,63 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         </Section>
 
         {/* ── 6. Assignation ── */}
-        <Section title={`${showDemandeur ? "6" : "5"} · Assignation (optionnel)`} subtitle="Si vous savez déjà qui doit s'en occuper.">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-            <Field label="Agent assigné">
-              <select className="civiq-select" value={assigneA} onChange={(e) => setAssigneA(e.target.value)}>
-                <option value="">— Non assigné —</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.full_name || "(sans nom)"}
-                    {a.job_title ? ` — ${a.job_title.replace("_", " ")}` : ""}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Échéance souhaitée">
-              <input
-                type="date"
-                className="civiq-input"
-                value={echeance}
-                onChange={(e) => setEcheance(e.target.value)}
-                min={new Date().toISOString().slice(0, 10)}
-              />
-            </Field>
-          </div>
+        <Section
+          title={`${showDemandeur ? "6" : "5"} · Assignation (optionnel)`}
+          subtitle="Sélectionnez un ou plusieurs intervenants — case à cocher."
+        >
+          <Field label={`Agents assignés${assigneIds.length ? ` (${assigneIds.length})` : ""}`}>
+            {agents.length === 0 ? (
+              <p style={{ fontSize: 12, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6, maxHeight: 260, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: 8 }}>
+                {agents.map((a) => {
+                  const checked = assigneIds.includes(a.id);
+                  return (
+                    <label
+                      key={a.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 10px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        background: checked ? "var(--accent-light)" : "transparent",
+                        border: `1px solid ${checked ? "var(--accent)" : "transparent"}`,
+                        fontSize: 13,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAssignee(a.id)}
+                        style={{ accentColor: "var(--accent)" }}
+                      />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, color: "var(--fg)" }}>
+                          {a.full_name || "(sans nom)"}
+                        </span>
+                        {a.job_title && (
+                          <span style={{ fontSize: 11, color: "var(--fg-muted)", display: "block", textTransform: "capitalize" }}>
+                            {a.job_title.replace("_", " ")}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </Field>
+          <Field label="Échéance souhaitée">
+            <input
+              type="date"
+              className="civiq-input"
+              value={echeance}
+              onChange={(e) => setEcheance(e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+            />
+          </Field>
         </Section>
 
         {/* Footer actions */}
