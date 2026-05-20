@@ -16,13 +16,12 @@ export default function ResetPasswordPage() {
     setError(null);
 
     const supabase = createClient();
-    // On passe par /auth/callback pour exchangeCodeForSession (PKCE),
-    // puis on est redirigé vers /auth/update-password avec une session valide.
-    // Indispensable pour les comptes créés via magic link / OTP qui n'ont
-    // jamais défini de mot de passe.
-    const next = encodeURIComponent("/auth/update-password");
+    // Supabase recovery utilise le flux implicit (hash #access_token=…&type=recovery).
+    // On envoie directement sur /auth/update-password qui parse le hash via
+    // l'event PASSWORD_RECOVERY du SDK client. Fonctionne aussi pour les
+    // comptes créés via magic link / OTP.
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=${next}`,
+      redirectTo: `${window.location.origin}/auth/update-password`,
     });
 
     if (resetError) {
