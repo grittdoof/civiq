@@ -202,7 +202,7 @@ function LoginPageInner() {
         </p>
         <p className="auth-footer">
           Pas encore de compte ?{" "}
-          <Link href="/auth/register">Créer un espace commune</Link>
+          <Link href="/auth/register">Créer un compte maintenant</Link>
         </p>
       </div>
       <AuthStyles />
