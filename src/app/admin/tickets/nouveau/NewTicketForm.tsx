@@ -2,92 +2,135 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Save, AlertCircle } from "lucide-react";
-import TicketLocationPicker, { type LocationValue } from "@/components/tickets/TicketLocationPicker";
+import { AlertCircle, Check } from "lucide-react";
+import TicketLocationPicker, {
+  type LocationValue,
+} from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { createTicket } from "@/lib/tickets/mutations";
 import {
-  CANAL_LABELS, CATEGORIE_LABELS, CATEGORIE_ICONS, PRIORITE_LABELS, PRIORITE_COLORS,
-  type TicketCanal, type TicketCategorie, type TicketPriorite,
+  TKHeader,
+  TKStepBar,
+  TKCtaBar,
+  TKButton,
+  TKInput,
+  TKAvatar,
+} from "@/components/tickets/ui/tk-primitives";
+import {
+  TK,
+  TK_CATEGORIES,
+  TK_PRIORITES,
+  TK_CANAUX,
+} from "@/lib/tickets/design-tokens";
+import type {
+  TicketCanal,
+  TicketCategorie,
+  TicketPriorite,
 } from "@/lib/tickets/types";
 
 // ═══════════════════════════════════════════════════════════════
-// Formulaire complet de création (client) — sections progressives
-//
-//   1. Canal de réception
-//   2. Demandeur (si canal externe)
-//   3. Description (titre, description, catégorie, priorité)
-//   4. Localisation
-//   5. Photos
-//   6. Assignation (optionnelle)
-//
-// Conçu pour être rempli en < 1 min sur mobile par un élu terrain.
+// Wizard de création — 6 étapes, une question par écran (Airbnb).
+// CTA fixe en bas, step bar segmentée en haut.
+//   1 Canal · 2 Catégorie · 3 Description+Priorité ·
+//   4 Localisation · 5 Photos · 6 Assignation
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   communeId: string;
-  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  agents: Array<{
+    id: string;
+    full_name: string | null;
+    job_title: string | null;
+  }>;
 }
 
-const CANAUX: Array<{ value: TicketCanal; emoji: string; help: string }> = [
-  { value: "elu_terrain", emoji: "🏃", help: "Je signale depuis le terrain (mobile)" },
-  { value: "agent_interne", emoji: "🏛️", help: "Je crée pour un service municipal" },
-  { value: "telephone", emoji: "📞", help: "Suite à un appel d'un habitant" },
-  { value: "email", emoji: "✉️", help: "Suite à un email reçu" },
-];
+const TOTAL_STEPS = 6;
+
+const CANAL_ICONS: Record<TicketCanal, string> = {
+  elu_terrain: "🚶",
+  agent_interne: "🛠️",
+  telephone: "📞",
+  email: "✉️",
+};
 
 const CATEGORIES: TicketCategorie[] = [
-  "voirie", "espaces_verts", "batiment", "eclairage_public",
-  "proprete", "mobilier_urbain", "reseaux_eau", "signalisation", "autre",
-];
-
-const PRIORITES: Array<{ value: TicketPriorite; sub: string }> = [
-  { value: "basse", sub: "À traiter quand possible" },
-  { value: "normale", sub: "Délai normal d'intervention" },
-  { value: "haute", sub: "Demande de l'attention rapide" },
-  { value: "urgente", sub: "Risque immédiat ou bloquant" },
+  "voirie",
+  "eclairage_public",
+  "proprete",
+  "espaces_verts",
+  "batiment",
+  "mobilier_urbain",
+  "reseaux_eau",
+  "signalisation",
+  "autre",
 ];
 
 export default function NewTicketForm({ communeId, agents }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // State formulaire
   const [canal, setCanal] = useState<TicketCanal>("elu_terrain");
+  const [categorie, setCategorie] = useState<TicketCategorie | null>(null);
+  const [titre, setTitre] = useState("");
+  const [description, setDescription] = useState("");
+  const [priorite, setPriorite] = useState<TicketPriorite>("normale");
+  const [location, setLocation] = useState<LocationValue>({
+    latitude: null,
+    longitude: null,
+    adresse: null,
+    precision_geo: null,
+  });
+  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
+  const [assigneIds, setAssigneIds] = useState<string[]>([]);
+  // Demandeur (canaux externes)
   const [demandeurNom, setDemandeurNom] = useState("");
   const [demandeurTel, setDemandeurTel] = useState("");
   const [demandeurEmail, setDemandeurEmail] = useState("");
-  const [demandeurAdresse, setDemandeurAdresse] = useState("");
 
-  const [titre, setTitre] = useState("");
-  const [description, setDescription] = useState("");
-  const [categorie, setCategorie] = useState<TicketCategorie>("voirie");
-  const [priorite, setPriorite] = useState<TicketPriorite>("normale");
-
-  const [location, setLocation] = useState<LocationValue>({
-    latitude: null, longitude: null, adresse: null, precision_geo: null,
-  });
-
-  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
-  const [assigneIds, setAssigneIds] = useState<string[]>([]);
-  const [echeance, setEcheance] = useState<string>("");
+  const showDemandeur = canal === "telephone" || canal === "email";
 
   function toggleAssignee(id: string) {
     setAssigneIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
 
-  const showDemandeur = canal !== "elu_terrain" && canal !== "agent_interne";
+  function canNext(): boolean {
+    if (step === 0) return !!canal;
+    if (step === 1) return !!categorie;
+    if (step === 2) return titre.trim().length > 2;
+    if (step === 3) return !!location.adresse?.trim() || !!location.latitude;
+    if (step === 4) return true;
+    if (step === 5) return true;
+    return true;
+  }
 
-  function submit() {
+  function next() {
     setError(null);
-    if (!titre.trim()) {
-      setError("Le titre du ticket est requis.");
+    if (step < TOTAL_STEPS - 1) {
+      setStep(step + 1);
       return;
     }
+    submit();
+  }
 
+  function prev() {
+    setError(null);
+    if (step === 0) {
+      router.push("/admin/tickets");
+      return;
+    }
+    setStep(step - 1);
+  }
+
+  function submit() {
+    if (!titre.trim() || !categorie) {
+      setError("Informations incomplètes.");
+      return;
+    }
     startTransition(async () => {
       try {
         const result = await createTicket({
@@ -95,7 +138,6 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           demandeur_nom: showDemandeur ? demandeurNom : null,
           demandeur_telephone: showDemandeur ? demandeurTel : null,
           demandeur_email: showDemandeur ? demandeurEmail : null,
-          demandeur_adresse: showDemandeur ? demandeurAdresse : null,
           titre,
           description,
           categorie,
@@ -105,10 +147,9 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           longitude: location.longitude,
           precision_geo: location.precision_geo,
           assignee_ids: assigneIds,
-          echeance: echeance || null,
           photo_paths: photoPaths,
         });
-        router.push(`/admin/tickets/${result.id}`);
+        router.push(`/admin/tickets/succes?id=${result.id}&kind=created`);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur inconnue");
@@ -117,257 +158,532 @@ export default function NewTicketForm({ communeId, agents }: Props) {
   }
 
   return (
-    <main className="civiq-main">
-      <Link href="/admin/tickets" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--fg-muted)", textDecoration: "none", marginBottom: 16 }}>
-        <ArrowLeft size={14} /> Tickets
-      </Link>
+    <main className="relative flex min-h-[100dvh] flex-col bg-white">
+      <TKHeader
+        onClose={() => router.push("/admin/tickets")}
+        title={`Étape ${step + 1} sur ${TOTAL_STEPS}`}
+      />
+      <TKStepBar current={step} total={TOTAL_STEPS} />
 
-      <header style={{ marginBottom: 20 }}>
-        <h1 className="civiq-page-title">Nouveau ticket</h1>
-        <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>
-          Renseignez les informations de l&apos;intervention. Tous les champs avec * sont obligatoires.
-        </p>
-      </header>
-
-      {error && (
-        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "oklch(0.97 0.04 25)", border: "1px solid var(--destructive)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 13, marginBottom: 16 }}>
-          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 18, maxWidth: 720 }}>
-        {/* ── 1. Canal ── */}
-        <Section title="1 · Canal de réception" subtitle="Comment ce signalement est-il arrivé ?">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-            {CANAUX.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setCanal(c.value)}
-                className="tk-option-card"
-                data-active={canal === c.value}
-              >
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{c.emoji}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{CANAL_LABELS[c.value]}</div>
-                <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 2, lineHeight: 1.35 }}>{c.help}</div>
-              </button>
-            ))}
+      <div className="flex-1 overflow-y-auto px-[22px] pb-6 pt-1">
+        {error && (
+          <div
+            className="mb-4 flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-[13px]"
+            style={{
+              background: "oklch(0.97 0.04 25)",
+              color: TK.rouge,
+              border: `1px solid ${TK.rouge}`,
+            }}
+          >
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            {error}
           </div>
-        </Section>
-
-        {/* ── 2. Demandeur ── */}
-        {showDemandeur && (
-          <Section title="2 · Demandeur" subtitle="Qui a signalé ce problème ?">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-              <Field label="Nom">
-                <input className="civiq-input" value={demandeurNom} onChange={(e) => setDemandeurNom(e.target.value)} placeholder="Mme Dupont" />
-              </Field>
-              <Field label="Téléphone">
-                <input className="civiq-input" type="tel" value={demandeurTel} onChange={(e) => setDemandeurTel(e.target.value)} placeholder="06 12 34 56 78" />
-              </Field>
-              <Field label="Email">
-                <input className="civiq-input" type="email" value={demandeurEmail} onChange={(e) => setDemandeurEmail(e.target.value)} placeholder="dupont@example.fr" />
-              </Field>
-              <Field label="Adresse">
-                <input className="civiq-input" value={demandeurAdresse} onChange={(e) => setDemandeurAdresse(e.target.value)} placeholder="12 rue X" />
-              </Field>
-            </div>
-          </Section>
         )}
 
-        {/* ── 3. Description ── */}
-        <Section title={`${showDemandeur ? "3" : "2"} · Description`} subtitle="Décrivez le problème en quelques mots clairs.">
-          <Field label="Titre court *">
-            <input
-              className="civiq-input"
-              value={titre}
-              onChange={(e) => setTitre(e.target.value)}
-              placeholder="Ex : Nid-de-poule rue de la Mairie"
-              maxLength={200}
-              required
-            />
-          </Field>
-          <Field label="Description (détails utiles)">
-            <textarea
-              className="civiq-input civiq-textarea"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Localisation précise, gravité observée, accès, etc."
-            />
-          </Field>
+        {step === 0 && (
+          <Step1Canal value={canal} onChange={setCanal} />
+        )}
 
-          <Field label="Catégorie *">
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategorie(c)}
-                  className="tk-pill"
-                  data-active={categorie === c}
-                  style={categorie === c ? { background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" } : undefined}
-                >
-                  <span aria-hidden>{CATEGORIE_ICONS[c]}</span> {CATEGORIE_LABELS[c]}
-                </button>
-              ))}
+        {step === 0 && showDemandeur && (
+          <div className="mt-6">
+            <StepTitleSub label="Demandeur" />
+            <div className="mt-3 flex flex-col gap-3">
+              <TKInput
+                label="Nom"
+                value={demandeurNom}
+                onChange={setDemandeurNom}
+                placeholder="Mme Dupont"
+              />
+              <TKInput
+                label="Téléphone"
+                value={demandeurTel}
+                onChange={setDemandeurTel}
+                placeholder="06 12 34 56 78"
+              />
+              <TKInput
+                label="Email"
+                value={demandeurEmail}
+                onChange={setDemandeurEmail}
+                placeholder="dupont@example.fr"
+              />
             </div>
-          </Field>
+          </div>
+        )}
 
-          <Field label="Priorité *">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-              {PRIORITES.map((p) => {
-                const c = PRIORITE_COLORS[p.value];
-                const active = priorite === p.value;
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => setPriorite(p.value)}
-                    className="tk-option-card"
-                    data-active={active}
-                    style={active ? { borderColor: c.fg, background: c.bg } : undefined}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.fg, display: "inline-block" }} />
-                      <strong style={{ color: "var(--fg)", fontSize: 13 }}>{PRIORITE_LABELS[p.value]}</strong>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--fg-muted)", lineHeight: 1.4 }}>{p.sub}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-        </Section>
+        {step === 1 && (
+          <Step2Categorie value={categorie} onChange={setCategorie} />
+        )}
 
-        {/* ── 4. Localisation ── */}
-        <Section title={`${showDemandeur ? "4" : "3"} · Localisation`} subtitle="GPS, adresse ou clic sur la carte — au choix.">
-          <TicketLocationPicker value={location} onChange={setLocation} />
-        </Section>
+        {step === 2 && (
+          <Step3Description
+            titre={titre}
+            description={description}
+            priorite={priorite}
+            onTitre={setTitre}
+            onDescription={setDescription}
+            onPriorite={setPriorite}
+          />
+        )}
 
-        {/* ── 5. Photos ── */}
-        <Section title={`${showDemandeur ? "5" : "4"} · Photos`} subtitle="Au moins une photo aide énormément l'agent technique.">
-          <TicketPhotoUpload communeId={communeId} onChange={setPhotoPaths} max={5} />
-        </Section>
+        {step === 3 && (
+          <Step4Localisation value={location} onChange={setLocation} />
+        )}
 
-        {/* ── 6. Assignation ── */}
-        <Section
-          title={`${showDemandeur ? "6" : "5"} · Assignation (optionnel)`}
-          subtitle="Sélectionnez un ou plusieurs intervenants — case à cocher."
-        >
-          <Field label={`Agents assignés${assigneIds.length ? ` (${assigneIds.length})` : ""}`}>
-            {agents.length === 0 ? (
-              <p style={{ fontSize: 12, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6, maxHeight: 260, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: 8 }}>
-                {agents.map((a) => {
-                  const checked = assigneIds.includes(a.id);
-                  return (
-                    <label
-                      key={a.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        background: checked ? "var(--accent-light)" : "transparent",
-                        border: `1px solid ${checked ? "var(--accent)" : "transparent"}`,
-                        fontSize: 13,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAssignee(a.id)}
-                        style={{ accentColor: "var(--accent)" }}
-                      />
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, color: "var(--fg)" }}>
-                          {a.full_name || "(sans nom)"}
-                        </span>
-                        {a.job_title && (
-                          <span style={{ fontSize: 11, color: "var(--fg-muted)", display: "block", textTransform: "capitalize" }}>
-                            {a.job_title.replace("_", " ")}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </Field>
-          <Field label="Échéance souhaitée">
-            <input
-              type="date"
-              className="civiq-input"
-              value={echeance}
-              onChange={(e) => setEcheance(e.target.value)}
-              min={new Date().toISOString().slice(0, 10)}
-            />
-          </Field>
-        </Section>
+        {step === 4 && (
+          <Step5Photos
+            communeId={communeId}
+            paths={photoPaths}
+            onChange={setPhotoPaths}
+          />
+        )}
 
-        {/* Footer actions */}
-        <div style={{
-          display: "flex", gap: 10, justifyContent: "flex-end",
-          paddingTop: 12, marginTop: 4, borderTop: "1px solid var(--border)",
-          position: "sticky", bottom: 0, background: "var(--bg)", paddingBottom: 12,
-        }}>
-          <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">Annuler</Link>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={pending || !titre.trim()}
-            className="civiq-btn civiq-btn-default"
-            style={{ minWidth: 160, justifyContent: "center" }}
-          >
-            <Save size={14} /> {pending ? "Création…" : "Créer le ticket"}
-          </button>
-        </div>
+        {step === 5 && (
+          <Step6Assignation
+            agents={agents}
+            selected={assigneIds}
+            onToggle={toggleAssignee}
+          />
+        )}
       </div>
 
-      <style>{`
-        .tk-option-card {
-          padding: 10px 12px;
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-sm);
-          text-align: left;
-          cursor: pointer;
-          font-family: inherit;
-          transition: border-color var(--transition), background var(--transition);
-        }
-        .tk-option-card:hover { border-color: var(--fg-muted); }
-        .tk-option-card[data-active="true"] {
-          border-color: var(--accent);
-          background: var(--accent-light);
-        }
-      `}</style>
+      <TKCtaBar mode="fixed">
+        <div className="flex gap-2.5">
+          <TKButton
+            variant="secondary"
+            onClick={prev}
+            fullWidth={false}
+            style={{ flex: "0 0 120px" }}
+          >
+            {step === 0 ? "Annuler" : "Précédent"}
+          </TKButton>
+          <TKButton
+            variant="primary"
+            onClick={next}
+            disabled={!canNext() || pending}
+            fullWidth={false}
+            style={{ flex: 1 }}
+          >
+            {step === TOTAL_STEPS - 1
+              ? pending
+                ? "Création…"
+                : "Créer le ticket"
+              : "Continuer"}
+          </TKButton>
+        </div>
+      </TKCtaBar>
     </main>
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+// ─── HELPERS ─────────────────────────────────────────────────────
+
+function StepTitle({
+  eyebrow,
+  title,
+  sub,
+}: {
+  eyebrow: string;
+  title: string;
+  sub?: string;
+}) {
   return (
-    <section className="civiq-card" style={{ padding: 16, display: "grid", gap: 12 }}>
-      <div>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{title}</h2>
-        {subtitle && <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2 }}>{subtitle}</p>}
+    <div className="tk-fade">
+      <div
+        className="mt-1.5 text-[11px] font-bold uppercase"
+        style={{ color: TK.muted, letterSpacing: "0.12em" }}
+      >
+        {eyebrow}
       </div>
-      {children}
-    </section>
+      <h1
+        className="m-0 mb-1.5 mt-2 font-bold leading-tight"
+        style={{
+          fontSize: 26,
+          color: TK.ink,
+          letterSpacing: "-0.025em",
+        }}
+      >
+        {title}
+      </h1>
+      {sub && (
+        <p
+          className="m-0 text-sm leading-snug"
+          style={{ color: TK.muted }}
+        >
+          {sub}
+        </p>
+      )}
+    </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function StepTitleSub({ label }: { label: string }) {
   return (
-    <div>
-      <label className="civiq-field-label" style={{ fontSize: 12 }}>{label}</label>
-      {children}
-    </div>
+    <span
+      className="text-[11px] font-bold uppercase"
+      style={{ color: TK.muted, letterSpacing: "0.12em" }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function BigOption({
+  selected,
+  onClick,
+  icon,
+  title,
+  sub,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  sub?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-3.5 rounded-2xl px-4 py-4 text-left transition-all"
+      style={{
+        border: `1.5px solid ${selected ? TK.ink : TK.line}`,
+        background: selected ? "#FAFAFA" : "white",
+        boxShadow: selected ? `inset 0 0 0 1px ${TK.ink}` : "none",
+      }}
+    >
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-xl text-[22px]"
+        style={{ width: 44, height: 44, background: TK.bg2 }}
+      >
+        {icon}
+      </span>
+      <span className="flex-1">
+        <span
+          className="block text-[15px] font-semibold"
+          style={{ color: TK.ink }}
+        >
+          {title}
+        </span>
+        {sub && (
+          <span
+            className="mt-0.5 block text-[12px]"
+            style={{ color: TK.muted }}
+          >
+            {sub}
+          </span>
+        )}
+      </span>
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-full text-white"
+        style={{
+          width: 22,
+          height: 22,
+          border: `2px solid ${selected ? TK.ink : TK.line}`,
+          background: selected ? TK.ink : "white",
+          fontSize: 12,
+        }}
+      >
+        {selected ? <Check size={12} strokeWidth={3} /> : ""}
+      </span>
+    </button>
+  );
+}
+
+// ─── STEPS ───────────────────────────────────────────────────────
+
+function Step1Canal({
+  value,
+  onChange,
+}: {
+  value: TicketCanal;
+  onChange: (v: TicketCanal) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 1"
+        title="Comment ce ticket est-il signalé ?"
+        sub="Le canal d'entrée du signalement."
+      />
+      <div className="mt-6 flex flex-col gap-2.5">
+        {(Object.entries(TK_CANAUX) as Array<
+          [TicketCanal, { label: string; sub: string }]
+        >).map(([id, cfg]) => (
+          <BigOption
+            key={id}
+            selected={value === id}
+            onClick={() => onChange(id)}
+            icon={CANAL_ICONS[id]}
+            title={cfg.label}
+            sub={cfg.sub}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function Step2Categorie({
+  value,
+  onChange,
+}: {
+  value: TicketCategorie | null;
+  onChange: (v: TicketCategorie) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 2"
+        title="De quoi s'agit-il ?"
+        sub="Choisis la catégorie qui correspond le mieux."
+      />
+      <div className="mt-6 grid grid-cols-2 gap-2.5">
+        {CATEGORIES.map((c) => {
+          const cfg = TK_CATEGORIES[c];
+          const selected = value === c;
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => onChange(c)}
+              className="flex flex-col items-start gap-2 rounded-2xl px-3 py-3.5 text-left transition-all"
+              style={{
+                border: `1.5px solid ${selected ? TK.ink : TK.line}`,
+                background: selected ? "#FAFAFA" : "white",
+                boxShadow: selected ? `inset 0 0 0 1px ${TK.ink}` : "none",
+              }}
+            >
+              <span
+                className="inline-flex items-center justify-center rounded-[10px] text-lg"
+                style={{
+                  width: 36,
+                  height: 36,
+                  background: cfg.color + "18",
+                  color: cfg.color,
+                }}
+              >
+                {cfg.icon}
+              </span>
+              <span
+                className="text-[13px] font-semibold"
+                style={{ color: TK.ink }}
+              >
+                {cfg.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function Step3Description({
+  titre,
+  description,
+  priorite,
+  onTitre,
+  onDescription,
+  onPriorite,
+}: {
+  titre: string;
+  description: string;
+  priorite: TicketPriorite;
+  onTitre: (v: string) => void;
+  onDescription: (v: string) => void;
+  onPriorite: (v: TicketPriorite) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 3"
+        title="Décris le problème"
+        sub="Un titre court + quelques détails. Tu pourras compléter plus tard."
+      />
+      <div className="mt-6 flex flex-col gap-[18px]">
+        <TKInput
+          label="Titre"
+          value={titre}
+          onChange={onTitre}
+          placeholder="Ex. Nid-de-poule rue de la Mairie"
+          autoFocus
+          maxLength={80}
+          hint={`${titre.length} / 80 caractères`}
+        />
+        <TKInput
+          label="Description (optionnel)"
+          value={description}
+          onChange={onDescription}
+          placeholder="Détaille la nature, la taille, le danger éventuel…"
+          multiline
+        />
+        <div>
+          <span
+            className="mb-2.5 block text-[12px] font-semibold"
+            style={{ color: TK.ink2 }}
+          >
+            Priorité
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.entries(TK_PRIORITES) as Array<
+              [TicketPriorite, { label: string; color: string; hint: string }]
+            >).map(([id, cfg]) => {
+              const selected = priorite === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onPriorite(id)}
+                  className="flex items-center gap-2.5 rounded-xl px-3.5 py-3 text-left"
+                  style={{
+                    border: `1.5px solid ${selected ? TK.ink : TK.line}`,
+                    background: selected ? "#FAFAFA" : "white",
+                    boxShadow: selected ? `inset 0 0 0 1px ${TK.ink}` : "none",
+                  }}
+                >
+                  <span
+                    className="rounded"
+                    style={{
+                      width: 12,
+                      height: 12,
+                      background: cfg.color,
+                    }}
+                  />
+                  <span className="flex-1">
+                    <span
+                      className="block text-[13px] font-bold"
+                      style={{ color: TK.ink }}
+                    >
+                      {cfg.label}
+                    </span>
+                    <span
+                      className="mt-px block text-[10px]"
+                      style={{ color: TK.muted }}
+                    >
+                      {cfg.hint}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Step4Localisation({
+  value,
+  onChange,
+}: {
+  value: LocationValue;
+  onChange: (v: LocationValue) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 4"
+        title="Où exactement ?"
+        sub="GPS, adresse libre ou clic sur la carte."
+      />
+      <div className="mt-6">
+        <TicketLocationPicker value={value} onChange={onChange} />
+      </div>
+    </>
+  );
+}
+
+function Step5Photos({
+  communeId,
+  onChange,
+}: {
+  communeId: string;
+  paths: string[];
+  onChange: (paths: string[]) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 5"
+        title="Ajoute des photos"
+        sub="Jusqu'à 5 photos. C'est optionnel mais très utile pour les agents."
+      />
+      <div className="mt-6">
+        <TicketPhotoUpload communeId={communeId} onChange={onChange} max={5} />
+      </div>
+    </>
+  );
+}
+
+function Step6Assignation({
+  agents,
+  selected,
+  onToggle,
+}: {
+  agents: Array<{
+    id: string;
+    full_name: string | null;
+    job_title: string | null;
+  }>;
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape finale"
+        title="Assigner (optionnel)"
+        sub="Tu peux confier ce ticket à un·e collègue maintenant ou plus tard."
+      />
+      <div className="mt-6 flex flex-col gap-1.5">
+        {agents.length === 0 && (
+          <p className="text-[13px]" style={{ color: TK.muted }}>
+            Aucun agent disponible.
+          </p>
+        )}
+        {agents.map((a) => {
+          const checked = selected.includes(a.id);
+          return (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => onToggle(a.id)}
+              className="flex items-center gap-3 rounded-xl px-1 py-3"
+            >
+              <TKAvatar name={a.full_name} seed={a.id} size={42} />
+              <div className="flex-1 text-left">
+                <div
+                  className="text-sm font-semibold"
+                  style={{ color: TK.ink }}
+                >
+                  {a.full_name || "(sans nom)"}
+                </div>
+                {a.job_title && (
+                  <div
+                    className="text-[11px] capitalize"
+                    style={{ color: TK.muted }}
+                  >
+                    {a.job_title.replace("_", " ")}
+                  </div>
+                )}
+              </div>
+              <span
+                className="inline-flex items-center justify-center rounded-[7px]"
+                style={{
+                  width: 24,
+                  height: 24,
+                  border: `2px solid ${checked ? TK.ink : TK.line}`,
+                  background: checked ? TK.ink : "white",
+                  color: "white",
+                }}
+              >
+                {checked && <Check size={14} strokeWidth={3} />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 }
