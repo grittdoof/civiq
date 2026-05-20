@@ -2,20 +2,24 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Search } from "lucide-react";
+import { TKFilterPill, TKSearchBar } from "@/components/tickets/ui/tk-primitives";
 
 // ═══════════════════════════════════════════════════════════════
 // Pills de filtre + barre de recherche pour /admin/tickets
-// Les filtres écrivent dans l'URL (?filter=…&search=…) pour que
-// la page Server Component re-fetche avec les bons critères.
+// (refondu phase 2 — style Airbnb).
 // ═══════════════════════════════════════════════════════════════
 
-export type TicketsFilterValue = "mes" | "ouverts" | "en_cours" | "termines" | "tous";
+export type TicketsFilterValue =
+  | "mes"
+  | "ouverts"
+  | "urgents"
+  | "termines"
+  | "tous";
 
 interface Counts {
   mes: number;
   ouverts: number;
-  en_cours: number;
+  urgents: number;
   termines: number;
   tous: number;
 }
@@ -26,23 +30,27 @@ interface Props {
   counts: Counts;
 }
 
-// 4 états simples — fini les 7 pills qui surchargeaient le mobile
 const PILLS: { value: TicketsFilterValue; label: string }[] = [
   { value: "mes", label: "Mes tickets" },
-  { value: "ouverts", label: "Ouverts" },
-  { value: "en_cours", label: "Pris en charge" },
-  { value: "termines", label: "Terminés" },
+  { value: "ouverts", label: "En cours" },
+  { value: "urgents", label: "Urgents" },
+  { value: "termines", label: "Clôturés" },
   { value: "tous", label: "Tous" },
 ];
 
-export default function TicketsFilters({ currentFilter, currentSearch, counts }: Props) {
+export default function TicketsFilters({
+  currentFilter,
+  currentSearch,
+  counts,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(currentSearch);
   const [, startTransition] = useTransition();
 
-  // Sync l'input si l'URL change extérieurement
-  useEffect(() => { setSearch(currentSearch); }, [currentSearch]);
+  useEffect(() => {
+    setSearch(currentSearch);
+  }, [currentSearch]);
 
   function setParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams);
@@ -64,38 +72,26 @@ export default function TicketsFilters({ currentFilter, currentSearch, counts }:
 
   return (
     <>
-      <div className="tk-pills">
-        {PILLS.map((p) => (
-          <button
-            key={p.value}
-            type="button"
-            className={`tk-pill${currentFilter === p.value ? " active" : ""}`}
-            onClick={() => setParam("filter", p.value === "ouverts" ? "" : p.value)}
-          >
-            {p.label}
-            <span className="tk-pill-count">{counts[p.value]}</span>
-          </button>
-        ))}
+      <div className="px-[22px] pb-3.5 pt-1">
+        <TKSearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Rechercher un ticket, une adresse…"
+        />
       </div>
 
-      <div className="tk-toolbar">
-        <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
-          <Search
-            size={14}
-            style={{
-              position: "absolute", left: 11, top: "50%",
-              transform: "translateY(-50%)", color: "var(--fg-muted)",
-              pointerEvents: "none",
-            }}
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par titre, description ou #numéro…"
-            className="tk-search-input"
-            style={{ paddingLeft: 32, width: "100%" }}
-          />
+      <div className="overflow-x-auto px-[22px] pb-3.5">
+        <div className="inline-flex gap-2">
+          {PILLS.map((p) => (
+            <TKFilterPill
+              key={p.value}
+              active={currentFilter === p.value}
+              count={counts[p.value]}
+              onClick={() => setParam("filter", p.value)}
+            >
+              {p.label}
+            </TKFilterPill>
+          ))}
         </div>
       </div>
     </>
