@@ -102,10 +102,9 @@ export default withSentryConfig(nextConfig, {
     deleteSourcemapsAfterUpload: true, // supprime les .map du bundle final
   },
 
-  webpack: {
-    // Tree-shaking des logs Sentry pour réduire le bundle
-    treeshake: {
-      removeDebugLogging: true,
-    },
+  // Réduit le bundle client en retirant les logs de debug Sentry
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayIframe: false,  // Replay activé côté client
   },
 });
