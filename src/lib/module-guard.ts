@@ -50,6 +50,17 @@ export async function requireModule(moduleKey: string): Promise<GuardResult> {
     return { ok: false, response: NextResponse.json({ error: "Aucune commune associée" }, { status: 403 }) };
   }
 
+  // Viewer : aucun module
+  if (profile.role === "viewer") {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Les lecteurs n'ont pas accès aux modules" },
+        { status: 403 }
+      ),
+    };
+  }
+
   const { data: cm } = await service
     .from("commune_modules")
     .select("module_id")
@@ -62,6 +73,23 @@ export async function requireModule(moduleKey: string): Promise<GuardResult> {
       ok: false,
       response: NextResponse.json(
         { error: `Module « ${moduleKey} » non activé pour votre commune` },
+        { status: 403 }
+      ),
+    };
+  }
+
+  // Override par utilisateur : si une ligne existe avec enabled=false → bloqué
+  const { data: override } = await service
+    .from("profile_module_overrides")
+    .select("enabled")
+    .eq("profile_id", user.id)
+    .eq("module_id", moduleKey)
+    .maybeSingle();
+  if (override?.enabled === false) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: `Module « ${moduleKey} » désactivé pour votre compte` },
         { status: 403 }
       ),
     };
@@ -91,6 +119,7 @@ export async function isModuleActive(moduleKey: string): Promise<boolean> {
 
   if (!profile) return false;
   if (profile.role === "super_admin") return true;
+  if (profile.role === "viewer") return false;       // lecteurs : aucun module
   if (!profile.commune_id) return false;
 
   const { data: cm } = await service
@@ -99,6 +128,16 @@ export async function isModuleActive(moduleKey: string): Promise<boolean> {
     .eq("commune_id", profile.commune_id)
     .eq("module_id", moduleKey)
     .maybeSingle();
+  if (!cm) return false;
 
-  return !!cm;
+  // Override par utilisateur (super-admin a pu désactiver ce module pour ce user)
+  const { data: override } = await service
+    .from("profile_module_overrides")
+    .select("enabled")
+    .eq("profile_id", user.id)
+    .eq("module_id", moduleKey)
+    .maybeSingle();
+  if (override?.enabled === false) return false;
+
+  return true;
 }

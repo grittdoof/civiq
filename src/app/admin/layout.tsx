@@ -55,17 +55,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const isSuperAdmin = role === "super_admin";
   const commune = (profile?.communes as unknown as { name: string; slug: string } | null) ?? null;
 
-  // Modules activés
+  // Modules activés (effectifs pour CE user, après application des règles role + overrides)
   let modules: string[] = [];
   if (isSuperAdmin) {
     const { data: all } = await service.from("modules").select("id").eq("is_available", true);
     modules = (all ?? []).map((m) => m.id);
+  } else if (role === "viewer") {
+    // Lecteurs : aucun module
+    modules = [];
   } else if (profile?.commune_id) {
-    const { data: cm } = await service
-      .from("commune_modules")
-      .select("module_id")
-      .eq("commune_id", profile.commune_id);
-    modules = (cm ?? []).map((c) => c.module_id);
+    // editor/admin : commune_modules MINUS overrides désactivés pour ce user
+    const [{ data: cm }, { data: overrides }] = await Promise.all([
+      service.from("commune_modules").select("module_id").eq("commune_id", profile.commune_id),
+      service.from("profile_module_overrides").select("module_id, enabled").eq("profile_id", user.id),
+    ]);
+    const disabled = new Set((overrides ?? []).filter((o) => o.enabled === false).map((o) => o.module_id));
+    modules = (cm ?? []).map((c) => c.module_id).filter((id) => !disabled.has(id));
   }
 
   return (
