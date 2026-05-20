@@ -40,6 +40,8 @@ export interface CreateTicketInput {
 
   // Workflow optionnel à la création
   assigne_a?: string | null;
+  /** Multi-assignation à la création (V2). Si fourni, prime sur assigne_a. */
+  assignee_ids?: string[];
   echeance?: string | null;
 
   // Photos déjà uploadées dans Storage (storage_path[])
@@ -60,6 +62,14 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   if (!titre) throw new Error("Le titre est requis");
 
   const service = await createServiceClient();
+
+  // Normalisation : si assignee_ids fourni, prime sur assigne_a (legacy mono).
+  const multiAssignees = Array.isArray(input.assignee_ids)
+    ? input.assignee_ids.filter(Boolean)
+    : [];
+  const primaryAssignee = multiAssignees.length > 0 ? multiAssignees[0] : (input.assigne_a || null);
+  const hasAssignee = !!primaryAssignee;
+
   const insertPayload: Record<string, unknown> = {
     commune_id: ctx.communeId,
     created_by: ctx.userId,
@@ -76,11 +86,11 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     demandeur_telephone: input.demandeur_telephone?.trim() || null,
     demandeur_email: input.demandeur_email?.trim() || null,
     demandeur_adresse: input.demandeur_adresse?.trim() || null,
-    assigne_a: input.assigne_a || null,
+    assigne_a: primaryAssignee,
     echeance: input.echeance || null,
-    statut: input.assigne_a ? "assigne" : "nouveau",
+    statut: hasAssignee ? "assigne" : "nouveau",
   };
-  if (input.assigne_a) {
+  if (hasAssignee) {
     insertPayload.assigne_at = new Date().toISOString();
   }
 
@@ -108,15 +118,32 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     }
   }
 
+  // Multi-assignation à la création : enregistrer la liste complète dans ticket_assignees.
+  // Le trigger SQL maintiendra tickets.assigne_a = premier de la liste.
+  if (multiAssignees.length > 0) {
+    const assigneeRows = multiAssignees.map((profile_id) => ({
+      ticket_id: created.id,
+      profile_id,
+      assigned_by: ctx.userId,
+    }));
+    const { error: assignErr } = await service.from("ticket_assignees").insert(assigneeRows);
+    if (assignErr) {
+      console.error("ticket_assignees insert:", assignErr);
+    }
+  }
+
   // ─── Notifications push ───
-  // Si assignation directe à la création → notif au destinataire
+  // Si assignation directe à la création → notif à tous les destinataires
   if (created.assigne_a) {
-    notifyTicketAssigned({
-      ticketId: created.id,
-      ticketNumero: created.numero,
-      titre: input.titre,
-      assignedTo: created.assigne_a,
-    }).catch((e) => console.error("[push] notify assigned:", e));
+    const recipients = multiAssignees.length > 0 ? multiAssignees : [created.assigne_a];
+    for (const r of recipients) {
+      notifyTicketAssigned({
+        ticketId: created.id,
+        ticketNumero: created.numero,
+        titre: input.titre,
+        assignedTo: r,
+      }).catch((e) => console.error("[push] notify assigned:", e));
+    }
   }
   // Sinon, ticket urgent non assigné → notif à tous les agents techniques
   else if (input.priorite === "urgente" && ctx.communeId) {
@@ -143,10 +170,12 @@ export async function listAssignableAgents(): Promise<
   let q = service
     .from("profiles")
     .select("id, full_name, job_title, role")
-    .in("role", ["admin", "editor"]);
+    .in("role", ["super_admin", "admin", "editor"]);
 
   if (ctx.role !== "super_admin") {
-    q = q.eq("commune_id", ctx.communeId!);
+    // On veut pouvoir assigner aussi les super-admins de la plateforme (ils peuvent
+    // ne pas être rattachés à une commune) en plus des membres de la commune courante.
+    q = q.or(`commune_id.eq.${ctx.communeId!},role.eq.super_admin`);
   }
 
   const { data } = await q;
@@ -180,7 +209,14 @@ async function authorizeTicketMutation(ticketId: string) {
   const isAdmin = ctx.role === "admin";
   const isEditor = ctx.role === "editor";
   const sameCommune = ctx.communeId === ticket.commune_id;
-  const isAssignee = ticket.assigne_a === ctx.userId;
+  // Multi-assignés (V2) : on considère également les profils présents dans ticket_assignees.
+  const { data: multiRow } = await service
+    .from("ticket_assignees")
+    .select("profile_id")
+    .eq("ticket_id", ticketId)
+    .eq("profile_id", ctx.userId)
+    .maybeSingle();
+  const isAssignee = ticket.assigne_a === ctx.userId || !!multiRow;
   const isCreator = ticket.created_by === ctx.userId;
 
   if (!isSuperAdmin && !sameCommune) {

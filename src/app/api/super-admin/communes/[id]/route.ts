@@ -33,12 +33,32 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
   const modules = (modulesRes.data ?? []).map((m) => ({ ...m, active: activeIds.has(m.id) }));
 
   const authUsers = authUsersRes.data?.users ?? [];
+
+  // Overrides modules par user (uniquement pour les profils de la commune)
+  const profileIds = (profilesRes.data ?? []).map((p) => p.id);
+  let overridesByProfile = new Map<string, string[]>();
+  if (profileIds.length) {
+    const { data: overrides } = await service
+      .from("profile_module_overrides")
+      .select("profile_id, module_id, enabled")
+      .in("profile_id", profileIds);
+    overridesByProfile = (overrides ?? []).reduce((map, o) => {
+      if (o.enabled === false) {
+        const arr = map.get(o.profile_id) ?? [];
+        arr.push(o.module_id);
+        map.set(o.profile_id, arr);
+      }
+      return map;
+    }, new Map<string, string[]>());
+  }
+
   const users = (profilesRes.data ?? []).map((p) => {
     const u = authUsers.find((au) => au.id === p.id);
     return {
       ...p,
       email: u?.email ?? null,
       last_sign_in_at: u?.last_sign_in_at ?? null,
+      disabled_modules: overridesByProfile.get(p.id) ?? [],
     };
   });
 

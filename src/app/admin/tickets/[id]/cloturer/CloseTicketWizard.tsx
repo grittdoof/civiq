@@ -2,23 +2,24 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import {
-  ArrowLeft, ArrowRight, Camera, FileText, CheckCircle2,
-  Loader2, AlertCircle, ImageIcon, Paperclip, Ban, CalendarClock,
-} from "lucide-react";
+import { Camera, FileText, CheckCircle2, AlertCircle, Ban, CalendarClock, Check } from "lucide-react";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { closeTicketWithReport } from "@/lib/tickets/mutations";
+import {
+  TKHeader,
+  TKStepBar,
+  TKCtaBar,
+  TKButton,
+  TKInput,
+} from "@/components/tickets/ui/tk-primitives";
+import { TK } from "@/lib/tickets/design-tokens";
 import type { TicketRapport } from "@/lib/tickets/types";
 
 // ═══════════════════════════════════════════════════════════════
-// CloseTicketWizard — version simplifiée 3 étapes
-//
-//   1. Pièce jointe : photo OU document OU « pas nécessaire »
-//   2. Suivi ultérieur : checkbox + date de réouverture
-//   3. Récapitulatif + clôture
-//
-// Pensé pour ~60 secondes en pleine intervention sur mobile.
+// CloseTicketWizard — version Airbnb mobile 3 étapes.
+//   1 · Pièce jointe (photo / document / sans pièce)
+//   2 · Suivi nécessaire ? (case + date + notes)
+//   3 · Récapitulatif + clôture
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
@@ -31,36 +32,38 @@ interface Props {
 
 type AttachmentMode = "photo" | "document" | "none";
 
-const STEPS = [
-  { num: 1, label: "Pièce jointe", icon: <Camera size={14} /> },
-  { num: 2, label: "Suivi", icon: <CalendarClock size={14} /> },
-  { num: 3, label: "Récapitulatif", icon: <CheckCircle2 size={14} /> },
-];
+const TOTAL = 3;
 
 export default function CloseTicketWizard({
-  ticketId, ticketNumero, ticketTitre, communeId, existingRapport,
+  ticketId,
+  ticketNumero,
+  ticketTitre,
+  communeId,
+  existingRapport,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<0 | 1 | 2>(0);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Step 1 : Pièce jointe ──
   const [attachmentMode, setAttachmentMode] = useState<AttachmentMode>("photo");
   const [photoPaths, setPhotoPaths] = useState<string[]>([]);
   const [documentPaths, setDocumentPaths] = useState<string[]>([]);
+  const [justification, setJustification] = useState("");
 
-  // ── Step 2 : Suivi ──
-  const [necessiteSuivi, setNecessiteSuivi] = useState(existingRapport?.necessite_suivi ?? false);
+  const [necessiteSuivi, setNecessiteSuivi] = useState(
+    existingRapport?.necessite_suivi ?? false,
+  );
   const [reopenDate, setReopenDate] = useState<string>("");
   const [notesSuivi, setNotesSuivi] = useState(existingRapport?.notes_suivi ?? "");
 
-  // ── Description (optionnelle, sur la même étape que le récap) ──
-  const [description, setDescription] = useState(existingRapport?.description_intervention ?? "");
+  const [description, setDescription] = useState(
+    existingRapport?.description_intervention ?? "",
+  );
 
   function next() {
     setError(null);
-    if (step === 1) {
+    if (step === 0) {
       if (attachmentMode === "photo" && photoPaths.length === 0) {
         setError("Ajoutez au moins une photo, ou choisissez une autre option.");
         return;
@@ -69,13 +72,16 @@ export default function CloseTicketWizard({
         setError("Ajoutez au moins un document, ou choisissez une autre option.");
         return;
       }
-      setStep(2);
-    } else if (step === 2) {
+      if (attachmentMode === "none" && justification.trim().length < 5) {
+        setError("Justifiez (au moins 5 caractères) pourquoi aucune pièce.");
+        return;
+      }
+      setStep(1);
+    } else if (step === 1) {
       if (necessiteSuivi && !reopenDate) {
         setError("Choisissez une date de réouverture pour le suivi.");
         return;
       }
-      // Vérif date dans le futur
       if (necessiteSuivi && reopenDate) {
         const d = new Date(reopenDate);
         if (d.getTime() <= Date.now()) {
@@ -83,12 +89,19 @@ export default function CloseTicketWizard({
           return;
         }
       }
-      setStep(3);
+      setStep(2);
+    } else {
+      submit("clos");
     }
   }
+
   function prev() {
     setError(null);
-    if (step > 1) setStep((s) => (s - 1) as 1 | 2);
+    if (step === 0) {
+      router.push(`/admin/tickets/${ticketId}`);
+      return;
+    }
+    setStep((s) => (s - 1) as 0 | 1 | 2);
   }
 
   function submit(finalStatut: "resolu" | "clos") {
@@ -100,13 +113,21 @@ export default function CloseTicketWizard({
           servicePhotoPaths: attachmentMode === "photo" ? photoPaths : [],
           documentPaths: attachmentMode === "document" ? documentPaths : [],
           sansPieceJointe: attachmentMode === "none",
-          description_intervention: description,
+          description_intervention:
+            attachmentMode === "none"
+              ? justification.trim() + (description ? "\n\n" + description : "")
+              : description || null,
           necessite_suivi: necessiteSuivi,
           notes_suivi: necessiteSuivi ? notesSuivi : null,
-          reopen_at: necessiteSuivi && reopenDate ? new Date(reopenDate).toISOString() : null,
+          reopen_at:
+            necessiteSuivi && reopenDate
+              ? new Date(reopenDate).toISOString()
+              : null,
           finalStatut,
         });
-        router.push(`/admin/tickets/${ticketId}`);
+        router.push(
+          `/admin/tickets/succes?id=${ticketId}&kind=closed`,
+        );
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur");
@@ -114,510 +135,493 @@ export default function CloseTicketWizard({
     });
   }
 
-  // Date minimum = demain (HTML date input)
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
   return (
-    <main className="civiq-main" style={{ maxWidth: 720, margin: "0 auto" }}>
-      <Link
-        href={`/admin/tickets/${ticketId}`}
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--fg-muted)", textDecoration: "none", marginBottom: 14 }}
-      >
-        <ArrowLeft size={14} /> Retour au ticket #{ticketNumero}
-      </Link>
+    <main className="relative flex min-h-[100dvh] flex-col bg-white">
+      <TKHeader
+        onClose={() => router.push(`/admin/tickets/${ticketId}`)}
+        title={`Clôture · #${ticketNumero}`}
+      />
+      <TKStepBar current={step} total={TOTAL} />
 
-      <header style={{ marginBottom: 18 }}>
-        <h1 className="civiq-page-title">Clôturer le ticket</h1>
-        <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 4 }}>
-          <span style={{ fontFamily: "ui-monospace, monospace", color: "var(--fg-xmuted)" }}>#{ticketNumero}</span> · {ticketTitre}
-        </p>
-      </header>
-
-      {/* Stepper */}
-      <div className="tk-wizard-stepper">
-        {STEPS.map((s, i) => {
-          const active = step === s.num;
-          const done = step > s.num;
-          return (
-            <div key={s.num} className="tk-wizard-step">
-              <div
-                className={`tk-wizard-step-circle${active ? " active" : ""}${done ? " done" : ""}`}
-                aria-current={active ? "step" : undefined}
-              >
-                {done ? <CheckCircle2 size={14} /> : s.num}
-              </div>
-              <span className={`tk-wizard-step-label${active ? " active" : ""}`}>
-                {s.label}
-              </span>
-              {i < STEPS.length - 1 && <div className={`tk-wizard-step-line${done ? " done" : ""}`} />}
-            </div>
-          );
-        })}
+      {/* Pill de contexte */}
+      <div className="px-[22px] pb-2">
+        <div
+          className="inline-flex max-w-full items-center gap-2 truncate rounded-full px-3 py-1.5 text-[12px]"
+          style={{ background: TK.bg2, color: TK.ink2 }}
+        >
+          <CheckCircle2 size={12} style={{ color: TK.success }} />
+          <span className="truncate">{ticketTitre}</span>
+        </div>
       </div>
 
-      {error && (
-        <div style={{ display: "flex", gap: 8, padding: "10px 14px", background: "oklch(0.97 0.04 25)", border: "1px solid var(--destructive)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 13, marginBottom: 14 }}>
-          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-          {error}
-        </div>
-      )}
-
-      <div className="civiq-card" style={{ padding: 18 }}>
-        {/* ─── STEP 1 : Pièce jointe ─── */}
-        {step === 1 && (
-          <>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 6 }}>
-              <Paperclip size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-              Pièce jointe au rapport
-            </h2>
-            <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 14, lineHeight: 1.5 }}>
-              Choisissez l&apos;une des trois options ci-dessous pour documenter l&apos;intervention.
-            </p>
-
-            {/* RadioGroup : 3 options */}
-            <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
-              <ModeOption
-                mode="photo"
-                current={attachmentMode}
-                onSelect={setAttachmentMode}
-                icon={<Camera size={16} />}
-                title="Ajouter une photo"
-                subtitle="Preuve photographique de l'intervention"
-              />
-              <ModeOption
-                mode="document"
-                current={attachmentMode}
-                onSelect={setAttachmentMode}
-                icon={<FileText size={16} />}
-                title="Ajouter un document"
-                subtitle="Devis, facture, bon d'intervention, PV…"
-              />
-              <ModeOption
-                mode="none"
-                current={attachmentMode}
-                onSelect={setAttachmentMode}
-                icon={<Ban size={16} />}
-                title="Pas de pièce nécessaire"
-                subtitle="Cette intervention ne requiert ni photo ni document"
-              />
-            </div>
-
-            {/* Zone d'upload conditionnelle */}
-            {attachmentMode === "photo" && (
-              <TicketPhotoUpload
-                communeId={communeId}
-                onChange={setPhotoPaths}
-                max={5}
-                type="service_fait"
-              />
-            )}
-            {attachmentMode === "document" && (
-              <DocumentUpload
-                communeId={communeId}
-                onChange={setDocumentPaths}
-              />
-            )}
-            {attachmentMode === "none" && (
-              <div style={{ padding: 12, background: "var(--bg)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--border)", fontSize: 12, color: "var(--fg-muted)", lineHeight: 1.5 }}>
-                ✓ L&apos;intervention sera archivée sans pièce jointe. La description ci-dessous sera votre seule trace écrite.
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ─── STEP 2 : Suivi ultérieur ─── */}
-        {step === 2 && (
-          <>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 14 }}>
-              <CalendarClock size={15} style={{ verticalAlign: "middle", marginRight: 6 }} />
-              Un suivi est-il à prévoir ?
-            </h2>
-
-            <label
-              style={{
-                display: "flex", gap: 10, padding: "12px 14px",
-                borderRadius: "var(--radius-sm)", cursor: "pointer",
-                background: necessiteSuivi ? "var(--accent-light)" : "var(--bg)",
-                border: `1px solid ${necessiteSuivi ? "var(--accent)" : "var(--border)"}`,
-                marginBottom: 12,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={necessiteSuivi}
-                onChange={(e) => setNecessiteSuivi(e.target.checked)}
-                style={{ marginTop: 3, width: 16, height: 16 }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
-                  Nécessite un suivi ultérieur
-                </div>
-                <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 3, lineHeight: 1.5 }}>
-                  Le ticket sera automatiquement rouvert à la date choisie, et les agents assignés recevront une notification (mobile + email).
-                </div>
-              </div>
-            </label>
-
-            {necessiteSuivi && (
-              <div style={{ display: "grid", gap: 12 }}>
-                <Field label="Date de réouverture">
-                  <input
-                    type="date"
-                    className="civiq-input"
-                    min={tomorrow}
-                    value={reopenDate}
-                    onChange={(e) => setReopenDate(e.target.value)}
-                  />
-                </Field>
-                <Field label="Notes pour le suivi (optionnel)">
-                  <textarea
-                    className="civiq-input civiq-textarea"
-                    rows={3}
-                    value={notesSuivi}
-                    onChange={(e) => setNotesSuivi(e.target.value)}
-                    placeholder="Ex : Vérifier la prise de l'enrobé, contrôler la peinture, etc."
-                  />
-                </Field>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ─── STEP 3 : Récapitulatif + clôture ─── */}
-        {step === 3 && (
-          <>
-            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--fg)", marginBottom: 14 }}>
-              <CheckCircle2 size={15} style={{ verticalAlign: "middle", marginRight: 6, color: "var(--success)" }} />
-              Récapitulatif
-            </h2>
-
-            <div style={{ display: "grid", gap: 14, marginBottom: 18 }}>
-              <Recap label="Pièce jointe">
-                {attachmentMode === "photo" && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <ImageIcon size={13} /> {photoPaths.length} photo{photoPaths.length > 1 ? "s" : ""}
-                  </span>
-                )}
-                {attachmentMode === "document" && (
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> {documentPaths.length} document{documentPaths.length > 1 ? "s" : ""}
-                  </span>
-                )}
-                {attachmentMode === "none" && (
-                  <span style={{ color: "var(--fg-muted)", fontStyle: "italic" }}>
-                    Sans pièce jointe
-                  </span>
-                )}
-              </Recap>
-
-              {/* Description : éditable à l'étape récap */}
-              <div>
-                <label className="civiq-field-label" style={{ fontSize: 12 }}>
-                  Description de l&apos;intervention (optionnel)
-                </label>
-                <textarea
-                  className="civiq-input civiq-textarea"
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Détaillez ce qui a été fait…"
-                />
-              </div>
-
-              {necessiteSuivi && reopenDate && (
-                <Recap label="Réouverture programmée">
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    <CalendarClock size={13} style={{ color: "var(--accent)" }} />
-                    {new Date(reopenDate).toLocaleDateString("fr-FR", {
-                      weekday: "long", day: "numeric", month: "long", year: "numeric",
-                    })}
-                  </span>
-                  {notesSuivi && (
-                    <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontStyle: "italic" }}>
-                      {notesSuivi}
-                    </div>
-                  )}
-                </Recap>
-              )}
-            </div>
-
-            {/* Bouton unique : Clôturer */}
-            <button
-              type="button"
-              onClick={() => submit("clos")}
-              disabled={pending}
-              className="civiq-btn civiq-btn-default"
-              style={{ width: "100%", padding: "12px 16px", fontSize: 14 }}
-            >
-              {pending ? <Loader2 size={14} className="civiq-spin" /> : <CheckCircle2 size={14} />}
-              {pending ? "Clôture en cours…" : "Clôturer le ticket"}
-            </button>
-          </>
-        )}
-
-        {/* Navigation wizard */}
-        {step < 3 && (
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-            <button
-              type="button"
-              onClick={prev}
-              disabled={step === 1 || pending}
-              className="civiq-btn civiq-btn-ghost"
-              style={{ visibility: step === 1 ? "hidden" : undefined }}
-            >
-              <ArrowLeft size={14} /> Précédent
-            </button>
-            <button
-              type="button"
-              onClick={next}
-              disabled={pending}
-              className="civiq-btn civiq-btn-default"
-            >
-              Continuer <ArrowRight size={14} />
-            </button>
+      <div className="flex-1 overflow-y-auto px-[22px] pb-6 pt-2">
+        {error && (
+          <div
+            className="mb-4 flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-[13px]"
+            style={{
+              background: "oklch(0.97 0.04 25)",
+              color: TK.rouge,
+              border: `1px solid ${TK.rouge}`,
+            }}
+          >
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            {error}
           </div>
         )}
+
+        {step === 0 && (
+          <StepAttachment
+            mode={attachmentMode}
+            onMode={setAttachmentMode}
+            communeId={communeId}
+            photoPaths={photoPaths}
+            onPhotos={setPhotoPaths}
+            documentPaths={documentPaths}
+            onDocuments={setDocumentPaths}
+            justification={justification}
+            onJustification={setJustification}
+            description={description}
+            onDescription={setDescription}
+          />
+        )}
+
+        {step === 1 && (
+          <StepFollowup
+            necessiteSuivi={necessiteSuivi}
+            onNecessiteSuivi={setNecessiteSuivi}
+            reopenDate={reopenDate}
+            onReopenDate={setReopenDate}
+            notesSuivi={notesSuivi}
+            onNotesSuivi={setNotesSuivi}
+            tomorrow={tomorrow}
+          />
+        )}
+
+        {step === 2 && (
+          <StepRecap
+            ticketNumero={ticketNumero}
+            ticketTitre={ticketTitre}
+            attachmentMode={attachmentMode}
+            photoCount={photoPaths.length}
+            documentCount={documentPaths.length}
+            description={description}
+            necessiteSuivi={necessiteSuivi}
+            reopenDate={reopenDate}
+          />
+        )}
       </div>
 
-      <style>{`
-        .tk-wizard-stepper {
-          display: flex; align-items: center;
-          margin: 16px 0 22px;
-          flex-wrap: wrap; gap: 4px;
-        }
-        .tk-wizard-step {
-          display: flex; align-items: center; gap: 8px;
-          flex: 1; min-width: 0;
-        }
-        .tk-wizard-step-circle {
-          width: 28px; height: 28px; border-radius: 50%;
-          background: var(--card); border: 1.5px solid var(--border);
-          color: var(--fg-muted);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 12px; font-weight: 700;
-          flex-shrink: 0;
-          transition: background var(--transition), border-color var(--transition), color var(--transition);
-        }
-        .tk-wizard-step-circle.active {
-          background: var(--accent); border-color: var(--accent); color: #fff;
-        }
-        .tk-wizard-step-circle.done {
-          background: var(--success); border-color: var(--success); color: #fff;
-        }
-        .tk-wizard-step-label {
-          font-size: 12.5px; font-weight: 500; color: var(--fg-muted);
-          white-space: nowrap;
-        }
-        .tk-wizard-step-label.active {
-          color: var(--fg); font-weight: 600;
-        }
-        .tk-wizard-step-line {
-          flex: 1; height: 2px; background: var(--border);
-          min-width: 12px;
-          transition: background var(--transition);
-        }
-        .tk-wizard-step-line.done { background: var(--success); }
-
-        @media (max-width: 600px) {
-          .tk-wizard-step-label { display: none; }
-        }
-      `}</style>
+      <TKCtaBar mode="fixed">
+        <div className="flex gap-2.5">
+          <TKButton
+            variant="secondary"
+            onClick={prev}
+            fullWidth={false}
+            style={{ flex: "0 0 120px" }}
+            disabled={pending}
+          >
+            {step === 0 ? "Annuler" : "Précédent"}
+          </TKButton>
+          <TKButton
+            variant={step === TOTAL - 1 ? "marine" : "primary"}
+            onClick={next}
+            disabled={pending}
+            fullWidth={false}
+            style={{ flex: 1 }}
+          >
+            {step === TOTAL - 1
+              ? pending
+                ? "Clôture…"
+                : "Clôturer le ticket"
+              : "Continuer"}
+          </TKButton>
+        </div>
+      </TKCtaBar>
     </main>
   );
 }
 
-function ModeOption({
-  mode, current, onSelect, icon, title, subtitle,
+// ─── STEPS ───────────────────────────────────────────────────────
+
+function StepTitle({
+  eyebrow,
+  title,
+  sub,
 }: {
-  mode: AttachmentMode;
-  current: AttachmentMode;
-  onSelect: (m: AttachmentMode) => void;
+  eyebrow: string;
+  title: string;
+  sub?: string;
+}) {
+  return (
+    <div className="tk-fade">
+      <div
+        className="mt-1.5 text-[11px] font-bold uppercase"
+        style={{ color: TK.muted, letterSpacing: "0.12em" }}
+      >
+        {eyebrow}
+      </div>
+      <h1
+        className="m-0 mb-1.5 mt-2 font-bold leading-tight"
+        style={{ fontSize: 26, color: TK.ink, letterSpacing: "-0.025em" }}
+      >
+        {title}
+      </h1>
+      {sub && (
+        <p className="m-0 text-sm leading-snug" style={{ color: TK.muted }}>
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ModeCard({
+  active,
+  icon,
+  title,
+  sub,
+  onClick,
+}: {
+  active: boolean;
   icon: React.ReactNode;
   title: string;
-  subtitle: string;
+  sub: string;
+  onClick: () => void;
 }) {
-  const active = current === mode;
   return (
     <button
       type="button"
-      onClick={() => onSelect(mode)}
+      onClick={onClick}
+      className="flex items-center gap-3.5 rounded-2xl px-4 py-4 text-left"
       style={{
-        display: "flex", gap: 12, alignItems: "flex-start",
-        padding: "12px 14px", textAlign: "left",
-        background: active ? "var(--accent-light)" : "var(--card)",
-        border: `1.5px solid ${active ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: "var(--radius-sm)",
-        cursor: "pointer", width: "100%",
-        fontFamily: "inherit",
-        transition: "background 0.15s, border-color 0.15s",
+        border: `1.5px solid ${active ? TK.ink : TK.line}`,
+        background: active ? "#FAFAFA" : "white",
+        boxShadow: active ? `inset 0 0 0 1px ${TK.ink}` : "none",
       }}
     >
-      <div style={{
-        width: 32, height: 32, borderRadius: "var(--radius-sm)",
-        background: active ? "var(--accent)" : "var(--border-light)",
-        color: active ? "#fff" : "var(--fg-muted)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-xl text-[20px]"
+        style={{ width: 44, height: 44, background: TK.bg2, color: TK.ink }}
+      >
         {icon}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{title}</div>
-        <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2, lineHeight: 1.4 }}>{subtitle}</div>
-      </div>
-      <div style={{
-        width: 18, height: 18, borderRadius: "50%",
-        border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`,
-        background: active ? "var(--accent)" : "transparent",
-        flexShrink: 0, marginTop: 6,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
-      </div>
+      </span>
+      <span className="flex-1">
+        <span
+          className="block text-[15px] font-semibold"
+          style={{ color: TK.ink }}
+        >
+          {title}
+        </span>
+        <span
+          className="mt-0.5 block text-[12px]"
+          style={{ color: TK.muted }}
+        >
+          {sub}
+        </span>
+      </span>
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded-full"
+        style={{
+          width: 22,
+          height: 22,
+          border: `2px solid ${active ? TK.ink : TK.line}`,
+          background: active ? TK.ink : "white",
+          color: "white",
+        }}
+      >
+        {active && <Check size={12} strokeWidth={3} />}
+      </span>
     </button>
   );
 }
 
-/**
- * Upload de documents PDF/Word/Excel pour le rapport d'intervention.
- * Stockés dans le bucket Storage sous tickets/{communeId}/rapports/.
- */
-function DocumentUpload({
-  communeId, onChange,
+function StepAttachment({
+  mode,
+  onMode,
+  communeId,
+  photoPaths,
+  onPhotos,
+  documentPaths: _documentPaths,
+  onDocuments: _onDocuments,
+  justification,
+  onJustification,
+  description,
+  onDescription,
 }: {
+  mode: AttachmentMode;
+  onMode: (m: AttachmentMode) => void;
   communeId: string;
-  onChange: (paths: string[]) => void;
+  photoPaths: string[];
+  onPhotos: (p: string[]) => void;
+  documentPaths: string[];
+  onDocuments: (p: string[]) => void;
+  justification: string;
+  onJustification: (v: string) => void;
+  description: string;
+  onDescription: (v: string) => void;
 }) {
-  const [paths, setPaths] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setUploading(true);
-    setErr(null);
-
-    try {
-      const newPaths: string[] = [];
-      for (const file of Array.from(files)) {
-        const ext = file.name.split(".").pop() || "bin";
-        const path = `tickets/${communeId}/rapports/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("path", path);
-        const res = await fetch("/api/tickets/upload-document", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || "Échec de l'upload");
-        }
-        const { path: stored } = await res.json();
-        newPaths.push(stored);
-      }
-      const updated = [...paths, ...newPaths];
-      setPaths(updated);
-      onChange(updated);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erreur upload");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
-    }
-  }
-
-  function remove(idx: number) {
-    const updated = paths.filter((_, i) => i !== idx);
-    setPaths(updated);
-    onChange(updated);
-  }
-
   return (
-    <div>
-      <label
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "16px", border: "1.5px dashed var(--border)",
-          borderRadius: "var(--radius-sm)", cursor: "pointer",
-          background: "var(--bg)", color: "var(--fg-muted)",
-          fontSize: 13, fontWeight: 500,
-          transition: "background 0.15s, border-color 0.15s",
-        }}
-      >
-        <Paperclip size={16} />
-        {uploading ? "Upload en cours…" : "Choisir un document (PDF, Word, Excel…)"}
-        <input
-          type="file"
-          multiple
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.odt,.ods"
-          onChange={handleUpload}
-          disabled={uploading}
-          style={{ display: "none" }}
+    <>
+      <StepTitle
+        eyebrow="Étape 1"
+        title="Preuve d'intervention"
+        sub="Joins une photo, un document, ou justifie l'absence de pièce."
+      />
+      <div className="mt-6 flex flex-col gap-2.5">
+        <ModeCard
+          active={mode === "photo"}
+          icon={<Camera size={20} />}
+          title="Ajouter une photo"
+          sub="Recommandé — photo « service fait »"
+          onClick={() => onMode("photo")}
         />
-      </label>
+        <ModeCard
+          active={mode === "document"}
+          icon={<FileText size={20} />}
+          title="Ajouter un document"
+          sub="Facture, devis, PDF"
+          onClick={() => onMode("document")}
+        />
+        <ModeCard
+          active={mode === "none"}
+          icon={<Ban size={20} />}
+          title="Sans pièce — justifier"
+          sub="Justification écrite uniquement"
+          onClick={() => onMode("none")}
+        />
+      </div>
 
-      {err && (
-        <div style={{ marginTop: 8, padding: "8px 12px", background: "oklch(0.97 0.04 25)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 12 }}>
-          {err}
+      {mode === "photo" && (
+        <div className="mt-5">
+          <TicketPhotoUpload
+            communeId={communeId}
+            onChange={onPhotos}
+            max={5}
+            type="service_fait"
+          />
+          {photoPaths.length > 0 && (
+            <p className="mt-2 text-[12px]" style={{ color: TK.muted }}>
+              {photoPaths.length} photo(s) prête(s) à enregistrer.
+            </p>
+          )}
         </div>
       )}
 
-      {paths.length > 0 && (
-        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
-          {paths.map((p, i) => (
+      {mode === "document" && (
+        <div
+          className="mt-5 rounded-2xl px-4 py-3.5 text-[13px]"
+          style={{ background: TK.bg2, color: TK.ink2 }}
+        >
+          L&apos;upload de documents arrive bientôt. Pour l&apos;instant, choisis
+          « photo » ou décris l&apos;intervention dans la zone ci-dessous.
+        </div>
+      )}
+
+      {mode === "none" && (
+        <div className="mt-5">
+          <TKInput
+            label="Justification (obligatoire, min. 5 caractères)"
+            value={justification}
+            onChange={onJustification}
+            placeholder="Ex. Intervention orale, sans support visuel."
+            multiline
+          />
+        </div>
+      )}
+
+      <div className="mt-5">
+        <TKInput
+          label="Description de l'intervention (optionnel)"
+          value={description}
+          onChange={onDescription}
+          placeholder="Détaille ce qui a été fait, par qui, et le résultat."
+          multiline
+        />
+      </div>
+    </>
+  );
+}
+
+function StepFollowup({
+  necessiteSuivi,
+  onNecessiteSuivi,
+  reopenDate,
+  onReopenDate,
+  notesSuivi,
+  onNotesSuivi,
+  tomorrow,
+}: {
+  necessiteSuivi: boolean;
+  onNecessiteSuivi: (v: boolean) => void;
+  reopenDate: string;
+  onReopenDate: (v: string) => void;
+  notesSuivi: string;
+  onNotesSuivi: (v: string) => void;
+  tomorrow: string;
+}) {
+  function quickPick(days: number) {
+    const d = new Date(Date.now() + days * 86_400_000);
+    onReopenDate(d.toISOString().slice(0, 10));
+  }
+  return (
+    <>
+      <StepTitle
+        eyebrow="Étape 2"
+        title="Un suivi est-il nécessaire ?"
+        sub="Programme une réouverture automatique du ticket."
+      />
+      <div className="mt-6 flex flex-col gap-2.5">
+        <ModeCard
+          active={!necessiteSuivi}
+          icon={<CheckCircle2 size={20} />}
+          title="Pas de suivi nécessaire"
+          sub="Le ticket sera clos définitivement"
+          onClick={() => onNecessiteSuivi(false)}
+        />
+        <ModeCard
+          active={necessiteSuivi}
+          icon={<CalendarClock size={20} />}
+          title="Programmer un suivi"
+          sub="Le ticket sera rouvert à la date choisie"
+          onClick={() => onNecessiteSuivi(true)}
+        />
+      </div>
+
+      {necessiteSuivi && (
+        <div className="mt-5 flex flex-col gap-3.5">
+          <div>
             <div
-              key={p}
-              style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 12px", background: "var(--card)",
-                border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
-                fontSize: 13,
-              }}
+              className="mb-2 text-[12px] font-semibold"
+              style={{ color: TK.ink2 }}
             >
-              <FileText size={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
-              <span style={{ flex: 1, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {p.split("/").pop()}
-              </span>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                style={{
-                  background: "transparent", border: "none", color: "var(--destructive)",
-                  cursor: "pointer", fontSize: 12, padding: 4,
-                }}
-                aria-label="Supprimer"
-              >
-                ✕
-              </button>
+              Date de réouverture
             </div>
-          ))}
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {[
+                { label: "1 sem.", days: 7 },
+                { label: "15 j", days: 15 },
+                { label: "1 mois", days: 30 },
+                { label: "3 mois", days: 90 },
+              ].map((q) => (
+                <button
+                  key={q.days}
+                  type="button"
+                  onClick={() => quickPick(q.days)}
+                  className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                  style={{
+                    background: TK.bg2,
+                    color: TK.ink,
+                    border: `1px solid ${TK.line}`,
+                  }}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="date"
+              value={reopenDate}
+              onChange={(e) => onReopenDate(e.target.value)}
+              min={tomorrow}
+              className="w-full rounded-xl bg-white px-4 py-[14px] text-[15px] outline-none"
+              style={{
+                border: `1.5px solid ${TK.line}`,
+                color: TK.ink,
+              }}
+            />
+          </div>
+          <TKInput
+            label="Note pour le suivi (optionnel)"
+            value={notesSuivi}
+            onChange={onNotesSuivi}
+            placeholder="Ex. Revérifier l'éclairage après la pluie."
+            multiline
+          />
         </div>
       )}
-    </div>
+    </>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function StepRecap({
+  ticketNumero,
+  ticketTitre,
+  attachmentMode,
+  photoCount,
+  documentCount,
+  description,
+  necessiteSuivi,
+  reopenDate,
+}: {
+  ticketNumero: number;
+  ticketTitre: string;
+  attachmentMode: AttachmentMode;
+  photoCount: number;
+  documentCount: number;
+  description: string;
+  necessiteSuivi: boolean;
+  reopenDate: string;
+}) {
+  const rows: Array<{ k: string; v: string }> = [
+    { k: "Ticket", v: `#${ticketNumero} — ${ticketTitre}` },
+    {
+      k: "Pièce jointe",
+      v:
+        attachmentMode === "photo"
+          ? `${photoCount} photo(s)`
+          : attachmentMode === "document"
+            ? `${documentCount} document(s)`
+            : "Sans pièce",
+    },
+    {
+      k: "Description",
+      v: description.trim() ? description.slice(0, 80) + (description.length > 80 ? "…" : "") : "—",
+    },
+    {
+      k: "Suivi",
+      v: necessiteSuivi
+        ? `Réouverture le ${new Date(reopenDate).toLocaleDateString("fr-FR")}`
+        : "Non",
+    },
+    {
+      k: "Date",
+      v: new Date().toLocaleDateString("fr-FR"),
+    },
+  ];
   return (
-    <div>
-      <label className="civiq-field-label" style={{ fontSize: 12 }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-function Recap({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 3 }}>
-        {label}
+    <>
+      <StepTitle
+        eyebrow="Étape 3"
+        title="Récapitulatif"
+        sub="Vérifie avant de clôturer définitivement."
+      />
+      <div
+        className="mt-6 overflow-hidden rounded-2xl"
+        style={{ border: `1.5px solid ${TK.line}` }}
+      >
+        {rows.map((r, i) => (
+          <div
+            key={r.k}
+            className="flex items-start justify-between gap-4 px-4 py-3"
+            style={{
+              borderTop: i === 0 ? "none" : `1px solid ${TK.line}`,
+              background: i % 2 === 0 ? "white" : TK.bg2,
+            }}
+          >
+            <span className="text-[12px] font-semibold" style={{ color: TK.muted }}>
+              {r.k}
+            </span>
+            <span
+              className="text-right text-[13px] font-semibold"
+              style={{ color: TK.ink }}
+            >
+              {r.v}
+            </span>
+          </div>
+        ))}
       </div>
-      <div style={{ fontSize: 13, color: "var(--fg)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-        {children}
-      </div>
-    </div>
+    </>
   );
 }
