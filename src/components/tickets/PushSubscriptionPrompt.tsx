@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Smartphone, Share, Plus, CheckCircle2 } from "lucide-react";
+import { Bell, Smartphone, Share, Plus, CheckCircle2, MoreHorizontal, ChevronDown, AppWindow, Sparkles } from "lucide-react";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 // ═══════════════════════════════════════════════════════════════
@@ -19,6 +19,80 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 // Dismiss par session uniquement (pas localStorage). À chaque
 // nouvelle session de l'app, on redemande tant que pas souscrit.
 const SESSION_DISMISS_KEY = "tickets:push:dismissed-session";
+
+// ─── Composant : animation des étapes d'installation iPhone ───
+function IosInstallSteps() {
+  const [activeStep, setActiveStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setActiveStep((s) => (s + 1) % 4), 2200);
+    return () => clearInterval(id);
+  }, []);
+
+  const steps = [
+    {
+      title: (
+        <>
+          Tapez sur{" "}
+          <span className="tk-ios-step-icon"><MoreHorizontal size={14} /></span>
+          {" "}<strong>en bas à droite</strong> de Safari
+        </>
+      ),
+      hint: "Le menu Safari (icône trois petits points) doit s'ouvrir.",
+    },
+    {
+      title: (
+        <>
+          Choisissez{" "}
+          <span className="tk-ios-step-icon"><Share size={13} /></span>
+          {" "}<strong>Partager</strong>
+        </>
+      ),
+      hint: "La feuille de partage iOS apparaît.",
+    },
+    {
+      title: (
+        <>
+          Faites défiler vers le bas et tapez{" "}
+          <strong>« En voir plus »</strong>{" "}
+          <span className="tk-ios-step-icon"><ChevronDown size={13} /></span>
+        </>
+      ),
+      hint: "Vous accédez à la liste complète des actions iOS.",
+    },
+    {
+      title: (
+        <>
+          Choisissez{" "}
+          <span className="tk-ios-step-icon"><Plus size={13} /></span>
+          {" "}<strong>« Sur l&apos;écran d&apos;accueil »</strong>
+        </>
+      ),
+      hint: (
+        <>
+          Sur l&apos;écran de prévisualisation, vérifiez bien que{" "}
+          <span className="tk-ios-step-icon"><AppWindow size={12} /></span>
+          {" "}<strong>« Ouvrir comme une app web »</strong> est{" "}
+          <span className="tk-ios-step-checkbox">✓ activé</span>, puis tapez{" "}
+          <strong>Ajouter</strong>. Rouvrez ensuite GoCiviq depuis l&apos;icône installée sur votre écran d&apos;accueil et reconnectez-vous.
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <ol className="tk-ios-steps">
+      {steps.map((s, i) => (
+        <li key={i} className={`tk-ios-step${i === activeStep ? " active" : ""}`}>
+          <span className="tk-ios-step-num">{i + 1}</span>
+          <div className="tk-ios-step-body">
+            {s.title}
+            <div className="tk-ios-step-hint">{s.hint}</div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export default function PushSubscriptionPrompt() {
   const { status, subscribe } = usePushSubscription();
@@ -65,23 +139,13 @@ export default function PushSubscriptionPrompt() {
 
         <p className="tk-push-modal-desc">
           {isIos
-            ? "Pour recevoir les notifications de tickets en temps réel, vous devez d'abord ajouter GoCiviq à votre écran d'accueil."
+            ? "Suivez les 4 étapes ci-dessous pour ajouter GoCiviq à votre écran d'accueil. Indispensable pour recevoir les notifications de tickets sur iPhone."
             : isDenied
               ? "Vous avez précédemment refusé les notifications. Réactivez-les depuis les réglages de votre navigateur ou de votre téléphone pour ne plus rater une assignation."
               : "Recevez les nouveaux tickets et les assignations en temps réel sur votre téléphone, même quand l'application est fermée. Indispensable pour les agents de terrain."}
         </p>
 
-        {isIos && (
-          <ol className="tk-push-modal-steps">
-            <li>
-              Tapez <Share size={14} style={{ verticalAlign: "middle" }} /> <strong>Partager</strong> dans Safari
-            </li>
-            <li>
-              Puis <Plus size={14} style={{ verticalAlign: "middle" }} /> <strong>« Sur l&apos;écran d&apos;accueil »</strong>
-            </li>
-            <li>Rouvrez l&apos;app depuis l&apos;icône installée, puis reconnectez-vous</li>
-          </ol>
-        )}
+        {isIos && <IosInstallSteps />}
 
         {isDenied && (
           <div className="tk-push-modal-help">
@@ -107,22 +171,172 @@ export default function PushSubscriptionPrompt() {
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={dismissForSession}
-            className="tk-push-modal-skip"
-          >
-            {isIos || isDenied ? "Continuer pour cette session" : "Plus tard"}
-          </button>
+          {isIos ? (
+            <div className="tk-push-ios-ctas">
+              <button
+                type="button"
+                onClick={dismissForSession}
+                className="tk-push-modal-cta"
+                title="Si vous avez installé l'app, fermez Safari et rouvrez depuis l'icône GoCiviq"
+              >
+                <CheckCircle2 size={16} /> C&apos;est fait
+              </button>
+              <button
+                type="button"
+                onClick={dismissForSession}
+                className="tk-push-modal-cta tk-push-modal-cta-secondary"
+              >
+                Pas encore
+              </button>
+              <a
+                href="mailto:contact@gociviq.fr?subject=Besoin%20d%27aide%20%E2%80%94%20installation%20iPhone"
+                className="tk-push-modal-cta tk-push-modal-cta-help"
+              >
+                <Sparkles size={14} /> Trop dur, aidez-moi
+              </a>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={dismissForSession}
+              className="tk-push-modal-skip"
+            >
+              {isDenied ? "Continuer pour cette session" : "Plus tard"}
+            </button>
+          )}
         </div>
 
-        <p className="tk-push-modal-footnote">
-          <CheckCircle2 size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
-          Vous pourrez modifier ce choix à tout moment dans <strong>Profil → Notifications</strong>.
-        </p>
+        {!isIos && (
+          <p className="tk-push-modal-footnote">
+            <CheckCircle2 size={12} style={{ verticalAlign: "middle", marginRight: 4 }} />
+            Vous pourrez modifier ce choix à tout moment dans <strong>Profil → Notifications</strong>.
+          </p>
+        )}
       </div>
 
       <style>{`
+        .tk-push-ios-ctas {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .tk-push-ios-ctas > :first-child {
+          grid-column: 1 / -1;
+        }
+        .tk-push-modal-cta-secondary {
+          background: #fff !important;
+          color: var(--fg, #1a2744) !important;
+          border: 1.5px solid var(--border, #e8e5de) !important;
+          box-shadow: none !important;
+          font-size: 13px !important;
+          padding: 10px 14px !important;
+        }
+        .tk-push-modal-cta-secondary:hover {
+          background: var(--bg-soft, #faf9f6) !important;
+          transform: none !important;
+        }
+        .tk-push-modal-cta-help {
+          background: transparent !important;
+          color: var(--accent, #ff5a5f) !important;
+          border: 1.5px solid var(--accent, #ff5a5f) !important;
+          box-shadow: none !important;
+          font-size: 13px !important;
+          padding: 10px 14px !important;
+          text-decoration: none;
+        }
+
+        /* ── iOS install steps ── */
+        .tk-ios-steps {
+          display: grid;
+          gap: 10px;
+          margin: 0 0 18px;
+          text-align: left;
+        }
+        .tk-ios-step {
+          display: grid;
+          grid-template-columns: 36px 1fr;
+          gap: 12px;
+          align-items: flex-start;
+          padding: 12px 14px;
+          background: var(--bg-soft, #faf9f6);
+          border: 1.5px solid transparent;
+          border-radius: 12px;
+          transition: background 0.4s, border-color 0.4s, transform 0.4s;
+        }
+        .tk-ios-step.active {
+          background: #fff;
+          border-color: var(--accent, #ff5a5f);
+          box-shadow: 0 6px 18px rgba(255,90,95,0.12);
+          transform: translateY(-2px);
+        }
+        .tk-ios-step-num {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: #fff;
+          border: 2px solid var(--border, #e8e5de);
+          color: var(--fg-muted, #888);
+          font-weight: 700;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.4s, border-color 0.4s, color 0.4s;
+        }
+        .tk-ios-step.active .tk-ios-step-num {
+          background: var(--accent, #ff5a5f);
+          border-color: var(--accent, #ff5a5f);
+          color: #fff;
+        }
+        .tk-ios-step-body {
+          min-width: 0;
+          font-size: 14px;
+          color: var(--fg, #1a2744);
+          line-height: 1.5;
+        }
+        .tk-ios-step-body strong { color: var(--fg, #1a2744); }
+        .tk-ios-step-hint {
+          font-size: 12px;
+          color: var(--fg-muted, #888);
+          margin-top: 3px;
+          line-height: 1.45;
+        }
+        .tk-ios-step-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px;
+          height: 22px;
+          background: #fff;
+          border: 1.5px solid var(--border, #e8e5de);
+          border-radius: 6px;
+          margin: 0 2px;
+          vertical-align: -6px;
+          color: var(--fg, #1a2744);
+        }
+        .tk-ios-step.active .tk-ios-step-icon {
+          border-color: var(--accent, #ff5a5f);
+          color: var(--accent, #ff5a5f);
+          animation: tk-ios-pulse 1s ease-out infinite;
+        }
+        @keyframes tk-ios-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255,90,95,0.4); }
+          50% { box-shadow: 0 0 0 6px rgba(255,90,95,0); }
+        }
+        .tk-ios-step-checkbox {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          background: #e8f5e9;
+          color: #2e7d32;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 600;
+          margin-left: 4px;
+          vertical-align: 1px;
+        }
+
         .tk-push-modal-overlay {
           position: fixed;
           inset: 0;

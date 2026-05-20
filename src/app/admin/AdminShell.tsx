@@ -9,7 +9,7 @@ import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt"
 import {
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
-  Wrench, Map as MapIcon, HelpCircle, Inbox,
+  Wrench, Map as MapIcon, HelpCircle, Inbox, Bell,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -70,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Outil",
     items: [
+      { href: "/admin/profile#notifications", label: "Notifications", icon: Bell, exact: false },
       { href: "/admin/aide", label: "Aide", icon: HelpCircle, exact: true },
       { href: "/admin/profile", label: "Profil & paramètres", icon: Settings, exact: false },
     ],

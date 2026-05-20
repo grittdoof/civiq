@@ -121,7 +121,11 @@ export function usePushSubscription() {
         return false;
       }
       // 2. Enregistrer le SW
-      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      // 2b. ATTENDRE que le SW soit ACTIVE avant subscribe()
+      // (sinon pushManager.subscribe peut échouer silencieusement et
+      // exiger un deuxième clic une fois le SW activé)
+      const reg = await navigator.serviceWorker.ready;
       // 3. Souscrire
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
