@@ -77,6 +77,24 @@ export function usePushSubscription() {
       if (sub) {
         setStatus("subscribed");
         setEndpoint(sub.endpoint);
+        // Re-POST au serveur pour ré-attribuer la souscription au profil
+        // courant : indispensable quand plusieurs comptes utilisent le même
+        // appareil (le SW garde la même subscription, mais la ligne en BDD
+        // doit pointer sur le profile_id actuellement connecté).
+        try {
+          const json = sub.toJSON();
+          await fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              endpoint: json.endpoint,
+              keys: json.keys,
+              userAgent: navigator.userAgent,
+            }),
+          }).catch(() => {});
+        } catch {
+          // silencieux : on garde l'état UI "subscribed" même si le re-post échoue
+        }
       } else {
         setStatus("supported");
       }
