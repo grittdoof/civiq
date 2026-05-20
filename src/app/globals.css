@@ -5,6 +5,11 @@
 
 @import "tailwindcss";
 
+/* Indique à Tailwind v4 les fichiers à scanner pour générer les utilities.
+   Sans cette directive, le JIT ne voit pas les classes utilisées dans
+   src/components et src/app, et seul le layer @theme est émis. */
+@source "../**/*.{ts,tsx,js,jsx,mdx}";
+
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
