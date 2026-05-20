@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// MODULE DEFINITION — Contrat d'un module GoCiviQ
+// MODULE DEFINITION — Contrat d'un module GoCiviq
 //
 // Chaque module de la plateforme (sondages, budget, événements…)
 // exporte une ModuleDefinition qui décrit :

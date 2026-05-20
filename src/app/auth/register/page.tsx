@@ -68,12 +68,11 @@ export default function RegisterPage() {
     <div className="auth-page">
       <div className="auth-card">
         <Link href="/" className="auth-logo">
-          🏛 GoCiviQ
+          <img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 60, width: "auto" }} />
         </Link>
-        <h1>Créer votre espace commune</h1>
+        <h1>Créer votre compte dès maintenant</h1>
         <p className="auth-desc">
-          Inscription gratuite — votre première consultation en ligne en moins
-          de 10 minutes.
+          Inscription gratuite — vous devrez rattacher votre compte à une commune pour accéder à toutes les fonctionnalités de GoCiviq. Seul l'administrateur de la commune pourra valider votre compte. Vous recevrez une notification par email une fois votre compte validé. 
         </p>
 
         <form onSubmit={handleRegister}>

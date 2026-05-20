@@ -98,7 +98,7 @@ export default function SignupPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <Link href="/" className="auth-logo">🏛 GoCiviQ</Link>
+        <Link href="/" className="auth-logo"><img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 60, width: "auto" }} /></Link>
         <h1>Créer mon compte</h1>
         <p style={{ color: "var(--fg-muted)", marginBottom: 20, fontSize: 14 }}>
           Inscription rapide, sans mot de passe : nous vous enverrons un lien magique par email.

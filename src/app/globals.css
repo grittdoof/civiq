@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   CIVIQ — Design System v2 (handoff 2026-04)
-   Inter · oklch tokens · Fluid design
+   GoCiviq — Design System (handoff 2026-05, charte République)
+   Montserrat · oklch tokens · Marine #042F64 / Azur #2F6FDB
    ═══════════════════════════════════════════════════════════════ */
 
 @import "tailwindcss";
@@ -9,7 +9,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--fg);
   line-height: 1.5;
@@ -24,23 +24,35 @@ body {
 
 /* ── Design Tokens (Light mode) ──────────────────────────────────── */
 :root {
-  /* Colors */
-  --bg:            oklch(0.984 0.003 258);
+  /* ─── Charte République (couleurs officielles) ─── */
+  --marine:        #042F64;          /* Bleu marine principal */
+  --azur:          #2F6FDB;          /* Azur secondaire — accent app */
+  --azur-clair:    #7AAAF8;          /* Azur clair (fond marine) */
+  --bleu-profond:  #0B3D91;
+  --rouge:         #E00114;          /* Rouge République */
+  --rouge-fonce:   #C1121F;
+  --gris-bg:       #F2F3F7;          /* Gris fond doux */
+  --gris-txt:      #6B7080;
+  --gris-soft:     #4a5068;
+
+  /* ─── Tokens applicatifs ─── */
+  --bg:            oklch(from var(--gris-bg) l c h);
   --card:          oklch(1 0 0);
   --fg:            oklch(0.13 0.008 258);
   --fg-muted:      oklch(0.50 0.014 258);
   --fg-xmuted:     oklch(0.70 0.008 258);
   --border:        oklch(0.895 0.007 258);
   --border-light:  oklch(0.945 0.004 258);
-  --accent:        oklch(0.48 0.200 258);
-  --accent-hover:  oklch(0.42 0.200 258);
+  /* Accent = Azur #2F6FDB ≈ oklch(0.55 0.20 258) */
+  --accent:        #2F6FDB;
+  --accent-hover:  #1a55b8;
   --accent-light:  oklch(0.965 0.040 258);
   --accent-fg:     #fff;
   --success:       oklch(0.54 0.148 152);
   --success-light: oklch(0.965 0.048 152);
   --warning:       oklch(0.68 0.130 72);
   --warning-light: oklch(0.975 0.042 72);
-  --destructive:   oklch(0.52 0.210 25);
+  --destructive:   #E00114;
   --sidebar-bg:    oklch(1 0 0);
 
   /* Shape */
@@ -160,17 +172,35 @@ body {
 }
 .civiq-nav-item:hover { background: var(--border-light); color: var(--fg); }
 .civiq-nav-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.civiq-nav-action {
+  color: var(--fg-muted);
+  border: 1.5px dashed var(--border);
+  margin: 2px 0;
+  background: transparent;
+}
+.civiq-nav-action:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 .civiq-mobile-menu-btn {
   display: none;
   position: fixed;
   top: 14px;
   left: 14px;
-  z-index: 100;
+  /* > 1000 pour passer au-dessus des overlays Leaflet (zoom, controls) */
+  z-index: 1100;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: 10px;
+  /* min 44×44 px pour respect des guidelines tactiles iOS/Android */
+  min-width: 44px;
+  min-height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   box-shadow: var(--card-shadow);
 }
@@ -179,8 +209,18 @@ body {
   position: fixed;
   inset: 0;
   background: oklch(0 0 0 / 0.4);
-  z-index: 200;
+  /* > Leaflet popups (qui sont à 700) */
+  z-index: 1200;
   backdrop-filter: blur(2px);
+}
+
+/* ─── Leaflet : confiner la carte sous le menu mobile ───
+ * Leaflet pose ses tiles à z-index 400 et ses popups à 700.
+ * On force le conteneur à un contexte d'empilement bas pour que
+ * le menu (z-index 1100+) et l'overlay (1200) restent au-dessus. */
+.leaflet-container {
+  z-index: 0 !important;
+  position: relative;
 }
 .civiq-sidebar-mobile {
   position: relative;
@@ -227,6 +267,18 @@ body {
 .civiq-table-row:last-child { border-bottom: none; }
 .civiq-table-row:hover { background: var(--bg); }
 
+/* ── Cursor pointer global pour les éléments cliquables ───────── */
+/* Cards / rows / éléments interactifs : main au survol */
+a.civiq-card,
+a.tk-card,
+button.civiq-card,
+.civiq-card-hover,
+.tk-card,
+[role="button"],
+[onclick] { cursor: pointer; }
+.civiq-table-row[onclick],
+.civiq-table-row.clickable { cursor: pointer; }
+
 /* ── Icon buttons ───────────────────────────────────────────────── */
 .civiq-icon-btn {
   width: 30px;
@@ -244,6 +296,12 @@ body {
 }
 .civiq-icon-btn:hover { background: var(--border-light); color: var(--fg); }
 .civiq-icon-btn.danger:hover { background: oklch(0.97 0.03 25); color: var(--destructive); }
+
+/* Sur mobile : agrandit la zone de tap des icon buttons (≥ 40px) */
+@media (max-width: 768px) {
+  .civiq-icon-btn { width: 40px; height: 40px; }
+  .civiq-btn-sm { padding: 8px 12px; font-size: 13px; min-height: 40px; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Buttons
@@ -723,6 +781,161 @@ body {
 .civiq-survey-body { background: var(--bg); flex: 1; padding: 32px 24px 48px; }
 
 /* ═══════════════════════════════════════════════════════════════
+   Module Tickets d'intervention
+   ═══════════════════════════════════════════════════════════════ */
+
+.tk-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+
+.tk-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tk-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 99px;
+  font-size: 13px; font-weight: 500;
+  background: var(--card); color: var(--fg-muted);
+  border: 1px solid var(--border);
+  cursor: pointer; font-family: inherit;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.tk-pill:hover { background: var(--border-light); color: var(--fg); }
+.tk-pill.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.tk-pill .tk-pill-count {
+  background: rgba(255,255,255,0.25); padding: 1px 7px; border-radius: 99px;
+  font-size: 11px; font-weight: 700;
+}
+.tk-pill:not(.active) .tk-pill-count {
+  background: var(--border-light); color: var(--fg-muted);
+}
+
+.tk-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.tk-search-input {
+  flex: 1; min-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--fg);
+  font-family: inherit; font-size: 13px; outline: none;
+}
+.tk-search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+
+.tk-list { display: grid; gap: 10px; }
+
+.tk-card {
+  display: flex; align-items: stretch;
+  padding: 0; overflow: hidden;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.tk-card:hover { transform: translateY(-1px); }
+
+.tk-card-thumb {
+  width: 110px; min-height: 110px; flex-shrink: 0;
+  object-fit: cover;
+  background: var(--border-light);
+}
+.tk-card-thumb-empty {
+  display: flex; align-items: center; justify-content: center;
+}
+
+.tk-card-body { flex: 1; padding: 12px 14px; min-width: 0; }
+.tk-card-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 6px; }
+.tk-card-numero {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  color: var(--fg-xmuted); margin-right: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.tk-card-title {
+  font-size: 15px; font-weight: 600; color: var(--fg);
+  letter-spacing: -0.015em; line-height: 1.35; margin-bottom: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.tk-card-desc {
+  font-size: 13px; color: var(--fg-muted);
+  line-height: 1.5; margin-bottom: 8px;
+}
+.tk-card-meta {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--fg-muted);
+}
+.tk-card-meta-item {
+  display: inline-flex; align-items: center; gap: 4px;
+}
+
+.tk-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 99px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+}
+.tk-badge-pulse {
+  background: #EF4444 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  animation: tk-pulse 1.6s ease-in-out infinite;
+  position: relative;
+}
+.tk-badge-pulse::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: tk-pulse-ring 1.6s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes tk-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+@keyframes tk-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+  100% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+/* Détail */
+.tk-detail-grid {
+  display: grid; gap: 24px; margin-top: 4px;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+@media (max-width: 900px) { .tk-detail-grid { grid-template-columns: 1fr; } }
+
+.tk-photo-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.tk-photo-gallery img {
+  width: 100%; aspect-ratio: 1; object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--border-light);
+  cursor: zoom-in;
+}
+
+.tk-empty {
+  text-align: center; padding: 56px 24px;
+  border-style: dashed; color: var(--fg-muted);
+}
+
+.tk-timeline { display: grid; gap: 14px; position: relative; }
+.tk-timeline::before {
+  content: ""; position: absolute; left: 11px; top: 4px; bottom: 4px;
+  width: 2px; background: var(--border);
+}
+.tk-timeline-item { position: relative; padding-left: 32px; }
+.tk-timeline-dot {
+  position: absolute; left: 6px; top: 6px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--card); border: 2px solid var(--accent);
+}
+.tk-timeline-dot.system { border-color: var(--fg-xmuted); background: var(--bg); }
+.tk-timeline-content { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
+.tk-timeline-meta { font-size: 11px; color: var(--fg-muted); margin-bottom: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+.tk-timeline-content p { font-size: 13px; line-height: 1.5; color: var(--fg); }
+
+/* ═══════════════════════════════════════════════════════════════
    Animations
    ═══════════════════════════════════════════════════════════════ */
 
@@ -761,4 +974,71 @@ body {
 
 @media (max-width: 400px) {
   .civiq-stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Tables responsive — version mobile en cards verticales
+ *
+ * Applique la classe .civiq-table-mobile-cards sur la <table> pour
+ * la transformer en empilement de cards en dessous de 700px.
+ * Inspiration UX : iOS / Airbnb — pas de scroll horizontal sur mobile.
+ * ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .civiq-table-mobile-cards { display: block; width: 100%; }
+  .civiq-table-mobile-cards thead { display: none; }
+  .civiq-table-mobile-cards tbody { display: block; }
+  .civiq-table-mobile-cards tr {
+    display: block;
+    margin-bottom: 10px;
+    padding: 12px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--card-shadow);
+  }
+  .civiq-table-mobile-cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0 !important;
+    border: none !important;
+    text-align: right;
+    font-size: 13px;
+    min-height: 28px;
+  }
+  /* Le data-label devient l'étiquette de gauche */
+  .civiq-table-mobile-cards td::before {
+    content: attr(data-label);
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-muted);
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+  /* La première cellule (titre) est mise en valeur en plein largeur */
+  .civiq-table-mobile-cards td:first-child {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: left;
+    padding-bottom: 8px !important;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border-light) !important;
+  }
+  .civiq-table-mobile-cards td:first-child::before {
+    display: none;
+  }
+  /* Cellule actions : icônes alignées à droite, sans label */
+  .civiq-table-mobile-cards td.civiq-table-actions {
+    justify-content: flex-end;
+    padding-top: 8px !important;
+    margin-top: 4px;
+    border-top: 1px solid var(--border-light) !important;
+  }
+  .civiq-table-mobile-cards td.civiq-table-actions::before {
+    display: none;
+  }
 }

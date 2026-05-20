@@ -1,289 +1,227 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import {
-  BarChart3,
-  FileText,
-  Users,
-  TrendingUp,
-  Download,
-  Plus,
-  Eye,
-  ExternalLink,
-  Copy,
-  Pencil,
-  Trash2,
-} from "lucide-react";
 import Link from "next/link";
-import QrShare from "@/components/survey/QrShare";
+import { redirect } from "next/navigation";
+import {
+  Inbox, FileText, AlertTriangle, CheckCircle2,
+  Wrench, Plus, ArrowRight, MapPin,
+} from "lucide-react";
+import { requireCommune } from "@/lib/auth-helpers";
+import { createServiceClient } from "@/lib/supabase-server";
+import { listTickets } from "@/lib/tickets/queries";
+import {
+  PrioriteBadge, StatutBadge,
+} from "@/components/tickets/TicketBadge";
+import SurveysSection from "./SurveysSection";
 
-interface SurveyRow {
-  id: string;
-  title: string;
-  slug: string;
-  status: string;
-  created_at: string;
-  published_at: string | null;
-  ends_at: string | null;
-  responses: { count: number }[];
-}
+// ═══════════════════════════════════════════════════════════════
+// /admin/dashboard — Cross-module dashboard
+//
+// Server Component qui agrège :
+//   • KPIs sondages (count, actifs, réponses)
+//   • KPIs tickets (ouverts, urgents, résolus 7j)
+//   • Top 3 tickets ouverts (priorité décroissante)
+//   • Section sondages (client component existant)
+//
+// Module-aware : ne montre une section que si le module est actif
+// pour la commune (ou si super-admin).
+// ═══════════════════════════════════════════════════════════════
 
-interface DashboardStats {
-  totalSurveys: number;
-  activeSurveys: number;
-  totalResponses: number;
-}
+export const dynamic = "force-dynamic";
 
-export default function AdminDashboard() {
-  const [surveys, setSurveys] = useState<SurveyRow[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({ totalSurveys: 0, activeSurveys: 0, totalResponses: 0 });
-  const [loading, setLoading] = useState(true);
-  const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+export default async function AdminDashboardPage() {
+  const ctx = await requireCommune();
+  if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const canCreate = role === "admin" || role === "super_admin";
-  const canDelete = role === "admin" || role === "super_admin";
+  const service = await createServiceClient();
 
-  useEffect(() => { loadData(); }, []);
-
-  async function loadData() {
-    try {
-      const [surveysRes, profileRes] = await Promise.all([
-        fetch("/api/surveys"),
-        fetch("/api/auth/me"),
-      ]);
-
-      let surveyData: SurveyRow[] = [];
-      if (surveysRes.ok) {
-        surveyData = await surveysRes.json() as SurveyRow[];
-        setSurveys(surveyData);
-      }
-
-      if (profileRes.ok) {
-        const profileData = await profileRes.json();
-        if (profileData.commune) setCommune(profileData.commune);
-        if (profileData.role) setRole(profileData.role);
-      }
-
-      setStats({
-        totalSurveys: surveyData.length,
-        activeSurveys: surveyData.filter((s) => s.status === "published").length,
-        totalResponses: surveyData.reduce(
-          (sum, s) => sum + ((s.responses?.[0] as { count: number } | undefined)?.count || 0),
-          0
-        ),
-      });
-    } catch (err) {
-      console.error("loadData error:", err);
-    } finally {
-      setLoading(false);
-    }
+  // Modules activés
+  const isSuperAdmin = ctx.role === "super_admin";
+  let activeModules: string[] = [];
+  if (isSuperAdmin) {
+    const { data } = await service.from("modules").select("id").eq("is_available", true);
+    activeModules = (data ?? []).map((m) => m.id);
+  } else {
+    const { data } = await service
+      .from("commune_modules")
+      .select("module_id")
+      .eq("commune_id", ctx.communeId);
+    activeModules = (data ?? []).map((m) => m.module_id);
   }
 
-  function getStatusBadge(status: string) {
-    const map: Record<string, { cls: string; label: string }> = {
-      draft:     { cls: "civiq-badge civiq-badge-muted",       label: "Brouillon" },
-      published: { cls: "civiq-badge civiq-badge-success",     label: "Publié" },
-      closed:    { cls: "civiq-badge civiq-badge-warning",     label: "Terminé" },
-      archived:  { cls: "civiq-badge civiq-badge-destructive", label: "Archivé" },
-    };
-    const s = map[status] || map.draft;
-    return <span className={s.cls}>{s.label}</span>;
+  const hasSurveys = activeModules.includes("surveys");
+  const hasTickets = activeModules.includes("tickets");
+
+  // ─── Stats sondages ───
+  let surveysActive = 0;
+  let surveysTotal = 0;
+  let responsesTotal = 0;
+  if (hasSurveys) {
+    const { data } = await service
+      .from("surveys")
+      .select("id, status, responses(count)")
+      .eq("commune_id", ctx.communeId)
+      .is("deleted_at", null);
+    surveysTotal = data?.length ?? 0;
+    surveysActive = data?.filter((s) => s.status === "published").length ?? 0;
+    responsesTotal = (data ?? []).reduce((sum, s) => {
+      const arr = s.responses as unknown as { count: number }[] | undefined;
+      return sum + (arr?.[0]?.count ?? 0);
+    }, 0);
   }
 
-  async function copyLink(slug: string) {
-    const url = `${window.location.origin}/survey/${slug}${commune ? `?commune=${commune.slug}` : ""}`;
-    await navigator.clipboard.writeText(url);
+  // ─── Stats tickets ───
+  let tickets: Awaited<ReturnType<typeof listTickets>> = [];
+  let ticketsOpen = 0;
+  let ticketsUrgent = 0;
+  let ticketsResolved7d = 0;
+  if (hasTickets) {
+    tickets = await listTickets(ctx.communeId, { limit: 200 });
+    const openStatuts = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
+    ticketsOpen = tickets.filter((t) => openStatuts.includes(t.statut)).length;
+    ticketsUrgent = tickets.filter((t) => t.priorite === "urgente" && openStatuts.includes(t.statut)).length;
+    const sevenDaysAgo = Date.now() - 7 * 86_400_000;
+    ticketsResolved7d = tickets.filter((t) => t.resolu_at && new Date(t.resolu_at).getTime() >= sevenDaysAgo).length;
   }
 
-  async function deleteSurvey(id: string, title: string) {
-    const ok = window.confirm(
-      `Supprimer définitivement le sondage « ${title} » ?\n\nCette action est irréversible.`
-    );
-    if (!ok) return;
-    const res = await fetch(`/api/surveys/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: "Erreur inconnue" }));
-      alert(`Suppression impossible : ${body.error || res.statusText}`);
-      return;
-    }
-    setSurveys((prev) => prev.filter((s) => s.id !== id));
-  }
-
-  if (loading) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh", gap: 16, color: "var(--fg-muted)" }}>
-        <div className="civiq-spin" style={{ width: 28, height: 28, border: "3px solid var(--border)", borderTopColor: "var(--accent)", borderRadius: "50%" }} />
-        <p style={{ fontSize: 14 }}>Chargement…</p>
-      </div>
-    );
-  }
+  const topTickets = tickets
+    .filter((t) => !["clos", "annule"].includes(t.statut))
+    .sort((a, b) => {
+      const order = { urgente: 4, haute: 3, normale: 2, basse: 1 } as const;
+      return (order[b.priorite] ?? 0) - (order[a.priorite] ?? 0);
+    })
+    .slice(0, 3);
 
   return (
     <main className="civiq-main">
-      {/* Page header */}
+      {/* En-tête */}
       <div className="civiq-page-header">
         <div>
           <h1 className="civiq-page-title">Tableau de bord</h1>
-          {commune && <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>{commune.name}</p>}
-          {role === "viewer" && (
-            <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>
-              Accès en lecture seule. Demandez à un administrateur de vous promouvoir éditeur pour modifier les sondages.
-            </p>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {canDelete && (
-            <Link href="/admin/surveys/trash" className="civiq-btn civiq-btn-outline" title="Corbeille">
-              <Trash2 size={14} /> Corbeille
-            </Link>
-          )}
-          {canCreate && (
-            <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
-              <Plus size={15} /> Nouveau sondage
-            </Link>
-          )}
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>
+            Vue d&apos;ensemble de l&apos;activité de votre commune.
+          </p>
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="civiq-stats-grid" style={{ marginBottom: 32 }}>
-        {[
-          { icon: FileText, value: stats.totalSurveys, label: "Sondages créés", color: "oklch(0.95 0.04 258)" },
-          { icon: TrendingUp, value: stats.activeSurveys, label: "Sondages actifs", color: "oklch(0.95 0.06 155)" },
-          { icon: Users, value: stats.totalResponses, label: "Réponses totales", color: "oklch(0.95 0.05 30)" },
-          { icon: BarChart3, value: "—", label: "Taux complétion moy.", color: "oklch(0.95 0.04 285)" },
-        ].map(({ icon: Icon, value, label, color }) => (
-          <div key={label} className="civiq-card civiq-stat-card">
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: "var(--radius)", background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Icon size={18} style={{ color: "var(--accent)" }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.04em", color: "var(--fg)", lineHeight: 1 }}>
-                  {value}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 5, fontWeight: 500 }}>
-                  {label}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Surveys table */}
-      <div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", letterSpacing: "-0.02em" }}>
-            Vos sondages
-          </h2>
-          <span style={{ fontSize: 12, color: "var(--fg-muted)", background: "var(--border-light)", padding: "3px 10px", borderRadius: 99, fontWeight: 500 }}>
-            {surveys.length} sondage{surveys.length > 1 ? "s" : ""}
-          </span>
-        </div>
-
-        {surveys.length === 0 ? (
-          <div className="civiq-card" style={{ textAlign: "center", padding: "56px 24px", borderStyle: "dashed" }}>
-            <FileText size={40} style={{ color: "var(--fg-xmuted)", margin: "0 auto 16px" }} strokeWidth={1.5} />
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 8 }}>Aucun sondage pour le moment</h3>
-            <p style={{ fontSize: 14, color: "var(--fg-muted)", marginBottom: 20 }}>
-              {canCreate ? "Créez votre premier sondage ou partez d'un modèle." : "Aucun sondage publié dans cette commune."}
-            </p>
-            {canCreate && <Link href="/admin/surveys/new" className="civiq-btn civiq-btn-default">
-              <Plus size={14} /> Créer un sondage
-            </Link>}
-          </div>
-        ) : (
-          <div className="civiq-card" style={{ padding: 0, overflow: "hidden" }}>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Sondage", "Statut", "Réponses", "Créé le", "Actions"].map((h) => (
-                      <th key={h} style={{
-                        padding: "10px 16px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: "var(--fg-muted)",
-                        textAlign: "left",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.07em",
-                        background: "var(--bg)",
-                      }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {surveys.map((s) => {
-                    const publicUrl = `/survey/${s.slug}${commune ? `?commune=${commune.slug}` : ""}`;
-                    return (
-                      <tr key={s.id} className="civiq-table-row">
-                        <td style={{ padding: "14px 16px" }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "var(--fg)", marginBottom: 4 }}>
-                            {s.title}
-                          </div>
-                          <a
-                            href={publicUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
-                          >
-                            <ExternalLink size={11} />
-                            /survey/{s.slug}
-                          </a>
-                        </td>
-                        <td style={{ padding: "14px 16px", whiteSpace: "nowrap" }}>
-                          {getStatusBadge(s.status)}
-                        </td>
-                        <td style={{ padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
-                          {(s.responses?.[0] as { count: number } | undefined)?.count || 0}
-                        </td>
-                        <td style={{ padding: "14px 16px", fontSize: 13, color: "var(--fg-muted)", whiteSpace: "nowrap" }}>
-                          {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
-                        </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <div style={{ display: "flex", gap: 2 }}>
-                            <Link href={`/admin/surveys/${s.id}/edit`} className="civiq-icon-btn" title="Modifier">
-                              <Pencil size={14} />
-                            </Link>
-                            <Link href={`/admin/surveys/${s.id}`} className="civiq-icon-btn" title="Statistiques">
-                              <BarChart3 size={14} />
-                            </Link>
-                            <a href={publicUrl} target="_blank" rel="noreferrer" className="civiq-icon-btn" title="Aperçu">
-                              <Eye size={14} />
-                            </a>
-                            <button onClick={() => copyLink(s.slug)} className="civiq-icon-btn" title="Copier le lien" type="button">
-                              <Copy size={14} />
-                            </button>
-                            <QrShare
-                              url={typeof window !== "undefined" ? `${window.location.origin}${publicUrl}` : publicUrl}
-                              title={s.title}
-                            />
-                            <a href={`/api/export?survey_id=${s.id}&format=xlsx`} className="civiq-icon-btn" title="Exporter Excel">
-                              <Download size={14} />
-                            </a>
-                            {canDelete && <button
-                              type="button"
-                              onClick={() => deleteSurvey(s.id, s.title)}
-                              className="civiq-icon-btn danger"
-                              title="Mettre à la corbeille"
-                            >
-                              <Trash2 size={14} />
-                            </button>}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      {/* KPIs cross-module */}
+      <div className="civiq-stats-grid" style={{ marginBottom: 26 }}>
+        {hasSurveys && (
+          <Kpi icon={<FileText size={18} />} value={surveysTotal} label="Sondages créés" sub={`${surveysActive} actif${surveysActive > 1 ? "s" : ""}`} />
+        )}
+        {hasSurveys && (
+          <Kpi icon={<CheckCircle2 size={18} />} value={responsesTotal} label="Réponses citoyennes" sub="cumul tous sondages" tone="success" />
+        )}
+        {hasTickets && (
+          <Kpi icon={<Inbox size={18} />} value={ticketsOpen} label="Tickets ouverts" sub={ticketsUrgent ? `${ticketsUrgent} urgent${ticketsUrgent > 1 ? "s" : ""}` : "—"} tone={ticketsUrgent > 0 ? "danger" : "default"} />
+        )}
+        {hasTickets && (
+          <Kpi icon={<CheckCircle2 size={18} />} value={ticketsResolved7d} label="Résolus (7j)" sub="interventions terminées" tone="success" />
         )}
       </div>
+
+      {/* Section Tickets en haut (si actif) */}
+      {hasTickets && (
+        <section style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "oklch(0.95 0.04 30)", color: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Wrench size={16} />
+              </div>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", letterSpacing: "-0.01em" }}>
+                Tickets prioritaires
+              </h2>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Link href="/admin/tickets" className="civiq-btn civiq-btn-outline civiq-btn-sm">
+                Tous les tickets <ArrowRight size={13} />
+              </Link>
+              {(ctx.role === "admin" || ctx.role === "editor" || ctx.role === "super_admin") && (
+                <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default civiq-btn-sm">
+                  <Plus size={13} /> Nouveau ticket
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {topTickets.length === 0 ? (
+            <div className="civiq-card" style={{ textAlign: "center", padding: 32, borderStyle: "dashed" }}>
+              <CheckCircle2 size={28} style={{ color: "var(--success)", margin: "0 auto 8px" }} />
+              <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Tous les tickets sont à jour. Bravo 👏</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {topTickets.map((t) => (
+                <Link
+                  key={t.id}
+                  href={`/admin/tickets/${t.id}`}
+                  className="civiq-card civiq-card-hover"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textDecoration: "none" }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <PrioriteBadge priorite={t.priorite} />
+                      <StatutBadge statut={t.statut} />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ color: "var(--fg-xmuted)", fontFamily: "ui-monospace, monospace", marginRight: 6, fontSize: 12 }}>#{t.numero}</span>
+                      {t.titre}
+                    </div>
+                    {t.adresse && (
+                      <div style={{ fontSize: 12, color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                        <MapPin size={11} /> {t.adresse.length > 60 ? t.adresse.slice(0, 60) + "…" : t.adresse}
+                      </div>
+                    )}
+                  </div>
+                  <ArrowRight size={16} style={{ color: "var(--fg-xmuted)", flexShrink: 0 }} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Section Sondages (si actif) */}
+      {hasSurveys && <SurveysSection />}
+
+      {/* Aucun module activé */}
+      {!hasSurveys && !hasTickets && (
+        <div className="civiq-card" style={{ textAlign: "center", padding: "48px 24px", borderStyle: "dashed" }}>
+          <AlertTriangle size={36} style={{ color: "var(--warning)", margin: "0 auto 12px" }} />
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 8 }}>Aucun module activé</h2>
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", maxWidth: 400, margin: "0 auto 16px" }}>
+            Demandez à un administrateur de la plateforme d&apos;activer les modules dont vous avez besoin (sondages, tickets…).
+          </p>
+        </div>
+      )}
     </main>
+  );
+}
+
+function Kpi({ icon, value, label, sub, tone }: {
+  icon: React.ReactNode; value: number | string; label: string; sub?: string;
+  tone?: "default" | "success" | "danger";
+}) {
+  const bg =
+    tone === "success" ? "oklch(0.95 0.06 155)" :
+    tone === "danger"  ? "oklch(0.95 0.07 25)"  :
+    "oklch(0.95 0.04 258)";
+  const fg =
+    tone === "success" ? "var(--success)" :
+    tone === "danger"  ? "var(--destructive)" :
+    "var(--accent)";
+  return (
+    <div className="civiq-card civiq-stat-card">
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ width: 38, height: 38, borderRadius: "var(--radius)", background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {icon}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: "var(--fg)", lineHeight: 1.05 }}>
+            {value}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontWeight: 500 }}>{label}</div>
+          {sub && <div style={{ fontSize: 11, color: "var(--fg-xmuted)", marginTop: 2 }}>{sub}</div>}
+        </div>
+      </div>
+    </div>
   );
 }

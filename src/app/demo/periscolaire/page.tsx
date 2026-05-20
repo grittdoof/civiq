@@ -406,7 +406,7 @@ export default function DemoPage() {
         communeSlug="chateauneuf-demo"
         primaryColor="#1a2744"
         accentColor="#c9a84c"
-        thankYouText="Merci d'avoir testé GoCiviQ ! Dans une vraie commune, vos réponses auraient été enregistrées et analysées par les élus."
+        thankYouText="Merci d'avoir testé GoCiviq ! Dans une vraie commune, vos réponses auraient été enregistrées et analysées par les élus."
         onSubmit={async () => {
           // Demo mode: simulate a small delay, no DB save
           await new Promise((r) => setTimeout(r, 800));
@@ -416,7 +416,7 @@ export default function DemoPage() {
       <footer className="civiq-footer">
         Commune de Châteauneuf (démonstration) · Sondage réalisé avec{" "}
         <Link href="/" style={{ color: "#3b6fa0" }}>
-          GoCiviQ
+          GoCiviq
         </Link>
       </footer>
 

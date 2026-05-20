@@ -138,7 +138,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
       />
 
       <footer className="civiq-footer">
-        {commune?.name} · Sondage réalisé avec GoCiviQ ·{" "}
+        {commune?.name} · Sondage réalisé avec GoCiviq ·{" "}
         {commune?.contact_email && (
           <a href={`mailto:${commune.contact_email}`}>{commune.contact_email}</a>
         )}

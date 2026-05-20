@@ -50,7 +50,7 @@ export default function SetupPage() {
     <div className="setup-page">
       <div className="setup-card">
         <Link href="/" className="setup-logo">
-          🏛 GoCiviQ
+          <img src="/brand/logo-horizontal.svg" alt="GoCiviq" style={{ height: 60, width: "auto" }} />
         </Link>
 
         <div className="setup-step-badge">Étape 2 / 2</div>

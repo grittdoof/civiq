@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hors connexion — GoCiviq</title>
+  <link rel="icon" href="/favicon/favicon.svg" type="image/svg+xml">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(180deg, #fff 0%, #F2F3F7 100%);
+      color: #042F64;
+      padding: 24px;
+    }
+    .card {
+      max-width: 480px; width: 100%;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(4, 47, 100, 0.08);
+      padding: 36px 28px;
+      text-align: center;
+    }
+    .logo { height: 64px; width: auto; margin-bottom: 20px; }
+    h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+    p { font-size: 15px; color: #4a5068; line-height: 1.6; margin-bottom: 22px; }
+    button {
+      background: #042F64; color: #fff; border: none;
+      padding: 12px 24px; border-radius: 999px;
+      font-weight: 600; font-size: 14px;
+      cursor: pointer; font-family: inherit;
+    }
+    button:hover { background: #0B3D91; }
+    .tip {
+      margin-top: 20px; font-size: 13px; color: #6B7080;
+      padding: 12px 16px; background: #F2F3F7; border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/brand/coq-couleur.svg" alt="GoCiviq" class="logo">
+    <h1>Vous êtes hors connexion</h1>
+    <p>Cette page n'est pas disponible sans connexion internet. Vérifiez votre signal et réessayez.</p>
+    <button onclick="location.reload()">Réessayer</button>
+    <div class="tip">
+      💡 Astuce : si vous avez préparé un ticket en mobilité, il sera <strong>envoyé automatiquement</strong> dès que le réseau reviendra.
+    </div>
+  </div>
+</body>
+</html>
