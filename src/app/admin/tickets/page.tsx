@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Plus, Map as MapIcon, BarChart3 } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
 import { isModuleActive } from "@/lib/module-guard";
 import TicketCard from "@/components/tickets/TicketCard";
 import TicketsFilters, { type TicketsFilterValue } from "./TicketsFilters";
@@ -39,11 +40,10 @@ export default async function TicketsListPage({ searchParams }: Props) {
   // Filtre par défaut = "ouverts" (tickets pas encore pris en charge)
   const { filter = "ouverts", search = "" } = await searchParams;
 
-  // Mapping filter → critères queries (simplifié — 5 états)
+  // Mapping filter → critères queries (cycle simplifié : Ouvert / Clôturé)
   const filters: Parameters<typeof listTickets>[1] = { search };
-  if (filter === "ouverts") filters.statut = ["nouveau", "assigne"];
-  else if (filter === "en_cours") filters.statut = ["pris_en_charge", "en_cours", "en_attente"];
-  else if (filter === "termines") filters.statut = ["resolu", "clos", "annule"];
+  if (filter === "ouverts") filters.statut = OUVERT_STATUTS;
+  else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
   else if (filter === "mes") filters.assignedToMe = ctx.userId;
 
   const tickets = await listTickets(ctx.communeId, filters);
@@ -54,9 +54,8 @@ export default async function TicketsListPage({ searchParams }: Props) {
   const myTickets = await listTickets(ctx.communeId, { assignedToMe: ctx.userId });
   const counts = {
     mes: myTickets.length,
-    ouverts: allTickets.filter((t) => ["nouveau", "assigne"].includes(t.statut)).length,
-    en_cours: allTickets.filter((t) => ["pris_en_charge", "en_cours", "en_attente"].includes(t.statut)).length,
-    termines: allTickets.filter((t) => ["resolu", "clos", "annule"].includes(t.statut)).length,
+    ouverts: allTickets.filter((t) => (OUVERT_STATUTS as string[]).includes(t.statut)).length,
+    cloture: allTickets.filter((t) => (CLOTURE_STATUTS as string[]).includes(t.statut)).length,
     tous: allTickets.length,
   };
 
@@ -166,11 +165,9 @@ function emptyStateFor(filter: string, canCreate: boolean, isFreshCommune: boole
     case "mes":
       return { icon: "🙌", title: "Aucun ticket ne t'est assigné", hint: "Tu es à jour sur tes interventions." };
     case "ouverts":
-      return { icon: "✨", title: "Aucun ticket ouvert", hint: "Tous les signalements ont été pris en charge." };
-    case "en_cours":
-      return { icon: "🛠️", title: "Aucune intervention en cours", hint: "Lance une prise en charge pour démarrer." };
-    case "termines":
-      return { icon: "📭", title: "Aucun ticket terminé", hint: "Les tickets clôturés apparaîtront ici." };
+      return { icon: "✨", title: "Aucun ticket ouvert", hint: "Tous les signalements ont été clôturés." };
+    case "cloture":
+      return { icon: "📭", title: "Aucun ticket clôturé", hint: "Les tickets clôturés apparaîtront ici." };
     default:
       return {
         icon: "📋",

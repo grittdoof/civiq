@@ -290,15 +290,8 @@ export default async function TicketDetailPage({ params }: Props) {
 
       <TicketMobileActions
         ticketId={ticket.id}
-        ticketNumero={ticket.numero}
         statut={ticket.statut}
-        priorite={ticket.priorite}
-        assigneId={ticket.assigne_a}
-        assigneeIds={assignees.map((a) => a.id)}
-        agents={agents}
         canEdit={canEdit}
-        canAssign={canAssign}
-        isSuperAdmin={isSuperAdmin}
         hasReport={!!rapport}
       />
 

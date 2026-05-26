@@ -1,24 +1,16 @@
-import {
-  Sparkles, UserCheck, PlayCircle, Activity, Pause,
-  CheckCircle2, Lock, Ban,
-} from "lucide-react";
+import { Inbox, CheckCircle2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
   PRIORITE_LABELS, PRIORITE_COLORS,
-  STATUT_LABELS, STATUT_COLORS,
   CATEGORIE_LABELS, CATEGORIE_ICONS,
+  GROUP_LABELS, GROUP_COLORS, groupOf,
   type TicketPriorite, type TicketStatut, type TicketCategorie,
+  type TicketGroup,
 } from "@/lib/tickets/types";
 
-const STATUT_ICONS: Record<TicketStatut, LucideIcon> = {
-  nouveau: Sparkles,
-  assigne: UserCheck,
-  pris_en_charge: PlayCircle,
-  en_cours: Activity,
-  en_attente: Pause,
-  resolu: CheckCircle2,
-  clos: Lock,
-  annule: Ban,
+const GROUP_ICONS: Record<TicketGroup, LucideIcon> = {
+  ouvert: Inbox,
+  cloture: CheckCircle2,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,12 +43,13 @@ export function PrioriteBadge({ priorite, withDot = true }: { priorite: TicketPr
 }
 
 export function StatutBadge({ statut }: { statut: TicketStatut }) {
-  const c = STATUT_COLORS[statut];
-  const Icon = STATUT_ICONS[statut];
+  const group = groupOf(statut);
+  const c = GROUP_COLORS[group];
+  const Icon = GROUP_ICONS[group];
   return (
     <span className="tk-badge" style={{ background: c.bg, color: c.fg }}>
       <Icon size={11} strokeWidth={2.5} aria-hidden style={{ marginRight: 4 }} />
-      {STATUT_LABELS[statut]}
+      {GROUP_LABELS[group]}
     </span>
   );
 }
