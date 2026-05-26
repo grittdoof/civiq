@@ -17,6 +17,7 @@ import {
 } from "@/lib/tickets/types";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 import TicketActions from "@/components/tickets/TicketActions";
+import TicketMobileActions from "@/components/tickets/TicketMobileActions";
 import TicketCommentForm from "@/components/tickets/TicketCommentForm";
 
 // ═══════════════════════════════════════════════════════════════
@@ -69,7 +70,7 @@ export default async function TicketDetailPage({ params }: Props) {
     iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
-    <main className="civiq-main">
+    <main className="civiq-main tk-detail-with-mobile-cta">
       <Link href="/admin/tickets" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--fg-muted)", textDecoration: "none", marginBottom: 16 }}>
         <ArrowLeft size={14} /> Tickets
       </Link>
@@ -237,7 +238,7 @@ export default async function TicketDetailPage({ params }: Props) {
         </section>
 
         {/* Colonne droite : panel d'actions + infos */}
-        <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <aside className="tk-detail-aside-desktop">
           <TicketActions
             ticketId={ticket.id}
             ticketNumero={ticket.numero}
@@ -286,6 +287,20 @@ export default async function TicketDetailPage({ params }: Props) {
           )}
         </aside>
       </div>
+
+      <TicketMobileActions
+        ticketId={ticket.id}
+        ticketNumero={ticket.numero}
+        statut={ticket.statut}
+        priorite={ticket.priorite}
+        assigneId={ticket.assigne_a}
+        assigneeIds={assignees.map((a) => a.id)}
+        agents={agents}
+        canEdit={canEdit}
+        canAssign={canAssign}
+        isSuperAdmin={isSuperAdmin}
+        hasReport={!!rapport}
+      />
 
       <TicketsRealtime communeId={ctx.communeId!} ticketId={ticket.id} />
     </main>
