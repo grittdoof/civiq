@@ -32,9 +32,15 @@ import {
 } from "@/lib/tickets/useTicketWizard";
 
 // ═══════════════════════════════════════════════════════════════
-// Wizard mobile-first de création de ticket.
-// Une question par écran (cf. useTicketWizard). Récap éditable via
-// bottom sheet avant submit. Conserve les tokens civiq existants.
+// NewTicketForm — orchestrateur.
+//
+// Détection runtime du viewport : on monte UN SEUL des deux rendus
+// (jamais les deux). Ils partagent l'état via useTicketWizard.
+//
+//   • Mobile (< 900px)  : MobileWizard — une question par écran, CTA
+//     sticky bas, récap éditable en bottom sheet.
+//   • Desktop (≥ 900px) : DesktopForm — page admin classique, toutes
+//     les sections empilées en pleine largeur, submit en bas.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
@@ -65,15 +71,32 @@ const PRIORITES: Array<{ value: TicketPriorite; sub: string }> = [
   { value: "urgente", sub: "Risque immédiat ou bloquant" },
 ];
 
+type Agent = { id: string; full_name: string | null; job_title: string | null };
+
+// ─── Détection viewport ──────────────────────────────────────────
+
+function useIsDesktop(breakpoint = 900): boolean | null {
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${breakpoint}px)`);
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [breakpoint]);
+  return isDesktop;
+}
+
+// ─── Orchestrateur ───────────────────────────────────────────────
+
 export default function NewTicketForm({ communeId, agents }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [showRecap, setShowRecap] = useState(false);
-  const [confirmQuit, setConfirmQuit] = useState(false);
+  const isDesktop = useIsDesktop();
 
   const wiz = useTicketWizard();
-  const { value, set, steps, current, currentStep, total, canNext, invalidReason, isDirty } = wiz;
+  const { value, set, isDirty } = wiz;
 
   // Block native back if dirty
   useEffect(() => {
@@ -94,33 +117,6 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         ? value.assigneIds.filter((x) => x !== id)
         : [...value.assigneIds, id],
     );
-  }
-
-  function attemptQuit() {
-    if (isDirty) {
-      setConfirmQuit(true);
-    } else {
-      router.push("/admin/tickets");
-    }
-  }
-
-  function handlePrev() {
-    setError(null);
-    if (current === 0) {
-      attemptQuit();
-      return;
-    }
-    wiz.prev();
-  }
-
-  function handleNext() {
-    setError(null);
-    if (!canNext) return;
-    if (wiz.isOnLastStep) {
-      setShowRecap(true);
-      return;
-    }
-    wiz.next();
   }
 
   function submit() {
@@ -154,15 +150,84 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur inconnue");
-        setShowRecap(false);
       }
     });
   }
 
+  // Avant détection : rendu mobile par défaut (le plus fréquent ici,
+  // et l'admin shell mobile cache la complexité d'un éventuel flash).
+  if (isDesktop === null || !isDesktop) {
+    return (
+      <MobileWizard
+        wiz={wiz}
+        agents={agents}
+        communeId={communeId}
+        toggleAssignee={toggleAssignee}
+        error={error}
+        setError={setError}
+        pending={pending}
+        submit={submit}
+      />
+    );
+  }
+
+  return (
+    <DesktopForm
+      wiz={wiz}
+      agents={agents}
+      communeId={communeId}
+      toggleAssignee={toggleAssignee}
+      error={error}
+      pending={pending}
+      submit={submit}
+    />
+  );
+}
+
+// ─── MOBILE WIZARD ──────────────────────────────────────────────
+
+function MobileWizard({
+  wiz, agents, communeId, toggleAssignee, error, setError, pending, submit,
+}: {
+  wiz: ReturnType<typeof useTicketWizard>;
+  agents: Agent[];
+  communeId: string;
+  toggleAssignee: (id: string) => void;
+  error: string | null;
+  setError: (e: string | null) => void;
+  pending: boolean;
+  submit: () => void;
+}) {
+  const router = useRouter();
+  const [showRecap, setShowRecap] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
+  const { value, set, steps, current, currentStep, total, canNext, invalidReason, isDirty } = wiz;
+
+  function attemptQuit() {
+    if (isDirty) setConfirmQuit(true);
+    else router.push("/admin/tickets");
+  }
+  function handlePrev() {
+    setError(null);
+    if (current === 0) {
+      attemptQuit();
+      return;
+    }
+    wiz.prev();
+  }
+  function handleNext() {
+    setError(null);
+    if (!canNext) return;
+    if (wiz.isOnLastStep) {
+      setShowRecap(true);
+      return;
+    }
+    wiz.next();
+  }
+
   return (
     <main className="tk-wizard">
-      {/* ─── Mobile : header + progress bar ─── */}
-      <header className="tk-wizard-header tk-mobile-only">
+      <header className="tk-wizard-header">
         <button
           type="button"
           onClick={attemptQuit}
@@ -179,7 +244,7 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         </span>
       </header>
 
-      <div className="tk-wizard-progress tk-mobile-only">
+      <div className="tk-wizard-progress">
         {Array.from({ length: total }).map((_, i) => (
           <span
             key={i}
@@ -187,17 +252,6 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           />
         ))}
       </div>
-
-      {/* ─── Desktop : header simple ─── */}
-      <header className="tk-wizard-desktop-header tk-desktop-only">
-        <Link href="/admin/tickets" className="tk-wizard-desktop-back">
-          <ArrowLeft size={14} /> Tickets
-        </Link>
-        <h1 className="tk-wizard-desktop-title">Nouveau ticket</h1>
-        <p className="tk-wizard-desktop-sub">
-          Renseigne toutes les sections puis valide en bas de la page.
-        </p>
-      </header>
 
       <div className="tk-wizard-body">
         {error && (
@@ -207,59 +261,30 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           </div>
         )}
 
-        {/* ─── Mobile : une seule étape à la fois ─── */}
-        <div className="tk-mobile-only">
-          <div className="tk-wizard-title-block">
-            <div className="tk-wizard-eyebrow">{currentStep.eyebrow}</div>
-            <h2 className="tk-wizard-title">{currentStep.title}</h2>
-            {currentStep.subtitle && (
-              <p className="tk-wizard-subtitle">{currentStep.subtitle}</p>
-            )}
-          </div>
-
-          <StepContent
-            stepId={currentStep.id}
-            value={value}
-            set={set}
-            agents={agents}
-            communeId={communeId}
-            toggleAssignee={toggleAssignee}
-          />
-
-          {invalidReason && (
-            <p className="tk-wizard-hint">{invalidReason}</p>
+        <div className="tk-wizard-title-block">
+          <div className="tk-wizard-eyebrow">{currentStep.eyebrow}</div>
+          <h1 className="tk-wizard-title">{currentStep.title}</h1>
+          {currentStep.subtitle && (
+            <p className="tk-wizard-subtitle">{currentStep.subtitle}</p>
           )}
         </div>
 
-        {/* ─── Desktop : toutes les étapes empilées ─── */}
-        <div className="tk-desktop-only tk-wizard-allsteps">
-          {steps.map((step, i) => (
-            <section key={step.id} className="tk-step-section">
-              <div className="tk-wizard-title-block">
-                <div className="tk-wizard-eyebrow">
-                  {i + 1}. {step.eyebrow}
-                  {step.optional && <span className="tk-wizard-optional"> · optionnel</span>}
-                </div>
-                <h2 className="tk-wizard-title tk-wizard-title-desktop">{step.title}</h2>
-                {step.subtitle && (
-                  <p className="tk-wizard-subtitle">{step.subtitle}</p>
-                )}
-              </div>
-              <StepContent
-                stepId={step.id}
-                value={value}
-                set={set}
-                agents={agents}
-                communeId={communeId}
-                toggleAssignee={toggleAssignee}
-              />
-            </section>
-          ))}
-        </div>
+        <StepContent
+          stepId={currentStep.id}
+          value={value}
+          set={set}
+          agents={agents}
+          communeId={communeId}
+          toggleAssignee={toggleAssignee}
+          variant="mobile"
+        />
+
+        {invalidReason && (
+          <p className="tk-wizard-hint">{invalidReason}</p>
+        )}
       </div>
 
-      {/* ─── Mobile : CTA sticky ─── */}
-      <div className="tk-wizard-cta tk-mobile-only">
+      <div className="tk-wizard-cta">
         <button
           type="button"
           onClick={handlePrev}
@@ -275,22 +300,6 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           className="civiq-btn civiq-btn-default tk-wizard-cta-next"
         >
           {wiz.isOnLastStep ? "Vérifier" : "Continuer"}
-        </button>
-      </div>
-
-      {/* ─── Desktop : submit inline ─── */}
-      <div className="tk-wizard-desktop-cta tk-desktop-only">
-        <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">
-          Annuler
-        </Link>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!wiz.isValidGlobal || pending}
-          className="civiq-btn civiq-btn-default"
-        >
-          {pending ? <Loader2 size={16} className="civiq-spin" /> : <Save size={16} />}
-          {pending ? "Création…" : "Créer le ticket"}
         </button>
       </div>
 
@@ -319,7 +328,93 @@ export default function NewTicketForm({ communeId, agents }: Props) {
   );
 }
 
-// ─── Step content router ─────────────────────────────────────────
+// ─── DESKTOP FORM ───────────────────────────────────────────────
+
+function DesktopForm({
+  wiz, agents, communeId, toggleAssignee, error, pending, submit,
+}: {
+  wiz: ReturnType<typeof useTicketWizard>;
+  agents: Agent[];
+  communeId: string;
+  toggleAssignee: (id: string) => void;
+  error: string | null;
+  pending: boolean;
+  submit: () => void;
+}) {
+  const { value, set, steps, isValidGlobal } = wiz;
+
+  return (
+    <main className="civiq-main tk-form-desktop">
+      <Link href="/admin/tickets" className="tk-form-desktop-back">
+        <ArrowLeft size={14} /> Tickets
+      </Link>
+
+      <header className="tk-form-desktop-header">
+        <h1 className="civiq-page-title">Nouveau ticket</h1>
+        <p className="tk-form-desktop-sub">
+          Renseigne toutes les sections puis valide en bas de page. Les sections
+          marquées « optionnel » peuvent rester vides.
+        </p>
+      </header>
+
+      {error && (
+        <div className="tk-wizard-error tk-form-desktop-error">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
+
+      <div className="tk-form-desktop-sections">
+        {steps.map((step, i) => (
+          <section key={step.id} className="civiq-card tk-form-desktop-card">
+            <div className="tk-form-desktop-card-head">
+              <span className="tk-form-desktop-num">{i + 1}</span>
+              <div>
+                <div className="tk-form-desktop-eyebrow">
+                  {step.eyebrow}
+                  {step.optional && <span className="tk-form-desktop-optional"> · optionnel</span>}
+                </div>
+                <h2 className="tk-form-desktop-title">{step.title}</h2>
+                {step.subtitle && (
+                  <p className="tk-form-desktop-step-sub">{step.subtitle}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="tk-form-desktop-card-body">
+              <StepContent
+                stepId={step.id}
+                value={value}
+                set={set}
+                agents={agents}
+                communeId={communeId}
+                toggleAssignee={toggleAssignee}
+                variant="desktop"
+              />
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div className="tk-form-desktop-submit">
+        <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">
+          Annuler
+        </Link>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!isValidGlobal || pending}
+          className="civiq-btn civiq-btn-default"
+        >
+          {pending ? <Loader2 size={16} className="civiq-spin" /> : <Save size={16} />}
+          {pending ? "Création…" : "Créer le ticket"}
+        </button>
+      </div>
+    </main>
+  );
+}
+
+// ─── Step content router (partagé) ──────────────────────────────
 
 function StepContent({
   stepId,
@@ -328,18 +423,20 @@ function StepContent({
   agents,
   communeId,
   toggleAssignee,
+  variant,
 }: {
   stepId: WizardStepId;
   value: WizardValue;
   set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
-  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  agents: Agent[];
   communeId: string;
   toggleAssignee: (id: string) => void;
+  variant: "mobile" | "desktop";
 }) {
   switch (stepId) {
     case "canal":
       return (
-        <div className="tk-wizard-options">
+        <div className={variant === "desktop" ? "tk-options-grid-2" : "tk-wizard-options"}>
           {CANAUX.map((c) => {
             const active = value.canal === c.value;
             return (
@@ -367,8 +464,8 @@ function StepContent({
 
     case "demandeur":
       return (
-        <div className="tk-wizard-fields">
-          <Field label="Nom" autoComplete="name">
+        <div className={variant === "desktop" ? "tk-fields-grid-2" : "tk-wizard-fields"}>
+          <Field label="Nom">
             <input
               className="civiq-input"
               value={value.demandeur_nom}
@@ -413,7 +510,7 @@ function StepContent({
 
     case "categorie":
       return (
-        <div className="tk-wizard-grid">
+        <div className={variant === "desktop" ? "tk-cat-grid-desktop" : "tk-wizard-grid"}>
           {CATEGORIES.map((c) => {
             const active = value.categorie === c;
             return (
@@ -435,7 +532,7 @@ function StepContent({
 
     case "description":
       return (
-        <div className="tk-wizard-fields">
+        <div className={variant === "desktop" ? "tk-desc-grid" : "tk-wizard-fields"}>
           <Field label="Titre court" required>
             <input
               className="civiq-input"
@@ -443,14 +540,14 @@ function StepContent({
               onChange={(e) => set("titre", e.target.value)}
               placeholder="Ex : Nid-de-poule rue de la Mairie"
               maxLength={200}
-              autoFocus
+              autoFocus={variant === "mobile"}
             />
             <span className="civiq-hint">{value.titre.length} / 200</span>
           </Field>
           <Field label="Description (optionnel)">
             <textarea
               className="civiq-input civiq-textarea"
-              rows={4}
+              rows={variant === "desktop" ? 5 : 4}
               value={value.description}
               onChange={(e) => set("description", e.target.value)}
               placeholder="Détails utiles : gravité observée, accès, etc."
@@ -461,7 +558,7 @@ function StepContent({
 
     case "priorite":
       return (
-        <div className="tk-wizard-options">
+        <div className={variant === "desktop" ? "tk-prio-grid-desktop" : "tk-wizard-options"}>
           {PRIORITES.map((p) => {
             const c = PRIORITE_COLORS[p.value];
             const active = value.priorite === p.value;
@@ -479,11 +576,9 @@ function StepContent({
                   className="tk-wizard-option-emoji"
                   style={{
                     background: c.bg,
-                    color: c.fg,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 18,
                   }}
                   aria-hidden
                 >
@@ -504,7 +599,7 @@ function StepContent({
 
     case "localisation":
       return (
-        <div className="tk-wizard-locpicker">
+        <div>
           <TicketLocationPicker
             value={value.location}
             onChange={(loc) => set("location", loc)}
@@ -525,11 +620,11 @@ function StepContent({
 
     case "assignation":
       return (
-        <div className="tk-wizard-fields">
+        <div className={variant === "desktop" ? "tk-assign-grid" : "tk-wizard-fields"}>
           {agents.length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
           ) : (
-            <div className="tk-wizard-agents">
+            <div className={variant === "desktop" ? "tk-agents-grid-desktop" : "tk-wizard-agents"}>
               {agents.map((a) => {
                 const checked = value.assigneIds.includes(a.id);
                 return (
@@ -569,6 +664,7 @@ function StepContent({
               value={value.echeance}
               onChange={(e) => set("echeance", e.target.value)}
               min={new Date().toISOString().slice(0, 10)}
+              style={{ maxWidth: 240 }}
             />
           </Field>
         </div>
@@ -576,7 +672,7 @@ function StepContent({
   }
 }
 
-// ─── Récap sheet ────────────────────────────────────────────────
+// ─── Récap sheet (mobile uniquement) ────────────────────────────
 
 function RecapSheet({
   value,
@@ -589,7 +685,7 @@ function RecapSheet({
 }: {
   value: WizardValue;
   steps: WizardStepId[];
-  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  agents: Agent[];
   pending: boolean;
   onEdit: (id: WizardStepId) => void;
   onClose: () => void;
@@ -712,7 +808,7 @@ function RecapSheet({
   );
 }
 
-// ─── Confirm quit ────────────────────────────────────────────────
+// ─── Confirm quit (mobile uniquement) ───────────────────────────
 
 function ConfirmQuitDialog({
   onCancel,
@@ -770,7 +866,6 @@ function Field({
   label: string;
   required?: boolean;
   children: React.ReactNode;
-  autoComplete?: string;
 }) {
   return (
     <div>

@@ -1039,65 +1039,122 @@ button.civiq-card,
   margin: 0 auto;
 }
 
-/* Responsive helpers (mobile-first) */
-.tk-mobile-only { display: block; }
-.tk-desktop-only { display: none; }
-@media (min-width: 900px) {
-  .tk-mobile-only { display: none !important; }
-  .tk-desktop-only { display: block; }
-  .tk-wizard { max-width: 800px; padding: 0 24px 48px; }
-  .tk-wizard-body { padding: 0; overflow: visible; }
-}
+/* ═══════════════════════════════════════════════════════════════
+   Tickets — Création desktop (≥ 900px) : page admin classique.
+   AUCUNE coque tk-wizard ici — on utilise .civiq-main et le flow
+   normal du document. Pas de scroll dans une mini-fenêtre.
+   ═══════════════════════════════════════════════════════════════ */
 
-/* Desktop header */
-.tk-wizard-desktop-header { padding: 32px 0 24px; }
-.tk-wizard-desktop-back {
+.tk-form-desktop { /* étend .civiq-main */ padding-bottom: 48px; }
+
+.tk-form-desktop-back {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 13px; color: var(--fg-muted); text-decoration: none;
   margin-bottom: 12px;
 }
-.tk-wizard-desktop-back:hover { color: var(--fg); }
-.tk-wizard-desktop-title {
-  font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
-  color: var(--fg); margin: 0;
-}
-.tk-wizard-desktop-sub {
-  font-size: 14px; color: var(--fg-muted); margin-top: 4px;
+.tk-form-desktop-back:hover { color: var(--fg); }
+
+.tk-form-desktop-header { margin-bottom: 28px; }
+.tk-form-desktop-sub {
+  font-size: 14px; color: var(--fg-muted);
+  margin-top: 6px; max-width: 620px; line-height: 1.5;
 }
 
-/* Desktop : all steps stacked */
-.tk-wizard-allsteps {
-  display: flex; flex-direction: column; gap: 24px;
+.tk-form-desktop-error { margin-bottom: 18px; max-width: 720px; }
+
+.tk-form-desktop-sections {
+  display: grid;
+  gap: 20px;
 }
-.tk-step-section {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  box-shadow: var(--card-shadow);
+
+.tk-form-desktop-card {
+  padding: 0 !important;
+  overflow: hidden;
 }
-.tk-wizard-title-desktop {
-  font-size: 18px !important;
+.tk-form-desktop-card-head {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 22px 28px 18px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(to bottom, var(--bg) 0%, var(--card) 100%);
 }
-.tk-wizard-optional {
+.tk-form-desktop-num {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 14px; font-weight: 700;
+}
+.tk-form-desktop-eyebrow {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--accent);
+}
+.tk-form-desktop-optional {
   text-transform: lowercase;
   color: var(--fg-xmuted);
-  font-weight: 600;
   letter-spacing: 0;
 }
+.tk-form-desktop-title {
+  font-size: 17px; font-weight: 700; color: var(--fg);
+  letter-spacing: -0.015em; margin: 4px 0 0;
+}
+.tk-form-desktop-step-sub {
+  font-size: 13px; color: var(--fg-muted);
+  margin: 4px 0 0; line-height: 1.5;
+}
+.tk-form-desktop-card-body { padding: 22px 28px 26px; }
 
-/* Desktop CTA (inline at the bottom of page) */
-.tk-wizard-desktop-cta {
-  display: flex; align-items: center; justify-content: flex-end;
+/* Grilles spécifiques desktop pour étaler horizontalement */
+.tk-options-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 28px;
-  padding-top: 20px;
+}
+.tk-fields-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.tk-cat-grid-desktop {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+.tk-prio-grid-desktop {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.tk-desc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .tk-desc-grid { grid-template-columns: 1fr; }
+}
+.tk-assign-grid { display: flex; flex-direction: column; gap: 16px; }
+.tk-agents-grid-desktop {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.tk-form-desktop-submit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px 0;
   border-top: 1px solid var(--border);
 }
-.tk-wizard-desktop-cta .civiq-btn { min-width: 160px; justify-content: center; }
-@media (min-width: 900px) {
-  .tk-wizard-desktop-cta { display: flex; }
-}
+.tk-form-desktop-submit .civiq-btn { min-width: 160px; justify-content: center; }
 
 .tk-wizard-header {
   display: flex; align-items: center; justify-content: space-between;
