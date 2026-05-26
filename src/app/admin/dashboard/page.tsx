@@ -11,6 +11,7 @@ import {
   PrioriteBadge, StatutBadge,
 } from "@/components/tickets/TicketBadge";
 import SurveysSection from "./SurveysSection";
+import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/dashboard — Cross-module dashboard
@@ -148,26 +149,34 @@ export default async function AdminDashboardPage() {
               <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Tous les tickets sont à jour. Bravo 👏</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "minmax(0, 1fr)" }}>
               {topTickets.map((t) => (
                 <Link
                   key={t.id}
                   href={`/admin/tickets/${t.id}`}
+                  prefetch
                   className="civiq-card civiq-card-hover"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textDecoration: "none" }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 14px", textDecoration: "none",
+                    minWidth: 0, overflow: "hidden",
+                  }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <PrioriteBadge priorite={t.priorite} />
                       <StatutBadge statut={t.statut} />
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                       <span style={{ color: "var(--fg-xmuted)", fontFamily: "ui-monospace, monospace", marginRight: 6, fontSize: 12 }}>#{t.numero}</span>
                       {t.titre}
                     </div>
                     {t.adresse && (
-                      <div style={{ fontSize: 12, color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                        <MapPin size={11} /> {t.adresse.length > 60 ? t.adresse.slice(0, 60) + "…" : t.adresse}
+                      <div style={{ fontSize: 12, color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                        <MapPin size={11} style={{ flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.adresse}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -181,6 +190,8 @@ export default async function AdminDashboardPage() {
 
       {/* Section Sondages (si actif) */}
       {hasSurveys && <SurveysSection />}
+
+      {hasTickets && <TicketsRealtime communeId={ctx.communeId} />}
 
       {/* Aucun module activé */}
       {!hasSurveys && !hasTickets && (

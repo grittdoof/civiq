@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeft,
   Check,
   Loader2,
   PencilLine,
+  Save,
   X,
 } from "lucide-react";
 import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
@@ -159,7 +161,8 @@ export default function NewTicketForm({ communeId, agents }: Props) {
 
   return (
     <main className="tk-wizard">
-      <header className="tk-wizard-header">
+      {/* ─── Mobile : header + progress bar ─── */}
+      <header className="tk-wizard-header tk-mobile-only">
         <button
           type="button"
           onClick={attemptQuit}
@@ -176,7 +179,7 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         </span>
       </header>
 
-      <div className="tk-wizard-progress">
+      <div className="tk-wizard-progress tk-mobile-only">
         {Array.from({ length: total }).map((_, i) => (
           <span
             key={i}
@@ -184,6 +187,17 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           />
         ))}
       </div>
+
+      {/* ─── Desktop : header simple ─── */}
+      <header className="tk-wizard-desktop-header tk-desktop-only">
+        <Link href="/admin/tickets" className="tk-wizard-desktop-back">
+          <ArrowLeft size={14} /> Tickets
+        </Link>
+        <h1 className="tk-wizard-desktop-title">Nouveau ticket</h1>
+        <p className="tk-wizard-desktop-sub">
+          Renseigne toutes les sections puis valide en bas de la page.
+        </p>
+      </header>
 
       <div className="tk-wizard-body">
         {error && (
@@ -193,29 +207,59 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           </div>
         )}
 
-        <div className="tk-wizard-title-block">
-          <div className="tk-wizard-eyebrow">{currentStep.eyebrow}</div>
-          <h1 className="tk-wizard-title">{currentStep.title}</h1>
-          {currentStep.subtitle && (
-            <p className="tk-wizard-subtitle">{currentStep.subtitle}</p>
+        {/* ─── Mobile : une seule étape à la fois ─── */}
+        <div className="tk-mobile-only">
+          <div className="tk-wizard-title-block">
+            <div className="tk-wizard-eyebrow">{currentStep.eyebrow}</div>
+            <h2 className="tk-wizard-title">{currentStep.title}</h2>
+            {currentStep.subtitle && (
+              <p className="tk-wizard-subtitle">{currentStep.subtitle}</p>
+            )}
+          </div>
+
+          <StepContent
+            stepId={currentStep.id}
+            value={value}
+            set={set}
+            agents={agents}
+            communeId={communeId}
+            toggleAssignee={toggleAssignee}
+          />
+
+          {invalidReason && (
+            <p className="tk-wizard-hint">{invalidReason}</p>
           )}
         </div>
 
-        <StepContent
-          stepId={currentStep.id}
-          value={value}
-          set={set}
-          agents={agents}
-          communeId={communeId}
-          toggleAssignee={toggleAssignee}
-        />
-
-        {invalidReason && (
-          <p className="tk-wizard-hint">{invalidReason}</p>
-        )}
+        {/* ─── Desktop : toutes les étapes empilées ─── */}
+        <div className="tk-desktop-only tk-wizard-allsteps">
+          {steps.map((step, i) => (
+            <section key={step.id} className="tk-step-section">
+              <div className="tk-wizard-title-block">
+                <div className="tk-wizard-eyebrow">
+                  {i + 1}. {step.eyebrow}
+                  {step.optional && <span className="tk-wizard-optional"> · optionnel</span>}
+                </div>
+                <h2 className="tk-wizard-title tk-wizard-title-desktop">{step.title}</h2>
+                {step.subtitle && (
+                  <p className="tk-wizard-subtitle">{step.subtitle}</p>
+                )}
+              </div>
+              <StepContent
+                stepId={step.id}
+                value={value}
+                set={set}
+                agents={agents}
+                communeId={communeId}
+                toggleAssignee={toggleAssignee}
+              />
+            </section>
+          ))}
+        </div>
       </div>
 
-      <div className="tk-wizard-cta">
+      {/* ─── Mobile : CTA sticky ─── */}
+      <div className="tk-wizard-cta tk-mobile-only">
         <button
           type="button"
           onClick={handlePrev}
@@ -231,6 +275,22 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           className="civiq-btn civiq-btn-default tk-wizard-cta-next"
         >
           {wiz.isOnLastStep ? "Vérifier" : "Continuer"}
+        </button>
+      </div>
+
+      {/* ─── Desktop : submit inline ─── */}
+      <div className="tk-wizard-desktop-cta tk-desktop-only">
+        <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">
+          Annuler
+        </Link>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!wiz.isValidGlobal || pending}
+          className="civiq-btn civiq-btn-default"
+        >
+          {pending ? <Loader2 size={16} className="civiq-spin" /> : <Save size={16} />}
+          {pending ? "Création…" : "Créer le ticket"}
         </button>
       </div>
 

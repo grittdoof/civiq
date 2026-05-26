@@ -800,9 +800,19 @@ button.civiq-card,
   transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
 @media (max-width: 680px) {
-  .tk-pill { min-height: 44px; padding: 10px 16px; font-size: 14px; }
-  .tk-pills { gap: 8px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
-  .tk-pill { flex-shrink: 0; }
+  .tk-pills { gap: 6px; flex-wrap: wrap; }
+  .tk-pill {
+    min-height: 44px;
+    padding: 8px 12px;
+    font-size: 13px;
+    gap: 5px;
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .tk-pill .tk-pill-count { padding: 1px 6px; font-size: 11px; }
+}
+@media (max-width: 380px) {
+  .tk-pill { padding: 8px 10px; font-size: 12.5px; }
 }
 .tk-pill:hover { background: var(--border-light); color: var(--fg); }
 .tk-pill.active {
@@ -1029,6 +1039,66 @@ button.civiq-card,
   margin: 0 auto;
 }
 
+/* Responsive helpers (mobile-first) */
+.tk-mobile-only { display: block; }
+.tk-desktop-only { display: none; }
+@media (min-width: 900px) {
+  .tk-mobile-only { display: none !important; }
+  .tk-desktop-only { display: block; }
+  .tk-wizard { max-width: 800px; padding: 0 24px 48px; }
+  .tk-wizard-body { padding: 0; overflow: visible; }
+}
+
+/* Desktop header */
+.tk-wizard-desktop-header { padding: 32px 0 24px; }
+.tk-wizard-desktop-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--fg-muted); text-decoration: none;
+  margin-bottom: 12px;
+}
+.tk-wizard-desktop-back:hover { color: var(--fg); }
+.tk-wizard-desktop-title {
+  font-size: 26px; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--fg); margin: 0;
+}
+.tk-wizard-desktop-sub {
+  font-size: 14px; color: var(--fg-muted); margin-top: 4px;
+}
+
+/* Desktop : all steps stacked */
+.tk-wizard-allsteps {
+  display: flex; flex-direction: column; gap: 24px;
+}
+.tk-step-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+}
+.tk-wizard-title-desktop {
+  font-size: 18px !important;
+}
+.tk-wizard-optional {
+  text-transform: lowercase;
+  color: var(--fg-xmuted);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* Desktop CTA (inline at the bottom of page) */
+.tk-wizard-desktop-cta {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.tk-wizard-desktop-cta .civiq-btn { min-width: 160px; justify-content: center; }
+@media (min-width: 900px) {
+  .tk-wizard-desktop-cta { display: flex; }
+}
+
 .tk-wizard-header {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; padding: 12px 16px 8px;
@@ -1231,6 +1301,17 @@ button.civiq-card,
   background: var(--accent);
 }
 
+/* Skeleton placeholder */
+@keyframes tk-skel-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.tk-skel {
+  background: var(--border-light);
+  border-radius: 6px;
+  animation: tk-skel-pulse 1.3s ease-in-out infinite;
+}
+
 /* ─── Sticky CTA ─── */
 .tk-wizard-cta {
   position: fixed;
@@ -1241,17 +1322,22 @@ button.civiq-card,
   border-top: 1px solid var(--border);
   z-index: 10;
 }
+.tk-wizard-cta .civiq-btn { width: auto; }
 .tk-wizard-cta-prev {
   flex: 0 0 auto;
-  min-width: 120px;
+  min-width: 110px;
   justify-content: center;
   min-height: 48px;
 }
 .tk-wizard-cta-next {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   justify-content: center;
   min-height: 48px;
   font-size: 15px;
+}
+@media (max-width: 380px) {
+  .tk-wizard-cta-prev { min-width: 92px; padding-left: 10px; padding-right: 10px; }
 }
 
 /* ─── Bottom sheet (récap, confirm, more actions) ─── */
@@ -1355,6 +1441,8 @@ button.civiq-card,
   border-top: 1px solid var(--border);
   box-shadow: 0 -6px 16px oklch(0 0 0 / 0.06);
 }
+.tk-mobile-actions .civiq-btn { width: auto; }
+.tk-sheet-footer .civiq-btn { width: auto; }
 .tk-mobile-actions-primary {
   flex: 1;
   min-height: 48px;
