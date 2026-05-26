@@ -1,33 +1,47 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Save, AlertCircle } from "lucide-react";
-import TicketLocationPicker, { type LocationValue } from "@/components/tickets/TicketLocationPicker";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  Loader2,
+  PencilLine,
+  X,
+} from "lucide-react";
+import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { createTicket } from "@/lib/tickets/mutations";
 import {
-  CANAL_LABELS, CATEGORIE_LABELS, CATEGORIE_ICONS, PRIORITE_LABELS, PRIORITE_COLORS,
-  type TicketCanal, type TicketCategorie, type TicketPriorite,
+  CANAL_LABELS,
+  CATEGORIE_LABELS,
+  CATEGORIE_ICONS,
+  PRIORITE_LABELS,
+  PRIORITE_COLORS,
+  type TicketCanal,
+  type TicketCategorie,
+  type TicketPriorite,
 } from "@/lib/tickets/types";
+import {
+  useTicketWizard,
+  type WizardStepId,
+  type WizardValue,
+} from "@/lib/tickets/useTicketWizard";
 
 // ═══════════════════════════════════════════════════════════════
-// Formulaire complet de création (client) — sections progressives
-//
-//   1. Canal de réception
-//   2. Demandeur (si canal externe)
-//   3. Description (titre, description, catégorie, priorité)
-//   4. Localisation
-//   5. Photos
-//   6. Assignation (optionnelle)
-//
-// Conçu pour être rempli en < 1 min sur mobile par un élu terrain.
+// Wizard mobile-first de création de ticket.
+// Une question par écran (cf. useTicketWizard). Récap éditable via
+// bottom sheet avant submit. Conserve les tokens civiq existants.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   communeId: string;
-  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  agents: Array<{
+    id: string;
+    full_name: string | null;
+    job_title: string | null;
+  }>;
 }
 
 const CANAUX: Array<{ value: TicketCanal; emoji: string; help: string }> = [
@@ -53,320 +67,657 @@ export default function NewTicketForm({ communeId, agents }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showRecap, setShowRecap] = useState(false);
+  const [confirmQuit, setConfirmQuit] = useState(false);
 
-  const [canal, setCanal] = useState<TicketCanal>("elu_terrain");
-  const [demandeurNom, setDemandeurNom] = useState("");
-  const [demandeurTel, setDemandeurTel] = useState("");
-  const [demandeurEmail, setDemandeurEmail] = useState("");
-  const [demandeurAdresse, setDemandeurAdresse] = useState("");
+  const wiz = useTicketWizard();
+  const { value, set, steps, current, currentStep, total, canNext, invalidReason, isDirty } = wiz;
 
-  const [titre, setTitre] = useState("");
-  const [description, setDescription] = useState("");
-  const [categorie, setCategorie] = useState<TicketCategorie>("voirie");
-  const [priorite, setPriorite] = useState<TicketPriorite>("normale");
-
-  const [location, setLocation] = useState<LocationValue>({
-    latitude: null, longitude: null, adresse: null, precision_geo: null,
-  });
-
-  const [photoPaths, setPhotoPaths] = useState<string[]>([]);
-  const [assigneIds, setAssigneIds] = useState<string[]>([]);
-  const [echeance, setEcheance] = useState<string>("");
+  // Block native back if dirty
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [isDirty]);
 
   function toggleAssignee(id: string) {
-    setAssigneIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    set(
+      "assigneIds",
+      value.assigneIds.includes(id)
+        ? value.assigneIds.filter((x) => x !== id)
+        : [...value.assigneIds, id],
     );
   }
 
-  const showDemandeur = canal !== "elu_terrain" && canal !== "agent_interne";
+  function attemptQuit() {
+    if (isDirty) {
+      setConfirmQuit(true);
+    } else {
+      router.push("/admin/tickets");
+    }
+  }
+
+  function handlePrev() {
+    setError(null);
+    if (current === 0) {
+      attemptQuit();
+      return;
+    }
+    wiz.prev();
+  }
+
+  function handleNext() {
+    setError(null);
+    if (!canNext) return;
+    if (wiz.isOnLastStep) {
+      setShowRecap(true);
+      return;
+    }
+    wiz.next();
+  }
 
   function submit() {
     setError(null);
-    if (!titre.trim()) {
-      setError("Le titre du ticket est requis.");
+    if (!wiz.isValidGlobal || !value.categorie) {
+      setError("Certaines informations sont incomplètes.");
       return;
     }
-
+    const showDemandeur = value.canal === "telephone" || value.canal === "email";
     startTransition(async () => {
       try {
         const result = await createTicket({
-          canal,
-          demandeur_nom: showDemandeur ? demandeurNom : null,
-          demandeur_telephone: showDemandeur ? demandeurTel : null,
-          demandeur_email: showDemandeur ? demandeurEmail : null,
-          demandeur_adresse: showDemandeur ? demandeurAdresse : null,
-          titre,
-          description,
-          categorie,
-          priorite,
-          adresse: location.adresse,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          precision_geo: location.precision_geo,
-          assignee_ids: assigneIds,
-          echeance: echeance || null,
-          photo_paths: photoPaths,
+          canal: value.canal,
+          demandeur_nom: showDemandeur ? value.demandeur_nom : null,
+          demandeur_telephone: showDemandeur ? value.demandeur_telephone : null,
+          demandeur_email: showDemandeur ? value.demandeur_email : null,
+          demandeur_adresse: showDemandeur ? value.demandeur_adresse : null,
+          titre: value.titre,
+          description: value.description,
+          categorie: value.categorie!,
+          priorite: value.priorite,
+          adresse: value.location.adresse,
+          latitude: value.location.latitude,
+          longitude: value.location.longitude,
+          precision_geo: value.location.precision_geo,
+          assignee_ids: value.assigneIds,
+          echeance: value.echeance || null,
+          photo_paths: value.photoPaths,
         });
         router.push(`/admin/tickets/${result.id}`);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur inconnue");
+        setShowRecap(false);
       }
     });
   }
 
   return (
-    <main className="civiq-main">
-      <Link href="/admin/tickets" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--fg-muted)", textDecoration: "none", marginBottom: 16 }}>
-        <ArrowLeft size={14} /> Tickets
-      </Link>
-
-      <header style={{ marginBottom: 20 }}>
-        <h1 className="civiq-page-title">Nouveau ticket</h1>
-        <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>
-          Renseignez les informations de l&apos;intervention. Tous les champs avec * sont obligatoires.
-        </p>
+    <main className="tk-wizard">
+      <header className="tk-wizard-header">
+        <button
+          type="button"
+          onClick={attemptQuit}
+          className="tk-wizard-iconbtn"
+          aria-label="Quitter"
+        >
+          <X size={18} />
+        </button>
+        <span className="tk-wizard-step">
+          Étape {current + 1} sur {total}
+        </span>
+        <span className="tk-wizard-iconbtn" aria-hidden style={{ visibility: "hidden" }}>
+          <X size={18} />
+        </span>
       </header>
 
-      {error && (
-        <div style={{ display: "flex", gap: 10, padding: "10px 14px", background: "oklch(0.97 0.04 25)", border: "1px solid var(--destructive)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 13, marginBottom: 16 }}>
-          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 18, maxWidth: 720 }}>
-        {/* ── 1. Canal ── */}
-        <Section title="1 · Canal de réception" subtitle="Comment ce signalement est-il arrivé ?">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8 }}>
-            {CANAUX.map((c) => (
-              <button
-                key={c.value}
-                type="button"
-                onClick={() => setCanal(c.value)}
-                className="tk-option-card"
-                data-active={canal === c.value}
-              >
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{c.emoji}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>{CANAL_LABELS[c.value]}</div>
-                <div style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 2, lineHeight: 1.35 }}>{c.help}</div>
-              </button>
-            ))}
-          </div>
-        </Section>
-
-        {/* ── 2. Demandeur ── */}
-        {showDemandeur && (
-          <Section title="2 · Demandeur" subtitle="Qui a signalé ce problème ?">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-              <Field label="Nom">
-                <input className="civiq-input" value={demandeurNom} onChange={(e) => setDemandeurNom(e.target.value)} placeholder="Mme Dupont" />
-              </Field>
-              <Field label="Téléphone">
-                <input className="civiq-input" type="tel" value={demandeurTel} onChange={(e) => setDemandeurTel(e.target.value)} placeholder="06 12 34 56 78" />
-              </Field>
-              <Field label="Email">
-                <input className="civiq-input" type="email" value={demandeurEmail} onChange={(e) => setDemandeurEmail(e.target.value)} placeholder="dupont@example.fr" />
-              </Field>
-              <Field label="Adresse">
-                <input className="civiq-input" value={demandeurAdresse} onChange={(e) => setDemandeurAdresse(e.target.value)} placeholder="12 rue X" />
-              </Field>
-            </div>
-          </Section>
-        )}
-
-        {/* ── 3. Description ── */}
-        <Section title={`${showDemandeur ? "3" : "2"} · Description`} subtitle="Décrivez le problème en quelques mots clairs.">
-          <Field label="Titre court *">
-            <input
-              className="civiq-input"
-              value={titre}
-              onChange={(e) => setTitre(e.target.value)}
-              placeholder="Ex : Nid-de-poule rue de la Mairie"
-              maxLength={200}
-              required
-            />
-          </Field>
-          <Field label="Description (détails utiles)">
-            <textarea
-              className="civiq-input civiq-textarea"
-              rows={3}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Localisation précise, gravité observée, accès, etc."
-            />
-          </Field>
-
-          <Field label="Catégorie *">
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategorie(c)}
-                  className="tk-pill"
-                  data-active={categorie === c}
-                  style={categorie === c ? { background: "var(--accent)", color: "#fff", borderColor: "var(--accent)" } : undefined}
-                >
-                  <span aria-hidden>{CATEGORIE_ICONS[c]}</span> {CATEGORIE_LABELS[c]}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          <Field label="Priorité *">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-              {PRIORITES.map((p) => {
-                const c = PRIORITE_COLORS[p.value];
-                const active = priorite === p.value;
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => setPriorite(p.value)}
-                    className="tk-option-card"
-                    data-active={active}
-                    style={active ? { borderColor: c.fg, background: c.bg } : undefined}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.fg, display: "inline-block" }} />
-                      <strong style={{ color: "var(--fg)", fontSize: 13 }}>{PRIORITE_LABELS[p.value]}</strong>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--fg-muted)", lineHeight: 1.4 }}>{p.sub}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-        </Section>
-
-        {/* ── 4. Localisation ── */}
-        <Section title={`${showDemandeur ? "4" : "3"} · Localisation`} subtitle="GPS, adresse ou clic sur la carte — au choix.">
-          <TicketLocationPicker value={location} onChange={setLocation} />
-        </Section>
-
-        {/* ── 5. Photos ── */}
-        <Section title={`${showDemandeur ? "5" : "4"} · Photos`} subtitle="Au moins une photo aide énormément l'agent technique.">
-          <TicketPhotoUpload communeId={communeId} onChange={setPhotoPaths} max={5} />
-        </Section>
-
-        {/* ── 6. Assignation ── */}
-        <Section
-          title={`${showDemandeur ? "6" : "5"} · Assignation (optionnel)`}
-          subtitle="Sélectionnez un ou plusieurs intervenants — case à cocher."
-        >
-          <Field label={`Agents assignés${assigneIds.length ? ` (${assigneIds.length})` : ""}`}>
-            {agents.length === 0 ? (
-              <p style={{ fontSize: 12, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6, maxHeight: 260, overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: 8 }}>
-                {agents.map((a) => {
-                  const checked = assigneIds.includes(a.id);
-                  return (
-                    <label
-                      key={a.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        background: checked ? "var(--accent-light)" : "transparent",
-                        border: `1px solid ${checked ? "var(--accent)" : "transparent"}`,
-                        fontSize: 13,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAssignee(a.id)}
-                        style={{ accentColor: "var(--accent)" }}
-                      />
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, color: "var(--fg)" }}>
-                          {a.full_name || "(sans nom)"}
-                        </span>
-                        {a.job_title && (
-                          <span style={{ fontSize: 11, color: "var(--fg-muted)", display: "block", textTransform: "capitalize" }}>
-                            {a.job_title.replace("_", " ")}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </Field>
-          <Field label="Échéance souhaitée">
-            <input
-              type="date"
-              className="civiq-input"
-              value={echeance}
-              onChange={(e) => setEcheance(e.target.value)}
-              min={new Date().toISOString().slice(0, 10)}
-            />
-          </Field>
-        </Section>
-
-        {/* Footer actions */}
-        <div style={{
-          display: "flex", gap: 10, justifyContent: "flex-end",
-          paddingTop: 12, marginTop: 4, borderTop: "1px solid var(--border)",
-          position: "sticky", bottom: 0, background: "var(--bg)", paddingBottom: 12,
-        }}>
-          <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">Annuler</Link>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={pending || !titre.trim()}
-            className="civiq-btn civiq-btn-default"
-            style={{ minWidth: 160, justifyContent: "center" }}
-          >
-            <Save size={14} /> {pending ? "Création…" : "Créer le ticket"}
-          </button>
-        </div>
+      <div className="tk-wizard-progress">
+        {Array.from({ length: total }).map((_, i) => (
+          <span
+            key={i}
+            className={`tk-wizard-progress-seg${i <= current ? " filled" : ""}`}
+          />
+        ))}
       </div>
 
-      <style>{`
-        .tk-option-card {
-          padding: 10px 12px;
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-sm);
-          text-align: left;
-          cursor: pointer;
-          font-family: inherit;
-          transition: border-color var(--transition), background var(--transition);
-        }
-        .tk-option-card:hover { border-color: var(--fg-muted); }
-        .tk-option-card[data-active="true"] {
-          border-color: var(--accent);
-          background: var(--accent-light);
-        }
-      `}</style>
+      <div className="tk-wizard-body">
+        {error && (
+          <div className="tk-wizard-error">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
+
+        <div className="tk-wizard-title-block">
+          <div className="tk-wizard-eyebrow">{currentStep.eyebrow}</div>
+          <h1 className="tk-wizard-title">{currentStep.title}</h1>
+          {currentStep.subtitle && (
+            <p className="tk-wizard-subtitle">{currentStep.subtitle}</p>
+          )}
+        </div>
+
+        <StepContent
+          stepId={currentStep.id}
+          value={value}
+          set={set}
+          agents={agents}
+          communeId={communeId}
+          toggleAssignee={toggleAssignee}
+        />
+
+        {invalidReason && (
+          <p className="tk-wizard-hint">{invalidReason}</p>
+        )}
+      </div>
+
+      <div className="tk-wizard-cta">
+        <button
+          type="button"
+          onClick={handlePrev}
+          className="civiq-btn civiq-btn-outline tk-wizard-cta-prev"
+        >
+          <ArrowLeft size={16} />
+          {current === 0 ? "Annuler" : "Précédent"}
+        </button>
+        <button
+          type="button"
+          onClick={handleNext}
+          disabled={!canNext || pending}
+          className="civiq-btn civiq-btn-default tk-wizard-cta-next"
+        >
+          {wiz.isOnLastStep ? "Vérifier" : "Continuer"}
+        </button>
+      </div>
+
+      {showRecap && (
+        <RecapSheet
+          value={value}
+          steps={steps.map((s) => s.id)}
+          agents={agents}
+          pending={pending}
+          onEdit={(id) => {
+            setShowRecap(false);
+            wiz.goToStep(id);
+          }}
+          onClose={() => setShowRecap(false)}
+          onSubmit={submit}
+        />
+      )}
+
+      {confirmQuit && (
+        <ConfirmQuitDialog
+          onCancel={() => setConfirmQuit(false)}
+          onConfirm={() => router.push("/admin/tickets")}
+        />
+      )}
     </main>
   );
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+// ─── Step content router ─────────────────────────────────────────
+
+function StepContent({
+  stepId,
+  value,
+  set,
+  agents,
+  communeId,
+  toggleAssignee,
+}: {
+  stepId: WizardStepId;
+  value: WizardValue;
+  set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
+  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  communeId: string;
+  toggleAssignee: (id: string) => void;
+}) {
+  switch (stepId) {
+    case "canal":
+      return (
+        <div className="tk-wizard-options">
+          {CANAUX.map((c) => {
+            const active = value.canal === c.value;
+            return (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => set("canal", c.value)}
+                className="tk-wizard-option"
+                aria-pressed={active}
+                data-active={active}
+              >
+                <span className="tk-wizard-option-emoji">{c.emoji}</span>
+                <span className="tk-wizard-option-body">
+                  <span className="tk-wizard-option-title">{CANAL_LABELS[c.value]}</span>
+                  <span className="tk-wizard-option-help">{c.help}</span>
+                </span>
+                <span className="tk-wizard-radio" aria-hidden>
+                  {active && <Check size={14} strokeWidth={3} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      );
+
+    case "demandeur":
+      return (
+        <div className="tk-wizard-fields">
+          <Field label="Nom" autoComplete="name">
+            <input
+              className="civiq-input"
+              value={value.demandeur_nom}
+              onChange={(e) => set("demandeur_nom", e.target.value)}
+              placeholder="Mme Dupont"
+              autoComplete="name"
+            />
+          </Field>
+          <Field label="Téléphone">
+            <input
+              className="civiq-input"
+              type="tel"
+              inputMode="tel"
+              value={value.demandeur_telephone}
+              onChange={(e) => set("demandeur_telephone", e.target.value)}
+              placeholder="06 12 34 56 78"
+              autoComplete="tel"
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              className="civiq-input"
+              type="email"
+              inputMode="email"
+              value={value.demandeur_email}
+              onChange={(e) => set("demandeur_email", e.target.value)}
+              placeholder="dupont@example.fr"
+              autoComplete="email"
+            />
+          </Field>
+          <Field label="Adresse">
+            <input
+              className="civiq-input"
+              value={value.demandeur_adresse}
+              onChange={(e) => set("demandeur_adresse", e.target.value)}
+              placeholder="12 rue X"
+              autoComplete="street-address"
+            />
+          </Field>
+        </div>
+      );
+
+    case "categorie":
+      return (
+        <div className="tk-wizard-grid">
+          {CATEGORIES.map((c) => {
+            const active = value.categorie === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                onClick={() => set("categorie", c)}
+                className="tk-wizard-cat"
+                aria-pressed={active}
+                data-active={active}
+              >
+                <span className="tk-wizard-cat-emoji" aria-hidden>{CATEGORIE_ICONS[c]}</span>
+                <span className="tk-wizard-cat-label">{CATEGORIE_LABELS[c]}</span>
+              </button>
+            );
+          })}
+        </div>
+      );
+
+    case "description":
+      return (
+        <div className="tk-wizard-fields">
+          <Field label="Titre court" required>
+            <input
+              className="civiq-input"
+              value={value.titre}
+              onChange={(e) => set("titre", e.target.value)}
+              placeholder="Ex : Nid-de-poule rue de la Mairie"
+              maxLength={200}
+              autoFocus
+            />
+            <span className="civiq-hint">{value.titre.length} / 200</span>
+          </Field>
+          <Field label="Description (optionnel)">
+            <textarea
+              className="civiq-input civiq-textarea"
+              rows={4}
+              value={value.description}
+              onChange={(e) => set("description", e.target.value)}
+              placeholder="Détails utiles : gravité observée, accès, etc."
+            />
+          </Field>
+        </div>
+      );
+
+    case "priorite":
+      return (
+        <div className="tk-wizard-options">
+          {PRIORITES.map((p) => {
+            const c = PRIORITE_COLORS[p.value];
+            const active = value.priorite === p.value;
+            return (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => set("priorite", p.value)}
+                className="tk-wizard-option"
+                aria-pressed={active}
+                data-active={active}
+                style={active ? { borderColor: c.fg, background: c.bg } : undefined}
+              >
+                <span
+                  className="tk-wizard-option-emoji"
+                  style={{
+                    background: c.bg,
+                    color: c.fg,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 18,
+                  }}
+                  aria-hidden
+                >
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: c.fg }} />
+                </span>
+                <span className="tk-wizard-option-body">
+                  <span className="tk-wizard-option-title">{PRIORITE_LABELS[p.value]}</span>
+                  <span className="tk-wizard-option-help">{p.sub}</span>
+                </span>
+                <span className="tk-wizard-radio" aria-hidden>
+                  {active && <Check size={14} strokeWidth={3} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      );
+
+    case "localisation":
+      return (
+        <div className="tk-wizard-locpicker">
+          <TicketLocationPicker
+            value={value.location}
+            onChange={(loc) => set("location", loc)}
+          />
+        </div>
+      );
+
+    case "photos":
+      return (
+        <div>
+          <TicketPhotoUpload
+            communeId={communeId}
+            onChange={(paths) => set("photoPaths", paths)}
+            max={5}
+          />
+        </div>
+      );
+
+    case "assignation":
+      return (
+        <div className="tk-wizard-fields">
+          {agents.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
+          ) : (
+            <div className="tk-wizard-agents">
+              {agents.map((a) => {
+                const checked = value.assigneIds.includes(a.id);
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => toggleAssignee(a.id)}
+                    className="tk-wizard-agent"
+                    aria-pressed={checked}
+                    data-active={checked}
+                  >
+                    <span className="tk-wizard-agent-avatar" aria-hidden>
+                      {(a.full_name?.[0] ?? "?").toUpperCase()}
+                    </span>
+                    <span className="tk-wizard-agent-body">
+                      <span className="tk-wizard-agent-name">
+                        {a.full_name || "(sans nom)"}
+                      </span>
+                      {a.job_title && (
+                        <span className="tk-wizard-agent-job">
+                          {a.job_title.replace("_", " ")}
+                        </span>
+                      )}
+                    </span>
+                    <span className="tk-wizard-checkbox" aria-hidden>
+                      {checked && <Check size={14} strokeWidth={3} />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <Field label="Échéance souhaitée (optionnel)">
+            <input
+              type="date"
+              className="civiq-input"
+              value={value.echeance}
+              onChange={(e) => set("echeance", e.target.value)}
+              min={new Date().toISOString().slice(0, 10)}
+            />
+          </Field>
+        </div>
+      );
+  }
+}
+
+// ─── Récap sheet ────────────────────────────────────────────────
+
+function RecapSheet({
+  value,
+  steps,
+  agents,
+  pending,
+  onEdit,
+  onClose,
+  onSubmit,
+}: {
+  value: WizardValue;
+  steps: WizardStepId[];
+  agents: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  pending: boolean;
+  onEdit: (id: WizardStepId) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, []);
+
+  const assigneeNames = value.assigneIds
+    .map((id) => agents.find((a) => a.id === id)?.full_name ?? "—")
+    .filter(Boolean);
+
+  const rows: Array<{ id: WizardStepId; label: string; value: React.ReactNode }> = [
+    { id: "canal", label: "Canal", value: CANAL_LABELS[value.canal] },
+  ];
+  if (steps.includes("demandeur")) {
+    rows.push({
+      id: "demandeur",
+      label: "Demandeur",
+      value:
+        [value.demandeur_nom, value.demandeur_telephone, value.demandeur_email]
+          .filter((x) => x.trim())
+          .join(" · ") || "—",
+    });
+  }
+  rows.push(
+    {
+      id: "categorie",
+      label: "Catégorie",
+      value: value.categorie ? (
+        <>
+          {CATEGORIE_ICONS[value.categorie]} {CATEGORIE_LABELS[value.categorie]}
+        </>
+      ) : "—",
+    },
+    { id: "description", label: "Titre", value: value.titre || "—" },
+  );
+  if (value.description.trim()) {
+    rows.push({ id: "description", label: "Description", value: value.description });
+  }
+  rows.push(
+    { id: "priorite", label: "Priorité", value: PRIORITE_LABELS[value.priorite] },
+    {
+      id: "localisation",
+      label: "Localisation",
+      value:
+        value.location.adresse ||
+        (value.location.latitude
+          ? `${value.location.latitude.toFixed(5)}, ${value.location.longitude?.toFixed(5)}`
+          : "—"),
+    },
+    {
+      id: "photos",
+      label: "Photos",
+      value: value.photoPaths.length
+        ? `${value.photoPaths.length} photo${value.photoPaths.length > 1 ? "s" : ""}`
+        : "Aucune",
+    },
+    {
+      id: "assignation",
+      label: "Assignés",
+      value: assigneeNames.length ? assigneeNames.join(", ") : "Non assigné",
+    },
+  );
+
   return (
-    <section className="civiq-card" style={{ padding: 16, display: "grid", gap: 12 }}>
-      <div>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>{title}</h2>
-        {subtitle && <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 2 }}>{subtitle}</p>}
+    <div className="tk-sheet-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="tk-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="tk-sheet-handle" />
+        <div className="tk-sheet-header">
+          <h3>Vérifie avant d&apos;envoyer</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="tk-wizard-iconbtn"
+            aria-label="Fermer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="tk-sheet-body">
+          <ul className="tk-recap">
+            {rows.map((r, i) => (
+              <li key={i} className="tk-recap-row">
+                <div className="tk-recap-row-main">
+                  <div className="tk-recap-label">{r.label}</div>
+                  <div className="tk-recap-value">{r.value}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onEdit(r.id)}
+                  className="tk-recap-edit"
+                  aria-label={`Modifier ${r.label}`}
+                >
+                  <PencilLine size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="tk-sheet-footer">
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={pending}
+            className="civiq-btn civiq-btn-default"
+            style={{ width: "100%", justifyContent: "center" }}
+          >
+            {pending ? <Loader2 size={16} className="civiq-spin" /> : <Check size={16} />}
+            {pending ? "Création…" : "Créer le ticket"}
+          </button>
+        </div>
       </div>
-      {children}
-    </section>
+    </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+// ─── Confirm quit ────────────────────────────────────────────────
+
+function ConfirmQuitDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="tk-sheet-backdrop" onClick={onCancel} role="dialog" aria-modal="true">
+      <div
+        className="tk-sheet"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 420, margin: "auto" }}
+      >
+        <div className="tk-sheet-handle" />
+        <div className="tk-sheet-body" style={{ textAlign: "center" }}>
+          <h3 style={{ fontSize: 17, fontWeight: 600, marginBottom: 8 }}>
+            Quitter sans enregistrer ?
+          </h3>
+          <p style={{ fontSize: 14, color: "var(--fg-muted)", lineHeight: 1.5 }}>
+            Ta saisie en cours sera perdue.
+          </p>
+        </div>
+        <div className="tk-sheet-footer" style={{ display: "flex", gap: 10 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="civiq-btn civiq-btn-outline"
+            style={{ flex: 1, justifyContent: "center" }}
+          >
+            Continuer la saisie
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="civiq-btn civiq-btn-default"
+            style={{ flex: 1, justifyContent: "center" }}
+          >
+            Quitter
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Field helper ────────────────────────────────────────────────
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+  autoComplete?: string;
+}) {
   return (
     <div>
-      <label className="civiq-field-label" style={{ fontSize: 12 }}>{label}</label>
+      <label className="civiq-field-label">
+        {label}
+        {required && <span className="civiq-required">*</span>}
+      </label>
       {children}
     </div>
   );
