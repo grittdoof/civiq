@@ -297,10 +297,11 @@ button.civiq-card,
 .civiq-icon-btn:hover { background: var(--border-light); color: var(--fg); }
 .civiq-icon-btn.danger:hover { background: oklch(0.97 0.03 25); color: var(--destructive); }
 
-/* Sur mobile : agrandit la zone de tap des icon buttons (≥ 40px) */
+/* Sur mobile : agrandit la zone de tap (≥ 44px conformément aux guidelines) */
 @media (max-width: 768px) {
-  .civiq-icon-btn { width: 40px; height: 40px; }
-  .civiq-btn-sm { padding: 8px 12px; font-size: 13px; min-height: 40px; }
+  .civiq-icon-btn { width: 44px; height: 44px; }
+  .civiq-btn { min-height: 44px; padding: 10px 16px; }
+  .civiq-btn-sm { padding: 10px 14px; font-size: 13px; min-height: 44px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -789,12 +790,19 @@ button.civiq-card,
 .tk-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .tk-pill {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 99px;
+  padding: 9px 14px; border-radius: 99px;
+  min-height: 40px;
   font-size: 13px; font-weight: 500;
   background: var(--card); color: var(--fg-muted);
   border: 1px solid var(--border);
   cursor: pointer; font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
   transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+@media (max-width: 680px) {
+  .tk-pill { min-height: 44px; padding: 10px 16px; font-size: 14px; }
+  .tk-pills { gap: 8px; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .tk-pill { flex-shrink: 0; }
 }
 .tk-pill:hover { background: var(--border-light); color: var(--fg); }
 .tk-pill.active {
@@ -811,10 +819,14 @@ button.civiq-card,
 .tk-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 .tk-search-input {
   flex: 1; min-width: 200px;
-  padding: 8px 12px;
+  padding: 10px 12px;
+  min-height: 44px;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--card); color: var(--fg);
-  font-family: inherit; font-size: 13px; outline: none;
+  font-family: inherit; font-size: 14px; outline: none;
+}
+@media (max-width: 680px) {
+  .tk-search-input { font-size: 16px; /* iOS no-zoom */ }
 }
 .tk-search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
 

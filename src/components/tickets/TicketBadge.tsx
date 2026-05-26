@@ -1,9 +1,25 @@
 import {
+  Sparkles, UserCheck, PlayCircle, Activity, Pause,
+  CheckCircle2, Lock, Ban,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import {
   PRIORITE_LABELS, PRIORITE_COLORS,
   STATUT_LABELS, STATUT_COLORS,
   CATEGORIE_LABELS, CATEGORIE_ICONS,
   type TicketPriorite, type TicketStatut, type TicketCategorie,
 } from "@/lib/tickets/types";
+
+const STATUT_ICONS: Record<TicketStatut, LucideIcon> = {
+  nouveau: Sparkles,
+  assigne: UserCheck,
+  pris_en_charge: PlayCircle,
+  en_cours: Activity,
+  en_attente: Pause,
+  resolu: CheckCircle2,
+  clos: Lock,
+  annule: Ban,
+};
 
 // ═══════════════════════════════════════════════════════════════
 // Badges pour les attributs d'un ticket — couleurs strictes
@@ -36,8 +52,10 @@ export function PrioriteBadge({ priorite, withDot = true }: { priorite: TicketPr
 
 export function StatutBadge({ statut }: { statut: TicketStatut }) {
   const c = STATUT_COLORS[statut];
+  const Icon = STATUT_ICONS[statut];
   return (
     <span className="tk-badge" style={{ background: c.bg, color: c.fg }}>
+      <Icon size={11} strokeWidth={2.5} aria-hidden style={{ marginRight: 4 }} />
       {STATUT_LABELS[statut]}
     </span>
   );

@@ -70,6 +70,7 @@ export default function TicketsFilters({ currentFilter, currentSearch, counts }:
           <button
             key={p.value}
             type="button"
+            aria-pressed={currentFilter === p.value}
             className={`tk-pill${currentFilter === p.value ? " active" : ""}`}
             onClick={() => setParam("filter", p.value === "ouverts" ? "" : p.value)}
           >
