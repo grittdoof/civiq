@@ -76,24 +76,26 @@ export default async function TicketsListPage({ searchParams }: Props) {
 
   const canCreate = ctx.role === "admin" || ctx.role === "super_admin" || ctx.role === "editor";
 
+  const emptyState = emptyStateFor(filter, canCreate, counts.tous === 0);
+
   return (
-    <main className="civiq-main">
+    <main className="civiq-main tk-list-page">
       <div className="tk-page-header">
         <div>
           <h1 className="civiq-page-title">Tickets d&apos;intervention</h1>
-          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginTop: 3 }}>
+          <p className="tk-page-subtitle">
             Signalements et interventions techniques de la commune.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Link href="/admin/tickets/carte" className="civiq-btn civiq-btn-outline">
-            <MapIcon size={14} /> Vue carte
+        <div className="tk-page-header-actions">
+          <Link href="/admin/tickets/carte" className="civiq-btn civiq-btn-outline tk-page-header-link">
+            <MapIcon size={14} /> <span>Vue carte</span>
           </Link>
-          <Link href="/admin/tickets/stats" className="civiq-btn civiq-btn-outline">
-            <BarChart3 size={14} /> Statistiques
+          <Link href="/admin/tickets/stats" className="civiq-btn civiq-btn-outline tk-page-header-link">
+            <BarChart3 size={14} /> <span>Statistiques</span>
           </Link>
           {canCreate && (
-            <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default">
+            <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default tk-page-header-create">
               <Plus size={14} /> Nouveau ticket
             </Link>
           )}
@@ -108,11 +110,15 @@ export default async function TicketsListPage({ searchParams }: Props) {
 
       {tickets.length === 0 ? (
         <div className="civiq-card tk-empty">
-          <p style={{ fontSize: 14, marginBottom: 4, color: "var(--fg)" }}>Aucun ticket pour ce filtre.</p>
-          {canCreate && (
-            <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>
-              <Link href="/admin/tickets/nouveau" style={{ color: "var(--accent)" }}>Créez le premier ticket</Link> pour démarrer.
-            </p>
+          <div className="tk-empty-icon" aria-hidden>{emptyState.icon}</div>
+          <p className="tk-empty-title">{emptyState.title}</p>
+          {emptyState.hint && (
+            <p className="tk-empty-hint">{emptyState.hint}</p>
+          )}
+          {emptyState.cta && (
+            <Link href={emptyState.cta.href} className="civiq-btn civiq-btn-default tk-empty-cta">
+              <Plus size={14} /> {emptyState.cta.label}
+            </Link>
           )}
         </div>
       ) : (
@@ -123,8 +129,54 @@ export default async function TicketsListPage({ searchParams }: Props) {
         </div>
       )}
 
+      {canCreate && (
+        <Link
+          href="/admin/tickets/nouveau"
+          className="tk-fab"
+          aria-label="Nouveau ticket"
+        >
+          <Plus size={20} strokeWidth={2.5} />
+          <span>Nouveau</span>
+        </Link>
+      )}
+
       <TicketsRealtime communeId={ctx.communeId} />
       {/* PushSubscriptionPrompt est désormais monté dans AdminShell */}
     </main>
   );
+}
+
+interface EmptyState {
+  icon: string;
+  title: string;
+  hint?: string;
+  cta?: { href: string; label: string };
+}
+
+function emptyStateFor(filter: string, canCreate: boolean, isFreshCommune: boolean): EmptyState {
+  if (isFreshCommune) {
+    return {
+      icon: "🚀",
+      title: "Aucun ticket pour l'instant",
+      hint: "Lance le module en créant ton premier signalement.",
+      cta: canCreate ? { href: "/admin/tickets/nouveau", label: "Créer un premier ticket" } : undefined,
+    };
+  }
+  switch (filter) {
+    case "mes":
+      return { icon: "🙌", title: "Aucun ticket ne t'est assigné", hint: "Tu es à jour sur tes interventions." };
+    case "ouverts":
+      return { icon: "✨", title: "Aucun ticket ouvert", hint: "Tous les signalements ont été pris en charge." };
+    case "en_cours":
+      return { icon: "🛠️", title: "Aucune intervention en cours", hint: "Lance une prise en charge pour démarrer." };
+    case "termines":
+      return { icon: "📭", title: "Aucun ticket terminé", hint: "Les tickets clôturés apparaîtront ici." };
+    default:
+      return {
+        icon: "📋",
+        title: "Aucun ticket trouvé",
+        hint: "Aucun résultat pour cette recherche ou ce filtre.",
+        cta: canCreate ? { href: "/admin/tickets/nouveau", label: "Nouveau ticket" } : undefined,
+      };
+  }
 }

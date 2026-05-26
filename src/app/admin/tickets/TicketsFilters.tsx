@@ -39,7 +39,7 @@ export default function TicketsFilters({ currentFilter, currentSearch, counts }:
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(currentSearch);
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   // Sync l'input si l'URL change extérieurement
   useEffect(() => { setSearch(currentSearch); }, [currentSearch]);
@@ -64,6 +64,7 @@ export default function TicketsFilters({ currentFilter, currentSearch, counts }:
 
   return (
     <>
+      {isPending && <div className="tk-loading-bar" aria-hidden />}
       <div className="tk-pills">
         {PILLS.map((p) => (
           <button
