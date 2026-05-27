@@ -142,6 +142,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
         ticketNumero: created.numero,
         titre: input.titre,
         assignedTo: r,
+        assignedByUserId: ctx.userId,
       }).catch((e) => console.error("[push] notify assigned:", e));
     }
   }
@@ -428,6 +429,7 @@ export async function setTicketAssignees(ticketId: string, profileIds: string[])
           ticketNumero: t.numero,
           titre: t.titre,
           assignedTo: r,
+          assignedByUserId: ctx?.userId ?? null,
         }).catch((e) => console.error("[push] notify multi-assign:", e));
       }
     }
@@ -443,7 +445,7 @@ export async function setTicketAssignees(ticketId: string, profileIds: string[])
 // ═══════════════════════════════════════════════════════════════
 
 export async function assignTicket(ticketId: string, profileId: string | null): Promise<void> {
-  const { service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
+  const { ctx, service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
   if (!isSuperAdmin && !isAdmin && !isEditor) {
     throw new Error("Seuls les éditeurs et administrateurs peuvent réassigner un ticket");
   }
@@ -485,6 +487,7 @@ export async function assignTicket(ticketId: string, profileId: string | null): 
         ticketNumero: t.numero,
         titre: t.titre,
         assignedTo: profileId,
+        assignedByUserId: ctx.userId,
       }).catch((e) => console.error("[push] notify assigned:", e));
     }
   }
@@ -688,6 +691,7 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
               ticketNumero: t.numero,
               titre: t.titre,
               assignedTo: r,
+              assignedByUserId: ctx.userId,
             }).catch((e) => console.error("[push] notify multi-assign:", e));
           }
         }

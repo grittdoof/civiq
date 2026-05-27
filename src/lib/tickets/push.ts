@@ -110,8 +110,32 @@ export async function sendTicketNotification(input: NotifyInput): Promise<SendRe
 
 // ─── Helpers haut-niveau pour les déclencheurs métier ───
 
-/** Notif lors d'une assignation directe à un agent. */
-export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumero: number; titre: string; assignedTo: string }) {
+/** Notif lors d'une assignation directe à un agent. Envoie push + email + SMS. */
+export async function notifyTicketAssigned(opts: {
+  ticketId: string;
+  ticketNumero: number;
+  titre: string;
+  assignedTo: string;
+  /** Soit le nom déjà résolu, soit l'id du profil pour résolution auto. */
+  assignedByName?: string | null;
+  assignedByUserId?: string | null;
+}) {
+  // Résolution paresseuse du nom de l'assignateur si seulement l'ID fourni
+  let assignedByName = opts.assignedByName ?? null;
+  if (!assignedByName && opts.assignedByUserId) {
+    try {
+      const service = await createServiceClient();
+      const { data } = await service
+        .from("profiles")
+        .select("full_name")
+        .eq("id", opts.assignedByUserId)
+        .maybeSingle();
+      assignedByName = data?.full_name ?? null;
+    } catch (e) {
+      console.warn("[email] lookup assignedByName failed:", e);
+    }
+  }
+
   const push = sendTicketNotification({
     profileIds: [opts.assignedTo],
     title: `Ticket #${opts.ticketNumero} vous a été assigné`,
@@ -119,6 +143,26 @@ export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumer
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `ticket-${opts.ticketId}`,
   });
+
+  // Email transactionnel (lazy import pour éviter un cycle si Resend pas configuré)
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "https://www.gociviq.fr";
+  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  import("@/lib/notifications/email")
+    .then(({ sendTicketAssignedEmail }) =>
+      sendTicketAssignedEmail({
+        profileIds: [opts.assignedTo],
+        ticketId: opts.ticketId,
+        ticketNumero: opts.ticketNumero,
+        titre: opts.titre,
+        ticketUrl,
+        assignedByName,
+      }),
+    )
+    .catch((e) => console.error("[email] assigned:", e));
+
   // SMS opt-in en parallèle (pas bloquant si Twilio indispo)
   sendOptInSms({
     profileIds: [opts.assignedTo],
