@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   ChevronRight,
   FileEdit,
@@ -74,6 +75,13 @@ export default function TicketMobileActions({
   return (
     <>
       <div className="tk-mobile-actions" aria-label="Actions du ticket">
+        <Link
+          href="/admin/tickets"
+          className="tk-mobile-actions-back"
+          aria-label="Retour à la liste des tickets"
+        >
+          <ArrowLeft size={20} />
+        </Link>
         {!isClosed && canEdit && (
           <Link
             href={`/admin/tickets/${ticketId}/cloturer`}

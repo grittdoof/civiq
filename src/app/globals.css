@@ -1154,7 +1154,30 @@ button.civiq-card,
   padding: 16px 0;
   border-top: 1px solid var(--border);
 }
-.tk-form-desktop-submit .civiq-btn { min-width: 160px; justify-content: center; }
+.tk-form-desktop-submit .civiq-btn {
+  min-width: 160px;
+  justify-content: center;
+  padding-left: 20px;
+  padding-right: 20px;
+  white-space: normal; /* permet le wrap si vraiment trop long */
+}
+
+/* Sur mobile : stack vertical, boutons pleine largeur, ordre inversé
+   pour que l'action principale (Enregistrer) soit au-dessus. Évite
+   le débordement quand 2 boutons partagent ~50% chacun sur 375px. */
+@media (max-width: 680px) {
+  .tk-form-desktop-submit {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+    padding: 14px 0 calc(env(safe-area-inset-bottom, 0px) + 8px);
+  }
+  .tk-form-desktop-submit .civiq-btn {
+    min-width: 0;
+    width: 100%;
+    min-height: 48px;
+  }
+}
 
 .tk-wizard-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -1672,7 +1695,8 @@ button.civiq-card,
   .tk-mobile-actions-report { padding: 10px 14px; gap: 6px; }
   .tk-mobile-actions-report-label { display: inline; font-size: 13px; }
 }
-.tk-mobile-actions-more {
+.tk-mobile-actions-more,
+.tk-mobile-actions-back {
   flex-shrink: 0;
   width: 48px; height: 48px;
   border-radius: 999px;
@@ -1681,9 +1705,11 @@ button.civiq-card,
   color: var(--fg);
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer;
+  text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
-.tk-mobile-actions-more:hover { background: var(--border-light); }
+.tk-mobile-actions-more:hover,
+.tk-mobile-actions-back:hover { background: var(--border-light); }
 .tk-mobile-actions-status {
   flex: 1;
   display: flex; align-items: center; gap: 8px;
