@@ -12,10 +12,11 @@ import {
   Loader2,
   MoreHorizontal,
   PencilLine,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
-import { deleteTicketHard } from "@/lib/tickets/mutations";
+import { deleteTicketHard, reopenTicket } from "@/lib/tickets/mutations";
 import { groupOf, type TicketStatut } from "@/lib/tickets/types";
 
 // ═══════════════════════════════════════════════════════════════
@@ -68,8 +69,22 @@ export default function TicketMobileActions({
     });
   }
 
-  // Si le ticket est clôturé et l'utilisateur n'est pas super-admin → rien à afficher
-  if (isClosed && !isSuperAdmin) return null;
+  function reopen() {
+    setMenuOpen(false);
+    startTransition(async () => {
+      try {
+        await reopenTicket(ticketId);
+        setToast({ kind: "ok", text: "Ticket rouvert" });
+        router.refresh();
+      } catch (e) {
+        setToast({ kind: "err", text: e instanceof Error ? e.message : "Erreur" });
+      }
+    });
+  }
+
+  // Caché uniquement si l'utilisateur n'a rien à faire :
+  //   - ni édition (création/modif/clôture/réouverture)
+  //   - ni super-admin (suppression)
   if (!canEdit && !isSuperAdmin) return null;
 
   return (
@@ -91,7 +106,18 @@ export default function TicketMobileActions({
             <span>{hasReport ? "Modifier le rapport" : "Clôturer + rapport"}</span>
           </Link>
         )}
-        {isClosed && (
+        {isClosed && canEdit && (
+          <button
+            type="button"
+            onClick={reopen}
+            disabled={pending}
+            className="civiq-btn civiq-btn-outline tk-mobile-actions-primary"
+          >
+            {pending ? <Loader2 size={18} className="civiq-spin" /> : <RotateCcw size={18} />}
+            <span>Rouvrir le ticket</span>
+          </button>
+        )}
+        {isClosed && !canEdit && (
           <div className="tk-mobile-actions-status" aria-live="polite">
             <CheckCircle2 size={16} style={{ color: "var(--success)" }} />
             <strong>Ticket clôturé</strong>
@@ -117,6 +143,7 @@ export default function TicketMobileActions({
           isSuperAdmin={!!isSuperAdmin}
           hasReport={hasReport}
           onClose={() => setMenuOpen(false)}
+          onReopen={reopen}
           onAskDelete={() => {
             setMenuOpen(false);
             setDeleteOpen(true);
@@ -146,7 +173,7 @@ export default function TicketMobileActions({
 
 function ActionsMenuSheet({
   ticketId, ticketNumero, isClosed, canEdit, isSuperAdmin, hasReport,
-  onClose, onAskDelete,
+  onClose, onReopen, onAskDelete,
 }: {
   ticketId: string;
   ticketNumero: number;
@@ -155,6 +182,7 @@ function ActionsMenuSheet({
   isSuperAdmin: boolean;
   hasReport: boolean;
   onClose: () => void;
+  onReopen: () => void;
   onAskDelete: () => void;
 }) {
   useEffect(() => {
@@ -206,6 +234,22 @@ function ActionsMenuSheet({
                 </span>
                 <ChevronRight size={14} style={{ opacity: 0.5 }} />
               </Link>
+            </SheetSection>
+          )}
+
+          {isClosed && canEdit && (
+            <SheetSection title="Réouverture">
+              <button
+                type="button"
+                onClick={onReopen}
+                className="tk-sheet-row"
+              >
+                <span className="tk-sheet-row-icon"><RotateCcw size={16} /></span>
+                <span className="tk-sheet-row-label">Rouvrir le ticket</span>
+              </button>
+              <p style={{ fontSize: 11, color: "var(--fg-muted)", padding: "8px 6px 0", lineHeight: 1.5, margin: 0 }}>
+                La réouverture est enregistrée dans le journal d&apos;activité.
+              </p>
             </SheetSection>
           )}
 

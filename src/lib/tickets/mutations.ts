@@ -280,6 +280,66 @@ export async function updateTicketStatus(ticketId: string, newStatut: TicketStat
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Réouverture d'un ticket clôturé/annulé
+// — repasse en "en_cours" (ou "nouveau" si jamais assigné)
+// — efface clos_at, resolu_at, reopen_at
+// — journalisation auto via ticket_commentaires (is_systeme)
+// ═══════════════════════════════════════════════════════════════
+
+export async function reopenTicket(ticketId: string, reason?: string): Promise<void> {
+  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } =
+    await authorizeTicketMutation(ticketId);
+
+  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+    throw new Error("Permissions insuffisantes pour rouvrir ce ticket");
+  }
+
+  // Seuls les tickets terminaux peuvent être rouverts
+  const terminal = ["resolu", "clos", "annule"];
+  if (!terminal.includes(ticket.statut)) {
+    throw new Error("Ce ticket n'est pas clôturé.");
+  }
+
+  const target: TicketStatut = ticket.assigne_a ? "en_cours" : "nouveau";
+
+  const updates: Record<string, unknown> = {
+    statut: target,
+    resolu_at: null,
+    clos_at: null,
+    clos_by: null,
+    reopen_at: null,
+    reopen_reason: null,
+    reopened_at: new Date().toISOString(),
+  };
+
+  const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+
+  // Entrée système dans le journal
+  const fromLabel = ticket.statut;
+  const journalText = reason?.trim()
+    ? `Ticket rouvert (${fromLabel} → ${target}) — motif : ${reason.trim()}`
+    : `Ticket rouvert (${fromLabel} → ${target})`;
+  await service.from("ticket_commentaires").insert({
+    ticket_id: ticketId,
+    auteur_id: ctx.userId,
+    contenu: journalText,
+    is_systeme: true,
+  });
+
+  await writeAudit({
+    action: "ticket.reopened",
+    targetType: "ticket",
+    targetId: ticketId,
+    communeId: ticket.commune_id,
+    metadata: { from: fromLabel, to: target, reason: reason ?? null },
+  });
+
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Suppression définitive (super-admin uniquement)
 // ═══════════════════════════════════════════════════════════════
 

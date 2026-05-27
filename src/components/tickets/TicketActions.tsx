@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle, CheckCircle2, FileEdit, Loader2, Lock,
-  PencilLine, Trash2, X,
+  PencilLine, RotateCcw, Trash2, X,
 } from "lucide-react";
-import { deleteTicketHard } from "@/lib/tickets/mutations";
+import { deleteTicketHard, reopenTicket } from "@/lib/tickets/mutations";
 import {
   GROUP_LABELS,
   GROUP_COLORS,
@@ -71,6 +71,18 @@ export default function TicketActions({
     });
   }
 
+  function reopen() {
+    setErr(null);
+    startTransition(async () => {
+      try {
+        await reopenTicket(ticketId);
+        router.refresh();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Erreur");
+      }
+    });
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {err && (
@@ -122,27 +134,46 @@ export default function TicketActions({
         </Link>
       )}
 
-      {/* État informatif quand clôturé */}
+      {/* État informatif quand clôturé + bouton Rouvrir */}
       {isClosed && (
-        <div
-          className="civiq-card"
-          style={{
-            padding: 14,
-            display: "flex", alignItems: "center", gap: 10,
-            background: c.bg,
-            borderColor: c.fg,
-          }}
-        >
-          <Lock size={16} style={{ color: c.fg, flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: c.fg }}>
-              {GROUP_LABELS[group]}
-            </div>
-            <div style={{ fontSize: 13, color: "var(--fg)", marginTop: 2 }}>
-              {STATUT_LABELS[statut]}
+        <>
+          <div
+            className="civiq-card"
+            style={{
+              padding: 14,
+              display: "flex", alignItems: "center", gap: 10,
+              background: c.bg,
+              borderColor: c.fg,
+            }}
+          >
+            <Lock size={16} style={{ color: c.fg, flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: c.fg }}>
+                {GROUP_LABELS[group]}
+              </div>
+              <div style={{ fontSize: 13, color: "var(--fg)", marginTop: 2 }}>
+                {STATUT_LABELS[statut]}
+              </div>
             </div>
           </div>
-        </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={reopen}
+              disabled={pending}
+              className="civiq-btn civiq-btn-outline"
+              style={{
+                width: "100%",
+                justifyContent: "center",
+                padding: "10px 14px",
+                fontSize: 13,
+              }}
+            >
+              {pending ? <Loader2 size={14} className="civiq-spin" /> : <RotateCcw size={14} />}
+              Rouvrir le ticket
+            </button>
+          )}
+        </>
       )}
 
       {/* Aide pour le commentaire */}
