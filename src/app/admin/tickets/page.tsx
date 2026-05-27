@@ -94,10 +94,11 @@ export default async function TicketsListPage({ searchParams }: Props) {
             <BarChart3 size={14} /> <span>Statistiques</span>
           </Link>
           <Link
-            href={`/api/tickets/pdf${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
+            href={`/admin/tickets/pdf${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
             className="civiq-btn civiq-btn-outline tk-page-header-link"
             target="_blank"
             rel="noreferrer"
+            prefetch={false}
           >
             <Printer size={14} /> <span>Imprimer / PDF</span>
           </Link>
