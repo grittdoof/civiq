@@ -27,13 +27,16 @@ import {
 // ═══════════════════════════════════════════════════════════════
 
 if (typeof window === "undefined") {
-  // Registration côté serveur uniquement
+  // Registration côté serveur uniquement.
+  // On bundle Inter en TTF (vrais fichiers TrueType, pas WOFF/WOFF2 que
+  // fontkit ne supporte pas, ni AFM Helvetica indisponibles sur Vercel
+  // serverless). Source : @expo-google-fonts/inter (copié dans /public/fonts).
   const fontsDir = path.join(process.cwd(), "public", "fonts");
   Font.register({
-    family: "Roboto",
+    family: "Inter",
     fonts: [
-      { src: path.join(fontsDir, "Roboto-Regular.ttf"), fontWeight: 400 },
-      { src: path.join(fontsDir, "Roboto-Bold.ttf"), fontWeight: 700 },
+      { src: path.join(fontsDir, "Inter-Regular.ttf"), fontWeight: 400 },
+      { src: path.join(fontsDir, "Inter-Bold.ttf"), fontWeight: 700 },
     ],
   });
 }
@@ -89,7 +92,7 @@ const s = StyleSheet.create({
     paddingBottom: 48,
     paddingHorizontal: 32,
     fontSize: 10,
-    fontFamily: "Roboto",
+    fontFamily: "Inter",
     color: "#111111",
   },
   header: {
@@ -106,11 +109,11 @@ const s = StyleSheet.create({
     color: "#666666",
     letterSpacing: 1.2,
     marginBottom: 4,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
   },
   title: {
     fontSize: 20,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
     color: "#111111",
   },
   metaRight: {
@@ -138,12 +141,12 @@ const s = StyleSheet.create({
   numero: {
     fontSize: 9,
     color: "#888888",
-    fontFamily: "Roboto", // (Courier indispo en serverless aussi)
+    fontFamily: "Inter", // (Courier indispo en serverless aussi)
     marginRight: 4,
   },
   titre: {
     fontSize: 12,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
     color: "#111111",
     flex: 1,
   },
@@ -157,7 +160,7 @@ const s = StyleSheet.create({
     paddingVertical: 1.5,
     paddingHorizontal: 6,
     borderRadius: 99,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
   },
   body: {
     flexDirection: "row",
@@ -185,7 +188,7 @@ const s = StyleSheet.create({
   kvLabel: {
     width: 80,
     color: "#666666",
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
   },
   kvValue: {
     flex: 1,
@@ -199,7 +202,7 @@ const s = StyleSheet.create({
   },
   journalTitle: {
     fontSize: 8,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
     color: "#666666",
     letterSpacing: 0.7,
     marginBottom: 4,
@@ -212,13 +215,13 @@ const s = StyleSheet.create({
   },
   journalDate: {
     width: 64,
-    fontFamily: "Roboto", // (Courier indispo en serverless aussi)
+    fontFamily: "Inter", // (Courier indispo en serverless aussi)
     color: "#666666",
     fontSize: 8,
   },
   journalType: {
     width: 50,
-    fontFamily: "Roboto", fontWeight: 700,
+    fontFamily: "Inter", fontWeight: 700,
     fontSize: 7.5,
     color: "#888888",
     textTransform: "uppercase",
