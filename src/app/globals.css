@@ -1639,7 +1639,7 @@ button.civiq-card,
 @media (max-width: 900px) {
   .tk-detail-aside-desktop { display: none; }
   .tk-mobile-actions { display: flex; }
-  .tk-detail-with-mobile-cta { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+  .civiq-main.tk-detail-with-mobile-cta { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 180px); }
 }
 
 .tk-mobile-actions {
