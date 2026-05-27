@@ -1358,6 +1358,15 @@ button.civiq-card,
   background: var(--accent);
 }
 
+/* Leaflet div icons — reset du fond blanc + border par défaut qui masque
+   le SVG du marker custom (cf. ticketIcon dans leaflet-icons.ts). */
+.leaflet-div-icon.tk-marker,
+.tk-marker {
+  background: transparent !important;
+  border: 0 !important;
+}
+.tk-marker svg { display: block; }
+
 /* Skeleton placeholder */
 @keyframes tk-skel-pulse {
   0%, 100% { opacity: 1; }
@@ -1486,7 +1495,7 @@ button.civiq-card,
 @media (max-width: 900px) {
   .tk-detail-aside-desktop { display: none; }
   .tk-mobile-actions { display: flex; }
-  .tk-detail-with-mobile-cta { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); }
+  .tk-detail-with-mobile-cta { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
 }
 
 .tk-mobile-actions {
