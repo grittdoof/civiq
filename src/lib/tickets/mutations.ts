@@ -153,6 +153,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
       ticketNumero: created.numero,
       titre: input.titre,
       communeId: ctx.communeId,
+      adresse: input.adresse ?? null,
     }).catch((e) => console.error("[push] notify urgent:", e));
   }
 
@@ -775,15 +776,17 @@ export async function addTicketComment(ticketId: string, contenu: string): Promi
   if (ticket.assigne_a && ticket.assigne_a !== ctx.userId) {
     const { data: t } = await service
       .from("tickets")
-      .select("numero")
+      .select("numero, titre")
       .eq("id", ticketId)
       .maybeSingle();
     if (t) {
       notifyTicketCommented({
         ticketId,
         ticketNumero: t.numero,
+        titre: t.titre,
         assignedTo: ticket.assigne_a,
         excerpt: text,
+        authorUserId: ctx.userId,
       }).catch((e) => console.error("[push] notify commented:", e));
     }
   }
