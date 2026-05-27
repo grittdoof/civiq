@@ -290,8 +290,10 @@ export default async function TicketDetailPage({ params }: Props) {
 
       <TicketMobileActions
         ticketId={ticket.id}
+        ticketNumero={ticket.numero}
         statut={ticket.statut}
         canEdit={canEdit}
+        isSuperAdmin={isSuperAdmin}
         hasReport={!!rapport}
       />
 

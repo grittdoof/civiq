@@ -434,6 +434,247 @@ export async function assignTicket(ticketId: string, profileId: string | null): 
 }
 
 // ═══════════════════════════════════════════════════════════════
+// Édition complète d'un ticket — chaque modification est tracée
+// automatiquement dans le journal d'activité (ticket_commentaires
+// avec is_systeme=true). Ne modifie pas le statut.
+// ═══════════════════════════════════════════════════════════════
+
+export interface UpdateTicketInput {
+  ticketId: string;
+  canal?: TicketCanal;
+  titre?: string;
+  description?: string | null;
+  categorie?: TicketCategorie;
+  priorite?: TicketPriorite;
+  adresse?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  precision_geo?: string | null;
+  demandeur_nom?: string | null;
+  demandeur_telephone?: string | null;
+  demandeur_email?: string | null;
+  demandeur_adresse?: string | null;
+  echeance?: string | null;
+  assignee_ids?: string[];
+  /** Storage paths supplémentaires à attacher en photos de signalement. */
+  new_photo_paths?: string[];
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  canal: "Canal",
+  titre: "Titre",
+  description: "Description",
+  categorie: "Catégorie",
+  priorite: "Priorité",
+  adresse: "Adresse",
+  latitude: "Latitude",
+  longitude: "Longitude",
+  precision_geo: "Précision GPS",
+  demandeur_nom: "Nom du demandeur",
+  demandeur_telephone: "Téléphone du demandeur",
+  demandeur_email: "Email du demandeur",
+  demandeur_adresse: "Adresse du demandeur",
+  echeance: "Échéance",
+};
+
+function fmt(v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "number") return v.toString();
+  if (typeof v === "boolean") return v ? "oui" : "non";
+  return String(v);
+}
+
+function shortText(v: string | null | undefined, max = 60): string {
+  if (!v) return "—";
+  return v.length > max ? v.slice(0, max) + "…" : v;
+}
+
+export async function updateTicket(input: UpdateTicketInput): Promise<void> {
+  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } =
+    await authorizeTicketMutation(input.ticketId);
+  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+    throw new Error("Permissions insuffisantes pour modifier ce ticket");
+  }
+
+  // Charge l'état actuel complet pour diffing
+  const { data: currentRow } = await service
+    .from("tickets")
+    .select(
+      "canal, titre, description, categorie, priorite, adresse, latitude, longitude, precision_geo, demandeur_nom, demandeur_telephone, demandeur_email, demandeur_adresse, echeance",
+    )
+    .eq("id", input.ticketId)
+    .single();
+  if (!currentRow) throw new Error("Ticket introuvable");
+  const current = currentRow as unknown as Record<string, unknown>;
+
+  // Diff champ par champ
+  const updates: Record<string, unknown> = {};
+  const journalEntries: string[] = [];
+
+  function applyField(
+    key: string,
+    newVal: unknown,
+    label?: string,
+    formatter: (v: unknown) => string = fmt,
+  ) {
+    if (newVal === undefined) return;
+    const oldVal = current[key] ?? null;
+    const normalized =
+      typeof newVal === "string" ? (newVal.trim() === "" ? null : newVal.trim()) : newVal;
+    if (oldVal === normalized) return;
+    if (oldVal == null && normalized == null) return;
+    updates[key] = normalized;
+    journalEntries.push(
+      `${label ?? FIELD_LABELS[key] ?? key} : ${formatter(oldVal)} → ${formatter(normalized)}`,
+    );
+  }
+
+  applyField("canal", input.canal);
+  applyField("titre", input.titre, "Titre", (v) => `« ${shortText(v as string)} »`);
+  applyField("description", input.description, "Description", (v) =>
+    v ? `« ${shortText(v as string, 80)} »` : "—",
+  );
+  applyField("categorie", input.categorie);
+  applyField("priorite", input.priorite);
+  applyField("adresse", input.adresse, "Adresse", (v) => shortText(v as string, 80));
+  applyField("latitude", input.latitude);
+  applyField("longitude", input.longitude);
+  applyField("precision_geo", input.precision_geo);
+  applyField("demandeur_nom", input.demandeur_nom);
+  applyField("demandeur_telephone", input.demandeur_telephone);
+  applyField("demandeur_email", input.demandeur_email);
+  applyField("demandeur_adresse", input.demandeur_adresse);
+  applyField("echeance", input.echeance);
+
+  // Photos additionnelles
+  let photosAdded = 0;
+  if (input.new_photo_paths?.length) {
+    const photoRows = input.new_photo_paths.map((path) => ({
+      ticket_id: input.ticketId,
+      storage_path: path,
+      type: "signalement" as const,
+      uploaded_by: ctx.userId,
+    }));
+    const { error: pErr } = await service.from("ticket_photos").insert(photoRows);
+    if (pErr) throw new Error(pErr.message);
+    photosAdded = input.new_photo_paths.length;
+    journalEntries.push(
+      `${photosAdded} photo${photosAdded > 1 ? "s" : ""} ajoutée${photosAdded > 1 ? "s" : ""}`,
+    );
+  }
+
+  // Diff assignations
+  if (input.assignee_ids !== undefined) {
+    const { data: existing } = await service
+      .from("ticket_assignees")
+      .select("profile_id")
+      .eq("ticket_id", input.ticketId);
+    const existingIds = new Set((existing ?? []).map((r) => r.profile_id));
+    const desired = new Set(input.assignee_ids);
+    const toAdd = input.assignee_ids.filter((id) => !existingIds.has(id));
+    const toRemove = Array.from(existingIds).filter((id) => !desired.has(id));
+
+    if (toRemove.length) {
+      const { error: dErr } = await service
+        .from("ticket_assignees")
+        .delete()
+        .eq("ticket_id", input.ticketId)
+        .in("profile_id", toRemove);
+      if (dErr) throw new Error(dErr.message);
+    }
+    if (toAdd.length) {
+      const { error: iErr } = await service
+        .from("ticket_assignees")
+        .insert(
+          toAdd.map((profile_id) => ({
+            ticket_id: input.ticketId,
+            profile_id,
+            assigned_by: ctx.userId,
+          })),
+        );
+      if (iErr) throw new Error(iErr.message);
+    }
+
+    if (toAdd.length || toRemove.length) {
+      // Récupère les noms pour le journal
+      const ids = [...toAdd, ...toRemove];
+      const { data: profs } = await service
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", ids);
+      const nameOf = (id: string) =>
+        profs?.find((p) => p.id === id)?.full_name ?? "(sans nom)";
+      for (const id of toAdd) journalEntries.push(`Agent assigné : ${nameOf(id)}`);
+      for (const id of toRemove) journalEntries.push(`Agent retiré : ${nameOf(id)}`);
+
+      // Met à jour assigne_a = premier de la liste (le trigger SQL le fait
+      // peut-être, mais on s'assure côté serveur pour la cohérence).
+      const primary = input.assignee_ids[0] ?? null;
+      updates.assigne_a = primary;
+      updates.assigne_at = primary ? new Date().toISOString() : null;
+
+      // Notifs aux nouveaux assignés (sauf l'auteur de la modif)
+      const recipients = toAdd.filter((id) => id !== ctx.userId);
+      if (recipients.length) {
+        const { data: t } = await service
+          .from("tickets")
+          .select("titre, numero")
+          .eq("id", input.ticketId)
+          .maybeSingle();
+        if (t) {
+          for (const r of recipients) {
+            notifyTicketAssigned({
+              ticketId: input.ticketId,
+              ticketNumero: t.numero,
+              titre: t.titre,
+              assignedTo: r,
+            }).catch((e) => console.error("[push] notify multi-assign:", e));
+          }
+        }
+      }
+    }
+  }
+
+  if (Object.keys(updates).length === 0 && journalEntries.length === 0) {
+    // Rien à modifier
+    return;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    const { error } = await service
+      .from("tickets")
+      .update(updates)
+      .eq("id", input.ticketId);
+    if (error) throw new Error(error.message);
+  }
+
+  // Écrit les entrées système dans le journal (une par changement)
+  if (journalEntries.length > 0) {
+    const rows = journalEntries.map((contenu) => ({
+      ticket_id: input.ticketId,
+      auteur_id: ctx.userId,
+      contenu,
+      is_systeme: true,
+    }));
+    const { error: cErr } = await service.from("ticket_commentaires").insert(rows);
+    if (cErr) {
+      console.error("[updateTicket] journal insert error:", cErr);
+    }
+  }
+
+  await writeAudit({
+    action: "ticket.updated",
+    targetType: "ticket",
+    targetId: input.ticketId,
+    communeId: ticket.commune_id,
+    metadata: { changes: journalEntries },
+  });
+
+  revalidatePath(`/admin/tickets/${input.ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
 // Priorité (modifiable inline depuis le panel)
 // ═══════════════════════════════════════════════════════════════
 
