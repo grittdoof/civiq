@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Map as MapIcon, BarChart3 } from "lucide-react";
+import { Plus, Map as MapIcon, BarChart3, Printer } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
 import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
@@ -92,6 +92,14 @@ export default async function TicketsListPage({ searchParams }: Props) {
           </Link>
           <Link href="/admin/tickets/stats" className="civiq-btn civiq-btn-outline tk-page-header-link">
             <BarChart3 size={14} /> <span>Statistiques</span>
+          </Link>
+          <Link
+            href={`/admin/tickets/imprimer${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
+            className="civiq-btn civiq-btn-outline tk-page-header-link"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Printer size={14} /> <span>Imprimer / PDF</span>
           </Link>
           {canCreate && (
             <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default tk-page-header-create">
