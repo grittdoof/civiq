@@ -53,6 +53,11 @@ const nextConfig: NextConfig = {
   // ressources binaires : on l'exclut du bundle Next pour qu'il soit
   // résolu au runtime côté Node serverless.
   serverExternalPackages: ["@react-pdf/renderer"],
+  // Force l'inclusion des TTF Roboto (chargés depuis process.cwd() par
+  // pdf-document.tsx) dans le bundle de la fonction PDF.
+  outputFileTracingIncludes: {
+    "/api/tickets/pdf": ["./public/fonts/**/*.ttf"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },

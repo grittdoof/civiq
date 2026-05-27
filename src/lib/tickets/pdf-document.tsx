@@ -1,4 +1,5 @@
 /* eslint-disable jsx-a11y/alt-text */
+import path from "node:path";
 import {
   Document, Page, View, Text, Image, StyleSheet, Font,
 } from "@react-pdf/renderer";
@@ -18,10 +19,25 @@ import {
 // ═══════════════════════════════════════════════════════════════
 // TicketsPDF — rendu PDF synthétique de tous les tickets.
 // Utilise @react-pdf/renderer (pure JS, fonctionne en serverless).
+//
+// Note polices : on N'UTILISE PAS Helvetica/Times/Courier (les
+// "Standard 14") car pdfkit cherche leurs fichiers AFM en runtime
+// et ne les trouve pas en environnement Vercel serverless → texte
+// invisible. On enregistre Roboto en TTF depuis /public/fonts.
 // ═══════════════════════════════════════════════════════════════
 
-// Pas de police custom (évite dépendance externe au build).
-// Helvetica est la fonte par défaut PDF.
+if (typeof window === "undefined") {
+  // Registration côté serveur uniquement
+  const fontsDir = path.join(process.cwd(), "public", "fonts");
+  Font.register({
+    family: "Roboto",
+    fonts: [
+      { src: path.join(fontsDir, "Roboto-Regular.ttf"), fontWeight: 400 },
+      { src: path.join(fontsDir, "Roboto-Bold.ttf"), fontWeight: 700 },
+    ],
+  });
+}
+
 Font.registerHyphenationCallback((word) => [word]); // pas de coupure agressive
 
 export interface PdfTicket {
@@ -73,7 +89,7 @@ const s = StyleSheet.create({
     paddingBottom: 48,
     paddingHorizontal: 32,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Roboto",
     color: "#111111",
   },
   header: {
@@ -90,11 +106,11 @@ const s = StyleSheet.create({
     color: "#666666",
     letterSpacing: 1.2,
     marginBottom: 4,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
   },
   title: {
     fontSize: 20,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
     color: "#111111",
   },
   metaRight: {
@@ -122,12 +138,12 @@ const s = StyleSheet.create({
   numero: {
     fontSize: 9,
     color: "#888888",
-    fontFamily: "Courier",
+    fontFamily: "Roboto", // (Courier indispo en serverless aussi)
     marginRight: 4,
   },
   titre: {
     fontSize: 12,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
     color: "#111111",
     flex: 1,
   },
@@ -141,7 +157,7 @@ const s = StyleSheet.create({
     paddingVertical: 1.5,
     paddingHorizontal: 6,
     borderRadius: 99,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
   },
   body: {
     flexDirection: "row",
@@ -169,7 +185,7 @@ const s = StyleSheet.create({
   kvLabel: {
     width: 80,
     color: "#666666",
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
   },
   kvValue: {
     flex: 1,
@@ -183,7 +199,7 @@ const s = StyleSheet.create({
   },
   journalTitle: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
     color: "#666666",
     letterSpacing: 0.7,
     marginBottom: 4,
@@ -196,13 +212,13 @@ const s = StyleSheet.create({
   },
   journalDate: {
     width: 64,
-    fontFamily: "Courier",
+    fontFamily: "Roboto", // (Courier indispo en serverless aussi)
     color: "#666666",
     fontSize: 8,
   },
   journalType: {
     width: 50,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Roboto", fontWeight: 700,
     fontSize: 7.5,
     color: "#888888",
     textTransform: "uppercase",
