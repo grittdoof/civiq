@@ -59,7 +59,7 @@ export default async function PrintTicketsPage({ searchParams }: Props) {
   ] = await Promise.all([
     service
       .from("communes")
-      .select("nom, slug, logo_url")
+      .select("name, slug, logo_url")
       .eq("id", ctx.communeId)
       .single(),
     service
@@ -132,7 +132,7 @@ export default async function PrintTicketsPage({ searchParams }: Props) {
         <header className="tk-print-header">
           <div>
             <div className="tk-print-eyebrow">Synthèse Tickets d&apos;intervention</div>
-            <h1 className="tk-print-title">{commune?.nom ?? "Commune"}</h1>
+            <h1 className="tk-print-title">{commune?.name ?? "Commune"}</h1>
           </div>
           <div className="tk-print-meta">
             <div>{today}</div>
@@ -178,7 +178,13 @@ export default async function PrintTicketsPage({ searchParams }: Props) {
                     </div>
                   </div>
 
-                  <div className="tk-print-ticket-body">
+                  <div
+                    className={
+                      photoUrl
+                        ? "tk-print-ticket-body"
+                        : "tk-print-ticket-body tk-print-ticket-body--no-photo"
+                    }
+                  >
                     {photoUrl && (
                       <div className="tk-print-photo">
                         {/* eslint-disable-next-line @next/next/no-img-element */}

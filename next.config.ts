@@ -49,6 +49,10 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "2mb",
     },
   },
+  // @react-pdf/renderer dépend de pdfkit/fontkit qui embarquent des
+  // ressources binaires : on l'exclut du bundle Next pour qu'il soit
+  // résolu au runtime côté Node serverless.
+  serverExternalPackages: ["@react-pdf/renderer"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
