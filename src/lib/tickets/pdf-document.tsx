@@ -136,7 +136,6 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#EEEEEE",
     marginBottom: 8,
-    gap: 6,
   },
   numero: {
     fontSize: 9,
@@ -152,7 +151,6 @@ const s = StyleSheet.create({
   },
   tagRow: {
     flexDirection: "row",
-    gap: 3,
     flexWrap: "wrap",
   },
   tag: {
@@ -161,34 +159,33 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     borderRadius: 99,
     fontFamily: "Inter", fontWeight: 700,
+    marginRight: 3,
+    marginBottom: 2,
   },
   body: {
     flexDirection: "row",
-    gap: 10,
-  },
-  bodyNoPhoto: {
-    flexDirection: "column",
   },
   photo: {
     width: 120,
     height: 90,
     borderRadius: 3,
     objectFit: "cover",
+    marginRight: 10,
   },
   fields: {
     flex: 1,
     flexDirection: "column",
-    gap: 3,
   },
   kvRow: {
     flexDirection: "row",
     fontSize: 9,
-    gap: 6,
+    marginBottom: 3, /* gap n'est pas fiable dans @react-pdf */
   },
   kvLabel: {
     width: 80,
     color: "#666666",
     fontFamily: "Inter", fontWeight: 700,
+    marginRight: 6,
   },
   kvValue: {
     flex: 1,
@@ -209,8 +206,7 @@ const s = StyleSheet.create({
   },
   journalRow: {
     flexDirection: "row",
-    gap: 6,
-    marginBottom: 2,
+    marginBottom: 3,
     fontSize: 8.5,
   },
   journalDate: {
@@ -218,6 +214,7 @@ const s = StyleSheet.create({
     fontFamily: "Inter", // (Courier indispo en serverless aussi)
     color: "#666666",
     fontSize: 8,
+    marginRight: 6,
   },
   journalType: {
     width: 50,
@@ -226,6 +223,7 @@ const s = StyleSheet.create({
     color: "#888888",
     textTransform: "uppercase",
     letterSpacing: 0.4,
+    marginRight: 6,
   },
   journalContent: {
     flex: 1,
@@ -311,27 +309,20 @@ function TicketBlock({ t }: { t: PdfTicket }) {
         </View>
       </View>
 
-      <View style={t.photoUrl ? s.body : s.bodyNoPhoto}>
-        {t.photoUrl && <Image src={t.photoUrl} style={s.photo} />}
-        <View style={s.fields}>
-          {t.description && <Kv label="Description" value={t.description} />}
-          {t.adresse && <Kv label="Adresse" value={t.adresse} />}
-          <Kv label="Créé le" value={created} />
-          <Kv label="Canal" value={CANAL_LABELS[t.canal]} />
-          {(t.demandeur_nom || t.demandeur_telephone || t.demandeur_email) && (
-            <Kv
-              label="Demandeur"
-              value={[t.demandeur_nom, t.demandeur_telephone, t.demandeur_email]
-                .filter(Boolean)
-                .join(" · ")}
-            />
-          )}
-          <Kv
-            label={`Agent${t.agentNames.length > 1 ? "s" : ""} assigné${t.agentNames.length > 1 ? "s" : ""}`}
-            value={t.agentNames.length ? t.agentNames.join(", ") : "Non assigné"}
-          />
+      {/* Rendu : avec photo → row (photo + fields). Sans photo → on
+          rend les Kv directement à la racine du ticket pour éviter une
+          double imbrication flex-column dont @react-pdf gère mal le
+          layout (les rangées se superposaient). */}
+      {t.photoUrl ? (
+        <View style={s.body}>
+          <Image src={t.photoUrl} style={s.photo} />
+          <View style={s.fields}>
+            <TicketKvs t={t} created={created} />
+          </View>
         </View>
-      </View>
+      ) : (
+        <TicketKvs t={t} created={created} />
+      )}
 
       {t.comments.length > 0 && (
         <View style={s.journal}>
@@ -353,6 +344,29 @@ function TicketBlock({ t }: { t: PdfTicket }) {
         </View>
       )}
     </View>
+  );
+}
+
+function TicketKvs({ t, created }: { t: PdfTicket; created: string }) {
+  return (
+    <>
+      {t.description && <Kv label="Description" value={t.description} />}
+      {t.adresse && <Kv label="Adresse" value={t.adresse} />}
+      <Kv label="Créé le" value={created} />
+      <Kv label="Canal" value={CANAL_LABELS[t.canal]} />
+      {(t.demandeur_nom || t.demandeur_telephone || t.demandeur_email) && (
+        <Kv
+          label="Demandeur"
+          value={[t.demandeur_nom, t.demandeur_telephone, t.demandeur_email]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+      )}
+      <Kv
+        label={`Agent${t.agentNames.length > 1 ? "s" : ""} assigné${t.agentNames.length > 1 ? "s" : ""}`}
+        value={t.agentNames.length ? t.agentNames.join(", ") : "Non assigné"}
+      />
+    </>
   );
 }
 
