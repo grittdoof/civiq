@@ -228,6 +228,14 @@ function MobileWizard({
   return (
     <main className="tk-wizard">
       <header className="tk-wizard-header">
+        {/* Placeholder gauche pour préserver le centrage du label étape.
+            La zone gauche est déjà occupée par le hamburger AdminShell. */}
+        <span className="tk-wizard-iconbtn" aria-hidden style={{ visibility: "hidden" }}>
+          <X size={18} />
+        </span>
+        <span className="tk-wizard-step">
+          Étape {current + 1} sur {total}
+        </span>
         <button
           type="button"
           onClick={attemptQuit}
@@ -236,12 +244,6 @@ function MobileWizard({
         >
           <X size={18} />
         </button>
-        <span className="tk-wizard-step">
-          Étape {current + 1} sur {total}
-        </span>
-        <span className="tk-wizard-iconbtn" aria-hidden style={{ visibility: "hidden" }}>
-          <X size={18} />
-        </span>
       </header>
 
       <div className="tk-wizard-progress">

@@ -158,16 +158,27 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
         </button>
       </header>
 
+      {/* Backdrop overlay (visible quand le drawer mobile est ouvert) */}
       {open && (
         <div
           onClick={() => setOpen(false)}
-          style={{ position: "fixed", inset: 0, background: "oklch(0 0 0 / 0.5)", zIndex: 200, backdropFilter: "blur(2px)", display: "none" }}
+          style={{
+            position: "fixed", inset: 0,
+            background: "oklch(0 0 0 / 0.5)",
+            zIndex: 200,
+            backdropFilter: "blur(2px)",
+          }}
           className="sa-overlay"
+          aria-hidden
         />
       )}
 
-      {/* Desktop sidebar */}
-      <div className="sa-sidebar-wrap">{sidebar}</div>
+      {/* Sidebar :
+            - Desktop : inline en colonne gauche
+            - Mobile  : drawer fixe glissant depuis la gauche (data-open) */}
+      <div className="sa-sidebar-wrap" data-open={open ? "true" : "false"}>
+        {sidebar}
+      </div>
 
       {/* Main */}
       <main className="sa-main" style={{ flex: 1, minWidth: 0 }}>
@@ -177,9 +188,27 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
       <style>{`
         @media (max-width: 768px) {
           .sa-mobile-header { display: flex !important; }
-          .sa-overlay { display: block !important; }
           .sa-main { padding-top: 60px; }
-          .sa-sidebar-wrap { display: none; }
+
+          /* Drawer mobile : positionné en absolu hors écran, glisse à l'ouverture */
+          .sa-sidebar-wrap {
+            position: fixed;
+            top: 0; left: 0;
+            height: 100dvh;
+            z-index: 201;
+            transform: translateX(-100%);
+            transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 0 24px rgba(0, 0, 0, 0.25);
+          }
+          .sa-sidebar-wrap[data-open="true"] {
+            transform: translateX(0);
+          }
+          /* La sidebar elle-même garde sa hauteur native */
+          .sa-sidebar-wrap aside {
+            min-height: 100dvh;
+            max-height: 100dvh;
+            overflow-y: auto;
+          }
         }
       `}</style>
     </div>

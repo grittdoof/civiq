@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
-  Search, Shield, ShieldCheck, Edit3, Eye, Download, Trash2, PencilLine, X, Save,
+  Search, Shield, ShieldCheck, Edit3, Eye, Download, Trash2, PencilLine, X, Save, History,
 } from "lucide-react";
 
 interface UserRow {
@@ -205,6 +206,13 @@ export default function SuperAdminUsers() {
                         </td>
                         <td style={{ textAlign: "right" }}>
                           <div className="sa-row-actions">
+                            <Link
+                              href={`/super-admin/users/${u.id}/historique`}
+                              className="sa-icon-btn"
+                              title="Historique des actions"
+                            >
+                              <History size={16} />
+                            </Link>
                             <button
                               type="button"
                               className="sa-icon-btn"
