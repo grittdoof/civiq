@@ -171,6 +171,12 @@ export interface UseTicketWizardResult {
   isDirty: boolean;
   isOnLastStep: boolean;
   isValidGlobal: boolean;
+  /**
+   * Sections visibles qui ne passent pas leur validation, avec leur
+   * libellé et la raison concrète. Utile pour afficher 'Champs manquants'
+   * sur le formulaire desktop quand le bouton de soumission est grisé.
+   */
+  missingSteps: Array<{ id: WizardStepId; eyebrow: string; reason: string | null }>;
 }
 
 export function useTicketWizard(initial?: Partial<WizardValue>): UseTicketWizardResult {
@@ -240,6 +246,18 @@ export function useTicketWizard(initial?: Partial<WizardValue>): UseTicketWizard
     [visibleSteps, value],
   );
 
+  const missingSteps = useMemo(
+    () =>
+      visibleSteps
+        .filter((s) => !s.isValid(value))
+        .map((s) => ({
+          id: s.id,
+          eyebrow: s.eyebrow,
+          reason: s.invalidReason ? s.invalidReason(value) : null,
+        })),
+    [visibleSteps, value],
+  );
+
   return {
     value,
     set,
@@ -257,5 +275,6 @@ export function useTicketWizard(initial?: Partial<WizardValue>): UseTicketWizard
     isDirty,
     isOnLastStep: safeCurrent === visibleSteps.length - 1,
     isValidGlobal,
+    missingSteps,
   };
 }

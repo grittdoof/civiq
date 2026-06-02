@@ -1145,6 +1145,28 @@ button.civiq-card,
   padding-right: 4px;
 }
 
+/* Bloc 'Champs requis manquants' affiché quand la submit est désactivée */
+.tk-form-desktop-missing {
+  margin-top: 18px;
+  padding: 14px 18px;
+  background: oklch(0.96 0.06 60); /* jaune doux */
+  border: 1px solid oklch(0.86 0.10 60);
+  border-radius: var(--radius);
+  color: oklch(0.32 0.10 60);
+}
+.tk-form-desktop-missing-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700;
+  margin-bottom: 6px;
+}
+.tk-form-desktop-missing-list {
+  margin: 0;
+  padding-left: 24px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.tk-form-desktop-missing-list li { padding: 1px 0; }
+
 .tk-form-desktop-submit {
   display: flex;
   align-items: center;

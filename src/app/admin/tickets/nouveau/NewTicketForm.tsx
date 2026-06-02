@@ -343,7 +343,7 @@ function DesktopForm({
   pending: boolean;
   submit: () => void;
 }) {
-  const { value, set, steps, isValidGlobal } = wiz;
+  const { value, set, steps, isValidGlobal, missingSteps } = wiz;
 
   return (
     <main className="civiq-main tk-form-desktop">
@@ -398,6 +398,23 @@ function DesktopForm({
         ))}
       </div>
 
+      {!isValidGlobal && missingSteps.length > 0 && (
+        <div className="tk-form-desktop-missing">
+          <div className="tk-form-desktop-missing-title">
+            <AlertCircle size={16} />
+            <span>Champs requis avant de pouvoir créer le ticket</span>
+          </div>
+          <ul className="tk-form-desktop-missing-list">
+            {missingSteps.map((m) => (
+              <li key={m.id}>
+                <strong>{m.eyebrow}</strong>
+                {m.reason ? ` — ${m.reason}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="tk-form-desktop-submit">
         <Link href="/admin/tickets" className="civiq-btn civiq-btn-ghost">
           Annuler
@@ -407,6 +424,11 @@ function DesktopForm({
           onClick={submit}
           disabled={!isValidGlobal || pending}
           className="civiq-btn civiq-btn-default"
+          title={
+            !isValidGlobal
+              ? `Sections incomplètes : ${missingSteps.map((m) => m.eyebrow).join(", ")}`
+              : undefined
+          }
         >
           {pending ? <Loader2 size={16} className="civiq-spin" /> : <Save size={16} />}
           {pending ? "Création…" : "Créer le ticket"}
