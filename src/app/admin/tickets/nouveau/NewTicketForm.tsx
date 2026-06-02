@@ -344,6 +344,30 @@ function DesktopForm({
   submit: () => void;
 }) {
   const { value, set, steps, isValidGlobal, missingSteps } = wiz;
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const invalidIds = new Set(missingSteps.map((m) => m.id));
+
+  // Affiche les erreurs en rouge dès qu'on a tenté de soumettre une fois.
+  // Une fois la section corrigée, son highlight retombe (recalcul auto).
+  const showErrors = submitAttempted && !isValidGlobal;
+
+  function handleSubmit() {
+    if (pending) return;
+    if (!isValidGlobal) {
+      setSubmitAttempted(true);
+      // Scroll vers la 1ère section manquante (un peu plus tard pour
+      // laisser le temps au DOM d'appliquer la classe).
+      setTimeout(() => {
+        const first = missingSteps[0]?.id;
+        if (first) {
+          const el = document.querySelector(`[data-step-id="${first}"]`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 50);
+      return;
+    }
+    submit();
+  }
 
   return (
     <main className="civiq-main tk-form-desktop">
@@ -367,18 +391,34 @@ function DesktopForm({
       )}
 
       <div className="tk-form-desktop-sections">
-        {steps.map((step, i) => (
-          <section key={step.id} className="civiq-card tk-form-desktop-card">
+        {steps.map((step, i) => {
+          const hasError = showErrors && invalidIds.has(step.id);
+          const errorReason = hasError
+            ? missingSteps.find((m) => m.id === step.id)?.reason
+            : null;
+          return (
+          <section
+            key={step.id}
+            className="civiq-card tk-form-desktop-card"
+            data-step-id={step.id}
+            data-error={hasError ? "true" : "false"}
+          >
             <div className="tk-form-desktop-card-head">
               <span className="tk-form-desktop-num">{i + 1}</span>
               <div>
                 <div className="tk-form-desktop-eyebrow">
                   {step.eyebrow}
                   {step.optional && <span className="tk-form-desktop-optional"> · optionnel</span>}
+                  {hasError && <span className="tk-form-desktop-required"> · requis</span>}
                 </div>
                 <h2 className="tk-form-desktop-title">{step.title}</h2>
                 {step.subtitle && (
                   <p className="tk-form-desktop-step-sub">{step.subtitle}</p>
+                )}
+                {hasError && errorReason && (
+                  <p className="tk-form-desktop-error-msg">
+                    <AlertCircle size={13} /> {errorReason}
+                  </p>
                 )}
               </div>
             </div>
@@ -395,14 +435,18 @@ function DesktopForm({
               />
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
-      {!isValidGlobal && missingSteps.length > 0 && (
-        <div className="tk-form-desktop-missing">
+      {showErrors && (
+        <div className="tk-form-desktop-missing" role="alert">
           <div className="tk-form-desktop-missing-title">
             <AlertCircle size={16} />
-            <span>Champs requis avant de pouvoir créer le ticket</span>
+            <span>
+              {missingSteps.length} section{missingSteps.length > 1 ? "s" : ""} à compléter avant
+              de pouvoir créer le ticket
+            </span>
           </div>
           <ul className="tk-form-desktop-missing-list">
             {missingSteps.map((m) => (
@@ -421,14 +465,10 @@ function DesktopForm({
         </Link>
         <button
           type="button"
-          onClick={submit}
-          disabled={!isValidGlobal || pending}
+          onClick={handleSubmit}
+          disabled={pending}
           className="civiq-btn civiq-btn-default"
-          title={
-            !isValidGlobal
-              ? `Sections incomplètes : ${missingSteps.map((m) => m.eyebrow).join(", ")}`
-              : undefined
-          }
+          aria-invalid={showErrors ? "true" : undefined}
         >
           {pending ? <Loader2 size={16} className="civiq-spin" /> : <Save size={16} />}
           {pending ? "Création…" : "Créer le ticket"}
