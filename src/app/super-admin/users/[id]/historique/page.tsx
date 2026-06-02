@@ -56,32 +56,52 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
   const limit = Math.min(parseInt(sp.limit ?? "200", 10) || 200, 1000);
 
   const service = await createServiceClient();
-  const [{ data: profile }, { data: logs, count }] = await Promise.all([
+
+  // Queries séparées (plus fiables que les nested joins Supabase qui
+  // peuvent échouer silencieusement si la relation n'est pas auto-résolue).
+  const [profileRes, logsRes, profileEmailRes, orphanCountRes] = await Promise.all([
     service
       .from("profiles")
-      .select("id, full_name, role, job_title, commune_id, communes:commune_id ( name, slug )")
+      .select("id, full_name, role, job_title, commune_id")
       .eq("id", id)
       .maybeSingle(),
     service
       .from("audit_log")
       .select(
-        "id, action, target_type, target_id, metadata, created_at, actor_email, actor_role, commune_id, communes:commune_id ( name )",
+        "id, action, target_type, target_id, metadata, created_at, actor_email, actor_role, commune_id",
         { count: "exact" },
       )
       .eq("actor_id", id)
       .order("created_at", { ascending: false })
       .limit(limit),
+    // Email de l'utilisateur via auth.users (fallback si profile.full_name null)
+    service.auth.admin.getUserById(id).catch(() => null),
+    // Compte des logs orphelins (actor_id NULL) — vestige du bug RPC pour
+    // info dans le bandeau si pertinent.
+    service
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .is("actor_id", null),
   ]);
 
+  if (profileRes.error) {
+    console.error("[historique] profile error:", profileRes.error);
+  }
+  if (logsRes.error) {
+    console.error("[historique] logs error:", logsRes.error);
+  }
+
+  const profile = profileRes.data;
   if (!profile) notFound();
 
-  // Type narrowing pour Supabase relation
   type ProfileRow = {
-    id: string; full_name: string | null; role: string;
+    id: string;
+    full_name: string | null;
+    role: string;
     job_title: string | null;
-    communes: { name: string | null; slug: string | null } | null;
+    commune_id: string | null;
   };
-  const p = profile as unknown as ProfileRow;
+  const p = profile as ProfileRow;
 
   type LogRow = {
     id: number;
@@ -93,9 +113,37 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
     actor_email: string | null;
     actor_role: string | null;
     commune_id: string | null;
-    communes: { name: string | null } | null;
   };
-  const rows = (logs ?? []) as unknown as LogRow[];
+  const rows = (logsRes.data ?? []) as LogRow[];
+  const count = logsRes.count;
+
+  // Résolution séparée des noms de commune (une seule query batchée)
+  const communeIds = Array.from(
+    new Set(
+      [p.commune_id, ...rows.map((r) => r.commune_id)].filter(
+        (x): x is string => !!x,
+      ),
+    ),
+  );
+  let communeNames = new Map<string, string>();
+  if (communeIds.length > 0) {
+    const { data: communes } = await service
+      .from("communes")
+      .select("id, name")
+      .in("id", communeIds);
+    for (const c of communes ?? []) communeNames.set(c.id, c.name);
+  }
+  const userCommuneName = p.commune_id ? communeNames.get(p.commune_id) ?? null : null;
+
+  // Email auth si full_name manquant
+  const authEmail = profileEmailRes && "data" in profileEmailRes
+    ? profileEmailRes.data?.user?.email ?? null
+    : null;
+  const displayName = p.full_name || authEmail || "(sans nom)";
+
+  // Logs orphelins (actor_id NULL) — info contextuelle pour expliquer
+  // pourquoi l'historique peut sembler vide pour les anciens logs.
+  const orphanCount = orphanCountRes.count ?? 0;
 
   return (
     <main className="civiq-main" style={{ maxWidth: 960 }}>
@@ -126,7 +174,7 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
               Historique des actions
             </div>
             <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--fg)", margin: 0 }}>
-              {p.full_name || "(sans nom)"}
+              {displayName}
             </h1>
           </div>
         </div>
@@ -134,8 +182,8 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
             <UserIcon size={13} /> Rôle : <strong style={{ color: "var(--fg)", fontWeight: 600 }}>{p.role}</strong>
           </span>
-          {p.communes?.name && (
-            <span>· Commune : <strong style={{ color: "var(--fg)", fontWeight: 600 }}>{p.communes.name}</strong></span>
+          {userCommuneName && (
+            <span>· Commune : <strong style={{ color: "var(--fg)", fontWeight: 600 }}>{userCommuneName}</strong></span>
           )}
           <span>· {count ?? rows.length} action{(count ?? rows.length) > 1 ? "s" : ""} enregistrée{(count ?? rows.length) > 1 ? "s" : ""}</span>
           {count != null && count > rows.length && (
@@ -143,6 +191,27 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
           )}
         </div>
       </header>
+
+      {orphanCount > 0 && (
+        <div
+          className="civiq-card"
+          style={{
+            padding: "12px 16px",
+            marginBottom: 16,
+            background: "oklch(0.96 0.06 60)",
+            borderColor: "oklch(0.78 0.10 60)",
+            color: "oklch(0.32 0.10 60)",
+            fontSize: 12.5,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Note :</strong> {orphanCount} entrée{orphanCount > 1 ? "s" : ""}
+          d&apos;audit antérieure{orphanCount > 1 ? "s" : ""} ont un acteur non renseigné
+          (vestige d&apos;un bug RPC corrigé). Elles n&apos;apparaissent dans l&apos;historique
+          d&apos;aucun utilisateur. Les actions effectuées depuis le correctif sont
+          correctement attribuées.
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="civiq-card" style={{
@@ -153,8 +222,10 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
           <p style={{ fontSize: 14, color: "var(--fg)", marginBottom: 4 }}>
             Aucune action enregistrée
           </p>
-          <p style={{ fontSize: 13 }}>
-            Cet utilisateur n&apos;a effectué aucune action auditée jusqu&apos;à présent.
+          <p style={{ fontSize: 13, maxWidth: 380, margin: "0 auto" }}>
+            Cet utilisateur n&apos;a effectué aucune action auditée depuis le
+            correctif de l&apos;historique. Les actions à venir (création,
+            modification, clôture, suppression de tickets…) seront tracées ici.
           </p>
         </div>
       ) : (
@@ -227,9 +298,9 @@ export default async function UserHistoryPage({ params, searchParams }: Props) {
                           {r.target_id.slice(0, 8)}…
                         </span>
                       )}
-                      {r.communes?.name && (
+                      {r.commune_id && communeNames.get(r.commune_id) && (
                         <span style={{ marginLeft: 10, color: "var(--fg-muted)" }}>
-                          · Commune : <strong style={{ color: "var(--fg)" }}>{r.communes.name}</strong>
+                          · Commune : <strong style={{ color: "var(--fg)" }}>{communeNames.get(r.commune_id)}</strong>
                         </span>
                       )}
                     </div>
