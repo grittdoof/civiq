@@ -10,6 +10,7 @@ import {
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
   Wrench, Map as MapIcon, HelpCircle, Inbox, Bell,
+  FolderKanban, Gavel, Users as UsersIcon, CalendarDays,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -65,6 +66,17 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/tickets/carte", label: "Carte", icon: MapIcon, exact: true, modules: ["tickets"] },
       { href: "/admin/tickets/stats", label: "Statistiques", icon: BarChart3, exact: true, modules: ["tickets"] },
       { href: "/admin/tickets/nouveau", label: "Nouveau ticket", icon: Plus, exact: true, modules: ["tickets"], action: true, roles: ["admin", "editor", "super_admin"] },
+    ],
+  },
+  {
+    label: "Pilotage",
+    items: [
+      { href: "/admin/projects", label: "Projets", icon: FolderKanban, exact: true, modules: ["projects"] },
+      { href: "/admin/projects/comparatif", label: "Comparatif coûts", icon: BarChart3, exact: true, modules: ["projects"] },
+      { href: "/admin/projects/cartographie", label: "Parties prenantes", icon: UsersIcon, exact: true, modules: ["projects"] },
+      { href: "/admin/projects/revue-mensuelle", label: "Revue mensuelle", icon: CalendarDays, exact: true, modules: ["projects"] },
+      { href: "/admin/commissions", label: "Commissions", icon: Gavel, exact: true, modules: ["projects"] },
+      { href: "/admin/projects/nouveau", label: "Nouveau projet", icon: Plus, exact: true, modules: ["projects"], action: true, roles: ["admin", "editor", "super_admin"] },
     ],
   },
   {
