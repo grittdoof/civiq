@@ -616,6 +616,17 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   justify-content: flex-end;
 }
 
+.pj-cr-readonly {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--civiq-surface-2);
+  padding: 12px;
+  border-radius: var(--civiq-radius-sm);
+  margin-top: 8px;
+}
+
 /* ─── Print ─── */
 @media print {
   .civiq-no-print, .civiq-sidebar-desktop, .civiq-sidebar-mobile { display: none !important; }

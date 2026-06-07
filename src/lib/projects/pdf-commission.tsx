@@ -30,6 +30,85 @@ const s = StyleSheet.create({
   footer: { position: "absolute", bottom: 32, left: 32, right: 32, fontSize: 8, color: "#6b7280", borderTop: 0.5, borderColor: "#e5e7eb", paddingTop: 6, textAlign: "right" },
 });
 
+export interface MinutesPdfData {
+  communeName: string;
+  commissionName: string;
+  dateSeance: string;
+  lieu: string | null;
+  ordreDuJour: string | null;
+  secretaireNom: string | null;
+  presents: string[];
+  absents: string[];
+  compteRendu: string;
+  decisions: Array<{ libelle: string; type: string; responsable: string | null; echeance: string | null }>;
+  generatedAt: string;
+  validatedAt: string | null;
+}
+
+export function MinutesPDF(props: MinutesPdfData) {
+  return (
+    <Document>
+      <Page size="A4" style={s.page}>
+        <View style={s.header}>
+          <Text style={s.communeName}>{props.communeName}</Text>
+          <Text style={{ fontSize: 9, color: "#6b7280" }}>Édité le {props.generatedAt}</Text>
+        </View>
+
+        <Text style={s.title}>Compte rendu de séance</Text>
+        <Text style={s.subtitle}>
+          Commission : <Text style={{ fontWeight: 700 }}>{props.commissionName}</Text>{"\n"}
+          Date : {props.dateSeance}{props.lieu ? `   ·   Lieu : ${props.lieu}` : ""}{"\n"}
+          {props.secretaireNom && `Secrétaire de séance : ${props.secretaireNom}`}
+        </Text>
+
+        <Text style={s.sectionTitle}>Présents ({props.presents.length})</Text>
+        <Text style={s.para}>{props.presents.length > 0 ? props.presents.join(", ") : "—"}</Text>
+
+        {props.absents.length > 0 && (
+          <>
+            <Text style={s.sectionTitle}>Excusés / absents ({props.absents.length})</Text>
+            <Text style={s.para}>{props.absents.join(", ")}</Text>
+          </>
+        )}
+
+        {props.ordreDuJour && (
+          <>
+            <Text style={s.sectionTitle}>Ordre du jour</Text>
+            <Text style={s.para}>{props.ordreDuJour}</Text>
+          </>
+        )}
+
+        <Text style={s.sectionTitle}>Compte rendu</Text>
+        <Text style={s.para}>{props.compteRendu}</Text>
+
+        {props.decisions.length > 0 && (
+          <>
+            <Text style={s.sectionTitle}>Relevé de décisions / avis</Text>
+            <View style={s.trHead}>
+              <Text style={[s.th, { flex: 4 }]}>Libellé</Text>
+              <Text style={[s.th, { flex: 2 }]}>Type</Text>
+              <Text style={[s.th, { flex: 2 }]}>Responsable</Text>
+              <Text style={[s.th, { flex: 2 }]}>Échéance</Text>
+            </View>
+            {props.decisions.map((d, i) => (
+              <View key={i} style={s.tr}>
+                <Text style={[s.td, { flex: 4 }]}>{d.libelle}</Text>
+                <Text style={[s.td, { flex: 2 }]}>{d.type}</Text>
+                <Text style={[s.td, { flex: 2 }]}>{d.responsable ?? "—"}</Text>
+                <Text style={[s.td, { flex: 2 }]}>{d.echeance ?? "—"}</Text>
+              </View>
+            ))}
+          </>
+        )}
+
+        <Text style={s.footer}>
+          {props.communeName} — {props.validatedAt ? `Compte rendu validé le ${props.validatedAt}` : "Brouillon"}
+        </Text>
+      </Page>
+    </Document>
+  );
+}
+
 export interface AttendancePdfData {
   communeName: string;
   commissionName: string;
