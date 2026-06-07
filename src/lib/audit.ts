@@ -1,11 +1,19 @@
+import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 
 // ═══════════════════════════════════════════════════════════════
 // Audit log helper — à appeler depuis les Server Actions sur les
-// actions sensibles (assignation, clôture, suppression, etc.)
+// actions sensibles (assignation, clôture, suppression, etc.).
 //
-// Les écritures passent par le service role (bypass RLS) et sont
-// non-bloquantes : un échec d'audit ne casse pas l'action métier.
+// IMPORTANT : on N'UTILISE PAS la RPC log_audit() car elle se base
+// sur auth.uid() qui retourne NULL sous service role → actor_id
+// finissait NULL dans audit_log, rendant l'historique par
+// utilisateur inutilisable.
+//
+// On lit l'utilisateur via getAuthContext() (session cookie) et on
+// écrit directement dans audit_log via le service role (bypass RLS,
+// non-bloquant). Snapshot des infos acteur pour résister à un
+// éventuel oubli RGPD.
 // ═══════════════════════════════════════════════════════════════
 
 export interface AuditInput {
@@ -17,20 +25,24 @@ export interface AuditInput {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Écrit une ligne dans audit_log via service role (jamais bloquant).
- * Récupère l'acteur via auth.uid() côté DB grâce à la fonction RPC.
- */
 export async function writeAudit(input: AuditInput): Promise<void> {
   try {
+    const ctx = await getAuthContext();
     const service = await createServiceClient();
-    const { error } = await service.rpc("log_audit", {
-      p_action: input.action,
-      p_target_type: input.targetType,
-      p_target_id: input.targetId ?? null,
-      p_commune_id: input.communeId ?? null,
-      p_metadata: input.metadata ?? null,
+
+    // Snapshot rôle/email pour conservation hors RGPD (utile si le profil
+    // est supprimé plus tard).
+    const { error } = await service.from("audit_log").insert({
+      commune_id: input.communeId ?? ctx?.communeId ?? null,
+      actor_id: ctx?.userId ?? null,
+      actor_email: ctx?.email ?? null,
+      actor_role: ctx?.role ?? null,
+      action: input.action,
+      target_type: input.targetType,
+      target_id: input.targetId ?? null,
+      metadata: input.metadata ?? null,
     });
+
     if (error) {
       console.error("[audit] insert failed:", error.message, input);
     }

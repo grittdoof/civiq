@@ -16,6 +16,10 @@ export default function ResetPasswordPage() {
     setError(null);
 
     const supabase = createClient();
+    // Supabase recovery utilise le flux implicit (hash #access_token=…&type=recovery).
+    // On envoie directement sur /auth/update-password qui parse le hash via
+    // l'event PASSWORD_RECOVERY du SDK client. Fonctionne aussi pour les
+    // comptes créés via magic link / OTP.
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/update-password`,
     });
@@ -56,7 +60,8 @@ export default function ResetPasswordPage() {
         <h1>Mot de passe oublié</h1>
         <p className="auth-desc">
           Saisissez votre email et nous vous enverrons un lien pour
-          réinitialiser votre mot de passe.
+          définir ou réinitialiser votre mot de passe — fonctionne aussi
+          pour les comptes créés via lien magique.
         </p>
 
         <form onSubmit={handleReset}>

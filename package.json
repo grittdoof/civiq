@@ -16,6 +16,7 @@
     "generate:icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@sentry/browser": "^10.53.1",
     "@sentry/nextjs": "^10.53.1",
     "@supabase/ssr": "^0.6",

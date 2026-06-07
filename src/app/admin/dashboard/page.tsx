@@ -11,6 +11,7 @@ import {
   PrioriteBadge, StatutBadge,
 } from "@/components/tickets/TicketBadge";
 import SurveysSection from "./SurveysSection";
+import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/dashboard — Cross-module dashboard
@@ -102,19 +103,46 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPIs cross-module */}
+      {/* KPIs cross-module — chaque card est cliquable vers sa destination */}
       <div className="civiq-stats-grid" style={{ marginBottom: 26 }}>
         {hasSurveys && (
-          <Kpi icon={<FileText size={18} />} value={surveysTotal} label="Sondages créés" sub={`${surveysActive} actif${surveysActive > 1 ? "s" : ""}`} />
+          <Kpi
+            href="/admin/surveys"
+            icon={<FileText size={18} />}
+            value={surveysTotal}
+            label="Sondages créés"
+            sub={`${surveysActive} actif${surveysActive > 1 ? "s" : ""}`}
+          />
         )}
         {hasSurveys && (
-          <Kpi icon={<CheckCircle2 size={18} />} value={responsesTotal} label="Réponses citoyennes" sub="cumul tous sondages" tone="success" />
+          <Kpi
+            href="/admin/surveys"
+            icon={<CheckCircle2 size={18} />}
+            value={responsesTotal}
+            label="Réponses citoyennes"
+            sub="cumul tous sondages"
+            tone="success"
+          />
         )}
         {hasTickets && (
-          <Kpi icon={<Inbox size={18} />} value={ticketsOpen} label="Tickets ouverts" sub={ticketsUrgent ? `${ticketsUrgent} urgent${ticketsUrgent > 1 ? "s" : ""}` : "—"} tone={ticketsUrgent > 0 ? "danger" : "default"} />
+          <Kpi
+            href="/admin/tickets?filter=ouverts"
+            icon={<Inbox size={18} />}
+            value={ticketsOpen}
+            label="Tickets ouverts"
+            sub={ticketsUrgent ? `${ticketsUrgent} urgent${ticketsUrgent > 1 ? "s" : ""}` : "—"}
+            tone={ticketsUrgent > 0 ? "danger" : "default"}
+          />
         )}
         {hasTickets && (
-          <Kpi icon={<CheckCircle2 size={18} />} value={ticketsResolved7d} label="Résolus (7j)" sub="interventions terminées" tone="success" />
+          <Kpi
+            href="/admin/tickets?filter=cloture"
+            icon={<CheckCircle2 size={18} />}
+            value={ticketsResolved7d}
+            label="Résolus (7j)"
+            sub="interventions terminées"
+            tone="success"
+          />
         )}
       </div>
 
@@ -122,14 +150,20 @@ export default async function AdminDashboardPage() {
       {hasTickets && (
         <section style={{ marginBottom: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Link
+              href="/admin/tickets"
+              style={{
+                display: "flex", alignItems: "center", gap: 10,
+                textDecoration: "none", color: "inherit",
+              }}
+            >
               <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "oklch(0.95 0.04 30)", color: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Wrench size={16} />
               </div>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", letterSpacing: "-0.01em" }}>
                 Tickets prioritaires
               </h2>
-            </div>
+            </Link>
             <div style={{ display: "flex", gap: 8 }}>
               <Link href="/admin/tickets" className="civiq-btn civiq-btn-outline civiq-btn-sm">
                 Tous les tickets <ArrowRight size={13} />
@@ -148,26 +182,34 @@ export default async function AdminDashboardPage() {
               <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Tous les tickets sont à jour. Bravo 👏</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: 10, gridTemplateColumns: "minmax(0, 1fr)" }}>
               {topTickets.map((t) => (
                 <Link
                   key={t.id}
                   href={`/admin/tickets/${t.id}`}
+                  prefetch
                   className="civiq-card civiq-card-hover"
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textDecoration: "none" }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "12px 14px", textDecoration: "none",
+                    minWidth: 0, overflow: "hidden",
+                  }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <PrioriteBadge priorite={t.priorite} />
                       <StatutBadge statut={t.statut} />
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
                       <span style={{ color: "var(--fg-xmuted)", fontFamily: "ui-monospace, monospace", marginRight: 6, fontSize: 12 }}>#{t.numero}</span>
                       {t.titre}
                     </div>
                     {t.adresse && (
-                      <div style={{ fontSize: 12, color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-                        <MapPin size={11} /> {t.adresse.length > 60 ? t.adresse.slice(0, 60) + "…" : t.adresse}
+                      <div style={{ fontSize: 12, color: "var(--fg-muted)", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                        <MapPin size={11} style={{ flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.adresse}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -181,6 +223,8 @@ export default async function AdminDashboardPage() {
 
       {/* Section Sondages (si actif) */}
       {hasSurveys && <SurveysSection />}
+
+      {hasTickets && <TicketsRealtime communeId={ctx.communeId} />}
 
       {/* Aucun module activé */}
       {!hasSurveys && !hasTickets && (
@@ -196,9 +240,10 @@ export default async function AdminDashboardPage() {
   );
 }
 
-function Kpi({ icon, value, label, sub, tone }: {
+function Kpi({ icon, value, label, sub, tone, href }: {
   icon: React.ReactNode; value: number | string; label: string; sub?: string;
   tone?: "default" | "success" | "danger";
+  href?: string;
 }) {
   const bg =
     tone === "success" ? "oklch(0.95 0.06 155)" :
@@ -208,20 +253,34 @@ function Kpi({ icon, value, label, sub, tone }: {
     tone === "success" ? "var(--success)" :
     tone === "danger"  ? "var(--destructive)" :
     "var(--accent)";
-  return (
-    <div className="civiq-card civiq-stat-card">
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ width: 38, height: 38, borderRadius: "var(--radius)", background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {icon}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: "var(--fg)", lineHeight: 1.05 }}>
-            {value}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontWeight: 500 }}>{label}</div>
-          {sub && <div style={{ fontSize: 11, color: "var(--fg-xmuted)", marginTop: 2 }}>{sub}</div>}
-        </div>
+
+  const inner = (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ width: 38, height: 38, borderRadius: "var(--radius)", background: bg, color: fg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {icon}
       </div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em", color: "var(--fg)", lineHeight: 1.05 }}>
+          {value}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 4, fontWeight: 500 }}>{label}</div>
+        {sub && <div style={{ fontSize: 11, color: "var(--fg-xmuted)", marginTop: 2 }}>{sub}</div>}
+      </div>
+      {href && <ArrowRight size={14} style={{ color: "var(--fg-xmuted)", flexShrink: 0, marginTop: 4 }} />}
     </div>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        prefetch
+        className="civiq-card civiq-card-hover civiq-stat-card"
+        style={{ textDecoration: "none", display: "block" }}
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="civiq-card civiq-stat-card">{inner}</div>;
 }

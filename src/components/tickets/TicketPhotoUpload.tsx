@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import imageCompression from "browser-image-compression";
-import { Camera, X, Loader2, ImagePlus } from "lucide-react";
+import { Camera, X, Loader2, ImagePlus, FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
 
 // ═══════════════════════════════════════════════════════════════
@@ -37,7 +37,8 @@ interface Props {
 
 export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Props) {
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const updateParent = useCallback((next: PhotoEntry[]) => {
     onChange(next.filter((p) => p.storagePath).map((p) => p.storagePath!));
@@ -114,19 +115,53 @@ export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Prop
     });
   }
 
+  const canAdd = photos.length < max;
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) handleFiles(e.target.files);
+    e.target.value = "";
+  }
+
   return (
     <div>
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
+        onChange={handleInputChange}
+        style={{ display: "none" }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
         multiple
-        onChange={(e) => e.target.files && handleFiles(e.target.files)}
+        onChange={handleInputChange}
         style={{ display: "none" }}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+      {canAdd && (
+        <div className="tk-photo-actions">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="civiq-btn civiq-btn-outline tk-photo-action-btn"
+          >
+            <Camera size={16} />
+            <span>Appareil photo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className="civiq-btn civiq-btn-outline tk-photo-action-btn"
+          >
+            <FolderOpen size={16} />
+            <span>Galerie / fichiers</span>
+          </button>
+        </div>
+      )}
+
+      <div className="tk-photo-grid">
         {photos.map((p) => (
           <div key={p.id} className="tk-photo-thumb">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -152,29 +187,40 @@ export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Prop
           </div>
         ))}
 
-        {photos.length < max && (
+        {canAdd && photos.length > 0 && (
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={() => galleryInputRef.current?.click()}
             className="tk-photo-add"
+            aria-label="Ajouter une photo"
           >
-            {photos.length === 0 ? (
-              <>
-                <Camera size={20} />
-                <span>Prendre / ajouter</span>
-              </>
-            ) : (
-              <ImagePlus size={20} />
-            )}
+            <ImagePlus size={20} />
           </button>
         )}
       </div>
 
-      <p style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 6 }}>
+      <p style={{ fontSize: 11, color: "var(--fg-muted)", marginTop: 8 }}>
         {photos.length}/{max} photo{max > 1 ? "s" : ""} · compression auto à 1920px max.
       </p>
 
       <style>{`
+        .tk-photo-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+        .tk-photo-action-btn {
+          width: 100%;
+          justify-content: center;
+          min-height: 48px;
+          font-size: 13.5px;
+        }
+        .tk-photo-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+          gap: 8px;
+        }
         .tk-photo-thumb {
           position: relative;
           aspect-ratio: 1;

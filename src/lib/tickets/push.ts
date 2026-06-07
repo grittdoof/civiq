@@ -41,6 +41,8 @@ export interface NotifyInput {
   url: string;
   /** Tag pour fusionner les notifs identiques (optionnel) */
   tag?: string;
+  /** Catégorie pour filtrer selon notification_preferences */
+  category?: "assignment" | "urgent_unassigned" | "comment" | "closure" | "reopen";
 }
 
 interface SendResult {
@@ -53,11 +55,39 @@ export async function sendTicketNotification(input: NotifyInput): Promise<SendRe
   if (!configureVapid()) return { sent: 0, failed: 0, cleaned: 0 };
   if (input.profileIds.length === 0) return { sent: 0, failed: 0, cleaned: 0 };
 
+  // Filtrer par préférence (push_enabled + notify_<category>) si catégorie fournie
+  let targetIds = input.profileIds;
+  if (input.category) {
+    const service = await createServiceClient();
+    const { data: prefs } = await service
+      .from("notification_preferences")
+      .select(
+        "profile_id, push_enabled, notify_assignment, notify_urgent_unassigned, notify_comment, notify_closure",
+      )
+      .in("profile_id", input.profileIds);
+    const map = new Map<string, Record<string, boolean>>();
+    for (const p of prefs ?? []) map.set(p.profile_id, p);
+    targetIds = input.profileIds.filter((id) => {
+      const p = map.get(id);
+      if (!p) return true; // pas de ligne → defaults DB true
+      if (p.push_enabled === false) return false;
+      switch (input.category) {
+        case "assignment": return p.notify_assignment;
+        case "urgent_unassigned": return p.notify_urgent_unassigned;
+        case "comment": return p.notify_comment;
+        case "closure": return p.notify_closure;
+        case "reopen": return p.notify_assignment;
+        default: return true;
+      }
+    });
+    if (targetIds.length === 0) return { sent: 0, failed: 0, cleaned: 0 };
+  }
+
   const service = await createServiceClient();
   const { data: subs } = await service
     .from("push_subscriptions")
     .select("id, endpoint, p256dh_key, auth_key, profile_id")
-    .in("profile_id", input.profileIds);
+    .in("profile_id", targetIds);
 
   if (!subs || subs.length === 0) {
     return { sent: 0, failed: 0, cleaned: 0 };
@@ -110,15 +140,60 @@ export async function sendTicketNotification(input: NotifyInput): Promise<SendRe
 
 // ─── Helpers haut-niveau pour les déclencheurs métier ───
 
-/** Notif lors d'une assignation directe à un agent. */
-export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumero: number; titre: string; assignedTo: string }) {
+/** Notif lors d'une assignation directe à un agent. Envoie push + email + SMS. */
+export async function notifyTicketAssigned(opts: {
+  ticketId: string;
+  ticketNumero: number;
+  titre: string;
+  assignedTo: string;
+  /** Soit le nom déjà résolu, soit l'id du profil pour résolution auto. */
+  assignedByName?: string | null;
+  assignedByUserId?: string | null;
+}) {
+  // Résolution paresseuse du nom de l'assignateur si seulement l'ID fourni
+  let assignedByName = opts.assignedByName ?? null;
+  if (!assignedByName && opts.assignedByUserId) {
+    try {
+      const service = await createServiceClient();
+      const { data } = await service
+        .from("profiles")
+        .select("full_name")
+        .eq("id", opts.assignedByUserId)
+        .maybeSingle();
+      assignedByName = data?.full_name ?? null;
+    } catch (e) {
+      console.warn("[email] lookup assignedByName failed:", e);
+    }
+  }
+
   const push = sendTicketNotification({
     profileIds: [opts.assignedTo],
     title: `Ticket #${opts.ticketNumero} vous a été assigné`,
     body: opts.titre.length > 100 ? opts.titre.slice(0, 100) + "…" : opts.titre,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `ticket-${opts.ticketId}`,
+    category: "assignment",
   });
+
+  // Email transactionnel (lazy import pour éviter un cycle si Resend pas configuré)
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "https://www.gociviq.fr";
+  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  import("@/lib/notifications/email")
+    .then(({ sendTicketAssignedEmail }) =>
+      sendTicketAssignedEmail({
+        profileIds: [opts.assignedTo],
+        ticketId: opts.ticketId,
+        ticketNumero: opts.ticketNumero,
+        titre: opts.titre,
+        ticketUrl,
+        assignedByName,
+      }),
+    )
+    .catch((e) => console.error("[email] assigned:", e));
+
   // SMS opt-in en parallèle (pas bloquant si Twilio indispo)
   sendOptInSms({
     profileIds: [opts.assignedTo],
@@ -129,7 +204,13 @@ export async function notifyTicketAssigned(opts: { ticketId: string; ticketNumer
 }
 
 /** Notif quand un ticket urgent est créé sans assignation : tous les agents techniques + adjoints travaux. */
-export async function notifyUrgentUnassigned(opts: { ticketId: string; ticketNumero: number; titre: string; communeId: string }) {
+export async function notifyUrgentUnassigned(opts: {
+  ticketId: string;
+  ticketNumero: number;
+  titre: string;
+  communeId: string;
+  adresse?: string | null;
+}) {
   const service = await createServiceClient();
   const { data: targets } = await service
     .from("profiles")
@@ -144,7 +225,27 @@ export async function notifyUrgentUnassigned(opts: { ticketId: string; ticketNum
     body: opts.titre,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `urgent-${opts.ticketId}`,
+    category: "urgent_unassigned",
   });
+
+  // Email
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "https://www.gociviq.fr";
+  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  import("@/lib/notifications/email")
+    .then(({ sendUrgentUnassignedEmail }) =>
+      sendUrgentUnassignedEmail({
+        profileIds: ids,
+        ticketNumero: opts.ticketNumero,
+        titre: opts.titre,
+        ticketUrl,
+        adresse: opts.adresse ?? null,
+      }),
+    )
+    .catch((e) => console.error("[email] urgent:", e));
+
   sendOptInSms({
     profileIds: ids,
     category: "urgent_unassigned",
@@ -154,7 +255,14 @@ export async function notifyUrgentUnassigned(opts: { ticketId: string; ticketNum
 }
 
 /** Notif quand un commentaire est ajouté sur un ticket en cours : agent assigné. */
-export async function notifyTicketCommented(opts: { ticketId: string; ticketNumero: number; assignedTo: string | null; excerpt: string }) {
+export async function notifyTicketCommented(opts: {
+  ticketId: string;
+  ticketNumero: number;
+  titre?: string;
+  assignedTo: string | null;
+  excerpt: string;
+  authorUserId?: string | null;
+}) {
   if (!opts.assignedTo) return { sent: 0, failed: 0, cleaned: 0 };
   const push = sendTicketNotification({
     profileIds: [opts.assignedTo],
@@ -162,7 +270,57 @@ export async function notifyTicketCommented(opts: { ticketId: string; ticketNume
     body: opts.excerpt.length > 120 ? opts.excerpt.slice(0, 120) + "…" : opts.excerpt,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `comment-${opts.ticketId}`,
+    category: "comment",
   });
+
+  // Email
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "https://www.gociviq.fr";
+  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+
+  // Résout le nom de l'auteur si fourni en ID
+  let authorName: string | null = null;
+  if (opts.authorUserId) {
+    try {
+      const service = await createServiceClient();
+      const { data } = await service
+        .from("profiles")
+        .select("full_name")
+        .eq("id", opts.authorUserId)
+        .maybeSingle();
+      authorName = data?.full_name ?? null;
+    } catch (e) {
+      console.warn("[email] lookup authorName failed:", e);
+    }
+  }
+
+  // Récupère le titre du ticket si pas fourni
+  let titre = opts.titre;
+  if (!titre) {
+    const service = await createServiceClient();
+    const { data: t } = await service
+      .from("tickets")
+      .select("titre")
+      .eq("id", opts.ticketId)
+      .maybeSingle();
+    titre = t?.titre ?? `Ticket #${opts.ticketNumero}`;
+  }
+
+  import("@/lib/notifications/email")
+    .then(({ sendTicketCommentedEmail }) =>
+      sendTicketCommentedEmail({
+        profileIds: [opts.assignedTo!],
+        ticketNumero: opts.ticketNumero,
+        titre: titre!,
+        ticketUrl,
+        authorName,
+        excerpt: opts.excerpt,
+      }),
+    )
+    .catch((e) => console.error("[email] comment:", e));
+
   sendOptInSms({
     profileIds: [opts.assignedTo],
     category: "comment",
@@ -180,7 +338,26 @@ export async function notifyTicketClosed(opts: { ticketId: string; ticketNumero:
     body: `${opts.titre} — voir le rapport d'intervention`,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `closed-${opts.ticketId}`,
+    category: "closure",
   });
+
+  // Email
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    "https://www.gociviq.fr";
+  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  import("@/lib/notifications/email")
+    .then(({ sendTicketClosedEmail }) =>
+      sendTicketClosedEmail({
+        profileIds: [opts.createdBy!],
+        ticketNumero: opts.ticketNumero,
+        titre: opts.titre,
+        ticketUrl,
+      }),
+    )
+    .catch((e) => console.error("[email] closed:", e));
+
   sendOptInSms({
     profileIds: [opts.createdBy],
     category: "closure",
@@ -215,6 +392,7 @@ export async function notifyTicketReopened(opts: {
       : `${opts.titre} — suivi programmé`,
     url: `/admin/tickets/${opts.ticketId}`,
     tag: `reopen-${opts.ticketId}`,
+    category: "reopen",
   });
 
   // Email (lazy import pour éviter un cycle d'import si Resend pas configuré)

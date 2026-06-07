@@ -173,6 +173,42 @@ export const CATEGORIE_ICONS: Record<TicketCategorie, string> = {
   autre: "📋",
 };
 
+// ─── Cycle de vie simplifié ───
+// L'UI ne montre que 2 états : Ouvert / Clôturé. Le DB conserve
+// l'enum complet pour la rétrocompatibilité et le wizard de clôture.
+
+export type TicketGroup = "ouvert" | "cloture";
+
+export const STATUT_GROUP: Record<TicketStatut, TicketGroup> = {
+  nouveau: "ouvert",
+  assigne: "ouvert",
+  pris_en_charge: "ouvert",
+  en_cours: "ouvert",
+  en_attente: "ouvert",
+  resolu: "cloture",
+  clos: "cloture",
+  annule: "cloture",
+};
+
+export const OUVERT_STATUTS: TicketStatut[] = [
+  "nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente",
+];
+export const CLOTURE_STATUTS: TicketStatut[] = ["resolu", "clos", "annule"];
+
+export const GROUP_LABELS: Record<TicketGroup, string> = {
+  ouvert: "Ouvert",
+  cloture: "Clôturé",
+};
+
+export const GROUP_COLORS: Record<TicketGroup, { bg: string; fg: string }> = {
+  ouvert: { bg: "oklch(0.95 0.06 258)", fg: "var(--accent)" },
+  cloture: { bg: "oklch(0.95 0.06 155)", fg: "var(--success)" },
+};
+
+export function groupOf(statut: TicketStatut): TicketGroup {
+  return STATUT_GROUP[statut];
+}
+
 export const CANAL_LABELS: Record<TicketCanal, string> = {
   agent_interne: "Agent municipal",
   elu_terrain: "Élu sur le terrain",

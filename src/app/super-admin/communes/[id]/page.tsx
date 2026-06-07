@@ -39,6 +39,7 @@ interface UserEntry {
   job_title: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  disabled_modules: string[];
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -107,6 +108,18 @@ export default function CommuneDetailPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id, commune_id: null, role: "viewer" }),
+    });
+    if (r.ok) await reload();
+    else alert((await r.json()).error || "Erreur");
+    setBusy(null);
+  }
+
+  async function toggleUserModule(user_id: string, module_id: string, enabled: boolean) {
+    setBusy(`umod:${user_id}:${module_id}`);
+    const r = await fetch(`/api/super-admin/users/${user_id}/modules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ module_id, enabled }),
     });
     if (r.ok) await reload();
     else alert((await r.json()).error || "Erreur");
@@ -212,7 +225,7 @@ export default function CommuneDetailPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    {["Utilisateur", "Email", "Rôle", "Dernière connexion", "Actions"].map((h) => (
+                    {["Utilisateur", "Email", "Rôle", "Modules activés", "Dernière connexion", "Actions"].map((h) => (
                       <th key={h} style={{ padding: "10px 14px", fontSize: 11, fontWeight: 600, color: "var(--fg-muted)", textAlign: "left", textTransform: "uppercase", letterSpacing: "0.07em", background: "var(--bg)" }}>
                         {h}
                       </th>
@@ -241,6 +254,57 @@ export default function CommuneDetailPage() {
                               <option key={k} value={k}>{v}</option>
                             ))}
                           </select>
+                        </td>
+                        <td style={{ padding: "12px 14px" }}>
+                          {u.role === "viewer" ? (
+                            <span style={{ fontSize: 11, color: "var(--fg-muted)", fontStyle: "italic" }}>
+                              Lecteur — aucun module
+                            </span>
+                          ) : u.role === "super_admin" ? (
+                            <span style={{ fontSize: 11, color: "var(--fg-muted)", fontStyle: "italic" }}>
+                              Tous les modules
+                            </span>
+                          ) : (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {modules.filter((m) => m.active).length === 0 && (
+                                <span style={{ fontSize: 11, color: "var(--fg-muted)", fontStyle: "italic" }}>
+                                  Aucun module activé pour la commune
+                                </span>
+                              )}
+                              {modules.filter((m) => m.active).map((m) => {
+                                const enabled = !u.disabled_modules.includes(m.id);
+                                const busyKey = `umod:${u.id}:${m.id}`;
+                                const isBusyMod = busy === busyKey;
+                                return (
+                                  <button
+                                    key={m.id}
+                                    type="button"
+                                    onClick={() => toggleUserModule(u.id, m.id, !enabled)}
+                                    disabled={isBusyMod}
+                                    title={enabled ? `Désactiver ${m.name} pour cet utilisateur` : `Réactiver ${m.name} pour cet utilisateur`}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      padding: "3px 9px",
+                                      borderRadius: 999,
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      border: `1px solid ${enabled ? "var(--accent)" : "var(--border)"}`,
+                                      background: enabled ? "var(--accent-light)" : "transparent",
+                                      color: enabled ? "var(--accent)" : "var(--fg-muted)",
+                                      cursor: isBusyMod ? "wait" : "pointer",
+                                      opacity: isBusyMod ? 0.5 : 1,
+                                      textDecoration: enabled ? "none" : "line-through",
+                                      transition: "all 0.15s",
+                                    }}
+                                  >
+                                    {enabled ? "✓" : "✕"} {m.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "12px 14px", fontSize: 12, color: "var(--fg-muted)" }}>
                           {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : "Jamais"}

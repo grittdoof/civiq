@@ -12,13 +12,32 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Supabase recovery utilise le flux implicit : hash de la forme
+    //   #access_token=…&type=recovery
+    // ou en cas d'échec
+    //   #error=access_denied&error_code=otp_expired&error_description=…
+    // On parse le hash pour détecter les erreurs avant d'attendre la session.
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    if (hash.includes("error=")) {
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const code = params.get("error_code");
+      const desc = params.get("error_description") || "Le lien est invalide ou a expiré.";
+      if (code === "otp_expired" || desc.toLowerCase().includes("expired")) {
+        setLinkError("Ce lien de réinitialisation a expiré. Les liens sont valides pendant 1 heure et à usage unique — merci d'en redemander un.");
+      } else {
+        setLinkError(desc.replace(/\+/g, " "));
+      }
+      return;
+    }
+
     // Supabase injecte la session depuis le lien magique dans le hash de l'URL
     // On attend que le client soit prêt
     const supabase = createClient();
     supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setReady(true);
       }
     });
@@ -53,6 +72,24 @@ export default function UpdatePasswordPage() {
       // Redirection après succès
       router.push("/admin/dashboard");
     }
+  }
+
+  if (linkError) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-icon">⏰</div>
+          <h1>Lien expiré</h1>
+          <p style={{ color: "#888", fontSize: 14, marginBottom: 20 }}>
+            {linkError}
+          </p>
+          <Link href="/auth/reset-password" className="auth-btn" style={{ display: "block", textAlign: "center", textDecoration: "none" }}>
+            Demander un nouveau lien
+          </Link>
+        </div>
+        <AuthStyles />
+      </div>
+    );
   }
 
   if (!ready) {

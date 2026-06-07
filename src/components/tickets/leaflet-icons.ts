@@ -19,10 +19,12 @@ export function fixLeafletIcons() {
 
   // @ts-expect-error _getIconUrl is internal but needs to be deleted
   delete L.Icon.Default.prototype._getIconUrl;
+  // Servis localement depuis /public/leaflet/ — évite que la CSP
+  // (img-src 'self' uniquement) bloque les PNG depuis unpkg.com.
   L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+    iconUrl: "/leaflet/marker-icon.png",
+    shadowUrl: "/leaflet/marker-shadow.png",
   });
 }
 

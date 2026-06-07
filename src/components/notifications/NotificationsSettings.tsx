@@ -212,7 +212,7 @@ export default function NotificationsSettings({ smsAvailable: smsAvailableProp }
       <div className="civiq-card" style={{ padding: 18 }}>
         <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)", marginBottom: 4 }}>Quand être notifié·e ?</h3>
         <p style={{ fontSize: 12, color: "var(--fg-muted)", marginBottom: 14 }}>
-          S&apos;applique aux deux canaux (push + SMS).
+          S&apos;applique aux trois canaux (push + email + SMS).
         </p>
         <div style={{ display: "grid", gap: 10 }}>
           <Toggle

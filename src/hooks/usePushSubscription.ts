@@ -77,6 +77,24 @@ export function usePushSubscription() {
       if (sub) {
         setStatus("subscribed");
         setEndpoint(sub.endpoint);
+        // Re-POST au serveur pour ré-attribuer la souscription au profil
+        // courant : indispensable quand plusieurs comptes utilisent le même
+        // appareil (le SW garde la même subscription, mais la ligne en BDD
+        // doit pointer sur le profile_id actuellement connecté).
+        try {
+          const json = sub.toJSON();
+          await fetch("/api/push/subscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              endpoint: json.endpoint,
+              keys: json.keys,
+              userAgent: navigator.userAgent,
+            }),
+          }).catch(() => {});
+        } catch {
+          // silencieux : on garde l'état UI "subscribed" même si le re-post échoue
+        }
       } else {
         setStatus("supported");
       }
@@ -103,7 +121,11 @@ export function usePushSubscription() {
         return false;
       }
       // 2. Enregistrer le SW
-      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      // 2b. ATTENDRE que le SW soit ACTIVE avant subscribe()
+      // (sinon pushManager.subscribe peut échouer silencieusement et
+      // exiger un deuxième clic une fois le SW activé)
+      const reg = await navigator.serviceWorker.ready;
       // 3. Souscrire
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,

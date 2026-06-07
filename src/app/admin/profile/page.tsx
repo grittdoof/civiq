@@ -423,7 +423,7 @@ export default function ProfilePage() {
       </section>
 
       {/* Notifications */}
-      <section className="profile-card" style={{ marginTop: 24 }}>
+      <section id="notifications" className="profile-card" style={{ marginTop: 24, scrollMarginTop: 80 }}>
         <header className="profile-card-header">
           <h2>Notifications</h2>
           <p>Choisissez comment vous voulez être prévenu·e des événements importants.</p>

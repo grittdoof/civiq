@@ -17,6 +17,7 @@ import {
 } from "@/lib/tickets/types";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 import TicketActions from "@/components/tickets/TicketActions";
+import TicketMobileActions from "@/components/tickets/TicketMobileActions";
 import TicketCommentForm from "@/components/tickets/TicketCommentForm";
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,7 +53,7 @@ export default async function TicketDetailPage({ params }: Props) {
   const isSuperAdmin = ctx.role === "super_admin";
   const isAdmin = ctx.role === "admin";
   const isEditor = ctx.role === "editor";
-  const isAssignee = ticket.assigne_a === ctx.userId;
+  const isAssignee = ticket.assigne_a === ctx.userId || assignees.some((a) => a.id === ctx.userId);
   const isCreator = ticket.created_by === ctx.userId;
   const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
   const canAssign = isSuperAdmin || isAdmin || isEditor;
@@ -69,7 +70,7 @@ export default async function TicketDetailPage({ params }: Props) {
     iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
-    <main className="civiq-main">
+    <main className="civiq-main tk-detail-with-mobile-cta">
       <Link href="/admin/tickets" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--fg-muted)", textDecoration: "none", marginBottom: 16 }}>
         <ArrowLeft size={14} /> Tickets
       </Link>
@@ -237,7 +238,7 @@ export default async function TicketDetailPage({ params }: Props) {
         </section>
 
         {/* Colonne droite : panel d'actions + infos */}
-        <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <aside className="tk-detail-aside-desktop">
           <TicketActions
             ticketId={ticket.id}
             ticketNumero={ticket.numero}
@@ -286,6 +287,15 @@ export default async function TicketDetailPage({ params }: Props) {
           )}
         </aside>
       </div>
+
+      <TicketMobileActions
+        ticketId={ticket.id}
+        ticketNumero={ticket.numero}
+        statut={ticket.statut}
+        canEdit={canEdit}
+        isSuperAdmin={isSuperAdmin}
+        hasReport={!!rapport}
+      />
 
       <TicketsRealtime communeId={ctx.communeId!} ticketId={ticket.id} />
     </main>
