@@ -535,6 +535,24 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
 
 .pj-lifecycle-table input { max-width: 140px; }
 
+/* ─── Formulaire create/edit ─── */
+.pj-form { display: flex; flex-direction: column; gap: 16px; }
+.pj-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .pj-form-grid { grid-template-columns: 1fr; }
+}
+.pj-form-field-wide { grid-column: 1 / -1; }
+.pj-form-field-checkbox { display: flex; flex-direction: column; gap: 6px; }
+.pj-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .spin {
   animation: pj-spin 0.8s linear infinite;
 }
