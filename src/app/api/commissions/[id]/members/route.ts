@@ -5,8 +5,10 @@ import type { CommissionMemberRole } from "@/lib/projects/types";
 
 interface RouteParams { params: Promise<{ id: string }>; }
 
-async function checkAdminAccess(commissionId: string, role: string, communeId: string) {
-  if (!["admin", "super_admin"].includes(role)) return false;
+async function checkEditAccess(commissionId: string, role: string, communeId: string) {
+  // Ouverture aux éditeurs : un élu/agent peut compléter la
+  // composition d'une commission qu'il pilote.
+  if (!["admin", "editor", "super_admin"].includes(role)) return false;
   const service = await createServiceClient();
   const { data } = await service.from("commissions").select("commune_id").eq("id", commissionId).maybeSingle();
   return data?.commune_id === communeId;
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!guard.ok) return guard.response;
   if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
   const { id } = await params;
-  if (!(await checkAdminAccess(id, guard.role, guard.communeId))) {
+  if (!(await checkEditAccess(id, guard.role, guard.communeId))) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
   const body = (await req.json()) as Body;

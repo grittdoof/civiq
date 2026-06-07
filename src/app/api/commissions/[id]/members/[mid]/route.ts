@@ -8,8 +8,9 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const guard = await requireModule("projects");
   if (!guard.ok) return guard.response;
   if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  if (!["admin", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Réservé aux administrateurs" }, { status: 403 });
+  // Édition membres : ouverte aux éditeurs (élus/agents)
+  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
+    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
   const { id, mid } = await params;
   const service = await createServiceClient();

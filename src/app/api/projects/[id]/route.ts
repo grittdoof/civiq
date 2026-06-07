@@ -120,8 +120,14 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!guard.communeId) {
     return NextResponse.json({ error: "Aucune commune attribuée" }, { status: 403 });
   }
-  if (!["admin", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Seul un administrateur peut supprimer un projet" }, { status: 403 });
+  // Règle métier : suppression projet réservée au super-admin
+  // (données structurantes : historique financier, délibérations,
+  // contraintes d'archivage RGPD / comptable).
+  if (guard.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Seul un super-administrateur peut supprimer un projet. Contactez le support." },
+      { status: 403 },
+    );
   }
 
   const { id } = await params;

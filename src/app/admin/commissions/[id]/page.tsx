@@ -32,8 +32,10 @@ export default async function CommissionDetailPage({ params }: PageProps) {
     service.from("projects").select("id, titre, phase").eq("commune_id", ctx.communeId).order("titre"),
   ]);
 
-  const canEdit = ["admin", "super_admin"].includes(ctx.role ?? "");
-  const canCreateSession = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
+  // Édition étendue aux éditeurs : un élu/agent peut piloter
+  // sa commission (membres, projets rattachés, séances).
+  const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
+  const canCreateSession = canEdit;
 
   return (
     <main className="civiq-main pj-detail-page">
