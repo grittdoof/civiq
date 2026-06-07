@@ -22,6 +22,28 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+@media (max-width: 600px) {
+  /* En-tête détail : titre + sous-titre stackés, actions sur leur propre ligne */
+  .pj-page-header,
+  .pj-detail-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pj-page-header-actions,
+  .pj-detail-header-actions {
+    width: 100%;
+  }
+  .pj-page-header-actions .civiq-btn,
+  .pj-detail-header-actions .civiq-btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+  /* Empêche un seul bouton de prendre toute la largeur */
+  .pj-page-header-actions .civiq-btn:only-child,
+  .pj-detail-header-actions .civiq-btn:only-child {
+    flex: 0 0 auto;
+  }
+}
 
 /* ─── Bandeau de synthèse financière ─── */
 .pj-summary-bar {
@@ -29,6 +51,12 @@
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
+}
+@media (max-width: 560px) {
+  /* Sur petit écran : 2 colonnes max pour rester lisible */
+  .pj-summary-bar { grid-template-columns: 1fr 1fr; }
+  .pj-summary-value { font-size: 17px; }
+  .pj-summary-card { padding: 10px 12px; }
 }
 .pj-summary-card {
   background: var(--civiq-surface);
@@ -445,7 +473,8 @@
 .pj-cost-value { font-size: 18px; font-weight: 700; }
 .pj-cost-rates { font-size: 11px; color: var(--civiq-text-soft); margin-top: 4px; }
 
-/* ─── Tables ─── */
+/* ─── Tables — overflow-x sous mobile pour éviter le débordement ─── */
+.pj-section { overflow-x: auto; }
 .pj-table {
   width: 100%;
   border-collapse: collapse;
@@ -466,6 +495,12 @@
 .pj-table tfoot td { font-weight: 600; }
 .pj-table-strong { font-weight: 600; }
 .pj-table-sub { font-size: 12px; color: var(--civiq-text-soft); }
+
+/* Mobile : padding plus serré pour les tables qui débordent */
+@media (max-width: 560px) {
+  .pj-table { font-size: 13px; }
+  .pj-table th, .pj-table td { padding: 6px 8px; }
+}
 
 /* ─── Jalons ─── */
 .pj-milestones { list-style: none; display: flex; flex-direction: column; gap: 8px; }
@@ -727,6 +762,96 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   gap: 8px;
 }
 
+/* ─── Wizard mobile (une question par écran) ─── */
+.pj-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Réserver de la place pour la barre d'actions sticky */
+  padding-bottom: 96px;
+}
+.pj-wizard-progress {
+  height: 6px;
+  background: var(--civiq-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.pj-wizard-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--civiq-success), var(--civiq-primary));
+  transition: width 0.3s ease;
+}
+.pj-wizard-step-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pj-wizard-step-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--civiq-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pj-wizard-step-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--civiq-text);
+}
+.pj-wizard-card {
+  padding: 20px 18px;
+}
+.pj-wizard-question {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--civiq-text);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.pj-wizard-hint {
+  font-size: 13px;
+  color: var(--civiq-text-soft);
+  margin-bottom: 12px;
+}
+.pj-wizard-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pj-wizard-recap > div {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  background: var(--civiq-surface-2);
+  border-radius: var(--civiq-radius-sm);
+}
+.pj-wizard-recap dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--civiq-text-soft);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.pj-wizard-recap dd { font-size: 14px; font-weight: 500; }
+.pj-wizard-actions {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--civiq-surface);
+  border-top: 1px solid var(--civiq-border);
+  z-index: 50;
+  /* Notch / home indicator safe area */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}
+.pj-wizard-actions .civiq-btn {
+  flex: 0 0 auto;
+}
+
 /* ─── Filtres cartographie ─── */
 .pj-filters {
   display: flex;
@@ -782,7 +907,12 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   touch-action: none;
   width: 100%;
   max-width: 420px;
+  height: 140px;
   margin: 0 auto;
+  /* Sur mobile : canvas pleine largeur (height fixe pour la signature) */
+}
+@media (max-width: 480px) {
+  .pj-signpad-canvas { max-width: 100%; }
 }
 .pj-signpad-actions {
   display: flex;
