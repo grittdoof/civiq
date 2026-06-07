@@ -19,6 +19,7 @@ import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 import TicketActions from "@/components/tickets/TicketActions";
 import TicketMobileActions from "@/components/tickets/TicketMobileActions";
 import TicketCommentForm from "@/components/tickets/TicketCommentForm";
+import TransformTicketButton from "@/components/projects/TransformTicketButton";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/tickets/[id] — Détail interactif (Session 3)
@@ -254,6 +255,19 @@ export default async function TicketDetailPage({ params }: Props) {
             agents={agents}
             hasReport={!!rapport}
           />
+
+          {/* Lien vers le module Gestion de projet (commit 12) */}
+          {(isSuperAdmin || isAdmin || isEditor) && (await isModuleActive("projects")) && (
+            <div className="civiq-card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)" }}>
+                Module projet
+              </h2>
+              <TransformTicketButton
+                ticketId={ticket.id}
+                existingProjectId={(ticket as { project_id?: string | null }).project_id ?? null}
+              />
+            </div>
+          )}
 
           <div className="civiq-card" style={{ padding: 14 }}>
             <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
