@@ -553,6 +553,48 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   gap: 8px;
 }
 
+/* ─── Filtres cartographie ─── */
+.pj-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.pj-filters-sep {
+  font-size: 12px;
+  color: var(--civiq-text-soft);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.pj-filter-link {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: var(--civiq-radius-pill);
+  background: var(--civiq-surface-2);
+  color: var(--civiq-text-soft);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.pj-filter-link:hover {
+  background: var(--border-light);
+  color: var(--civiq-text);
+}
+.pj-filter-link.is-active {
+  background: var(--civiq-primary);
+  color: white;
+}
+
+.pj-cartographie { display: flex; flex-direction: column; gap: 12px; }
+
+/* ─── Print ─── */
+@media print {
+  .civiq-no-print, .civiq-sidebar-desktop, .civiq-sidebar-mobile { display: none !important; }
+  .pj-print { padding: 0; }
+  .civiq-card { border: 1px solid #ccc; box-shadow: none; page-break-inside: avoid; }
+}
+
 .spin {
   animation: pj-spin 0.8s linear infinite;
 }
