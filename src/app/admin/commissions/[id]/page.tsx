@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CalendarPlus } from "lucide-react";
+import { extractExcerpt } from "@/lib/projects/text-utils";
 import "../../projects/projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -9,6 +10,8 @@ import { getCommission } from "@/lib/projects/queries";
 import CommissionMembersEditor from "@/components/projects/CommissionMembersEditor";
 import CommissionProjectsEditor from "@/components/projects/CommissionProjectsEditor";
 import CommissionAdminActions from "@/components/projects/CommissionAdminActions";
+import CommissionIcon from "@/components/projects/CommissionIcon";
+import NewCommissionDialog from "@/components/projects/NewCommissionDialog";
 import type { ProjectPhase } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +31,32 @@ export default async function CommissionDetailPage({ params }: PageProps) {
   if (!detail.commission) notFound();
 
   const service = await createServiceClient();
-  const [{ data: profilesDir }, { data: projectsDir }] = await Promise.all([
+  const [
+    { data: profilesDir },
+    { data: projectsDir },
+    { data: subCommissions },
+    { data: parentRow },
+  ] = await Promise.all([
     service.from("profiles").select("id, full_name, job_title").eq("commune_id", ctx.communeId),
     service.from("projects").select("id, titre, phase").eq("commune_id", ctx.communeId).order("titre"),
+    service
+      .from("commissions")
+      .select("id, nom, color, icon, active")
+      .eq("parent_id", id)
+      .order("nom"),
+    detail.commission.parent_id
+      ? service
+          .from("commissions")
+          .select("id, nom, color, icon")
+          .eq("id", detail.commission.parent_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const subs = (subCommissions ?? []) as Array<{
+    id: string; nom: string; color: string; icon: string; active: boolean;
+  }>;
+  const parent = parentRow as { id: string; nom: string; color: string; icon: string } | null;
+  const isRoot = !detail.commission.parent_id;
 
   // Édition étendue aux éditeurs : un élu/agent peut piloter
   // sa commission (membres, projets rattachés, séances).
@@ -53,6 +78,19 @@ export default async function CommissionDetailPage({ params }: PageProps) {
 
       <header className="pj-detail-header">
         <div>
+          {/* Lien retour vers la commission parente si on est une sous-commission */}
+          {parent && (
+            <div style={{ marginBottom: 6 }}>
+              <Link
+                href={`/admin/commissions/${parent.id}`}
+                className="pj-commission-badge"
+                style={{ ['--comm-color' as string]: parent.color }}
+              >
+                <CommissionIcon name={parent.icon} size={11} />
+                <span>Sous-commission de {parent.nom}</span>
+              </Link>
+            </div>
+          )}
           <h1 className="civiq-page-title">{detail.commission.nom}</h1>
           {detail.commission.description && (
             <p className="pj-page-subtitle">{detail.commission.description}</p>
@@ -75,6 +113,20 @@ export default async function CommissionDetailPage({ params }: PageProps) {
               canDelete={canDeleteCommission}
             />
           )}
+          {/* Création de sous-commission uniquement depuis une commission racine */}
+          {canCreateSession && isRoot && (
+            <NewCommissionDialog
+              profiles={(profilesDir ?? []) as { id: string; full_name: string | null; job_title: string | null }[]}
+              possibleParents={[{
+                id: detail.commission.id,
+                nom: detail.commission.nom,
+                color: detail.commission.color,
+                icon: detail.commission.icon,
+              }]}
+              presetParentId={detail.commission.id}
+              buttonLabel="Nouvelle sous-commission"
+            />
+          )}
           {canCreateSession && (
             <Link
               href={`/admin/commissions/${id}/sessions/nouvelle`}
@@ -85,6 +137,30 @@ export default async function CommissionDetailPage({ params }: PageProps) {
           )}
         </div>
       </header>
+
+      {/* Sous-commissions de cette commission */}
+      {subs.length > 0 && (
+        <section className="civiq-card pj-section pj-section-wide">
+          <h2 className="pj-section-title">
+            Sous-commissions
+            <span className="pj-section-count">({subs.length})</span>
+          </h2>
+          <div className="pj-detail-pilotes">
+            {subs.map((sub) => (
+              <Link
+                key={sub.id}
+                href={`/admin/commissions/${sub.id}`}
+                className="pj-commission-badge"
+                style={{ ['--comm-color' as string]: sub.color }}
+              >
+                <CommissionIcon name={sub.icon} size={11} />
+                <span>{sub.nom}</span>
+                {!sub.active && <span style={{ fontSize: 10, opacity: 0.7 }}>(inactive)</span>}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="pj-detail-grid">
         <section className="civiq-card pj-section">
@@ -120,20 +196,28 @@ export default async function CommissionDetailPage({ params }: PageProps) {
           {detail.upcoming_sessions.length === 0 ? (
             <p className="pj-section-empty">Aucune séance planifiée.</p>
           ) : (
-            <ul className="pj-subs">
-              {detail.upcoming_sessions.map((s) => (
-                <li key={s.id} className="pj-sub-row">
-                  <span>
-                    <Link href={`/admin/commissions/${id}/sessions/${s.id}`} className="pj-table-strong">
-                      {new Date(s.date_seance).toLocaleString("fr-FR", {
-                        weekday: "long", day: "numeric", month: "long",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
+            <ul className="pj-sessions-list">
+              {detail.upcoming_sessions.map((s) => {
+                const excerpt = extractExcerpt(s.ordre_du_jour, 90);
+                return (
+                  <li key={s.id} className="pj-session-row">
+                    <Link href={`/admin/commissions/${id}/sessions/${s.id}`} className="pj-session-link">
+                      <div className="pj-session-date">
+                        {new Date(s.date_seance).toLocaleString("fr-FR", {
+                          weekday: "long", day: "numeric", month: "long",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                        {s.lieu && <span className="pj-table-sub"> — {s.lieu}</span>}
+                      </div>
+                      {excerpt && (
+                        <div className="pj-session-excerpt" title={excerpt}>
+                          {excerpt}
+                        </div>
+                      )}
                     </Link>
-                    {s.lieu && <span className="pj-table-sub"> — {s.lieu}</span>}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -143,21 +227,31 @@ export default async function CommissionDetailPage({ params }: PageProps) {
           {detail.past_sessions.length === 0 ? (
             <p className="pj-section-empty">Aucune séance passée.</p>
           ) : (
-            <ul className="pj-subs">
-              {detail.past_sessions.map((s) => (
-                <li key={s.id} className="pj-sub-row">
-                  <span>
-                    <Link href={`/admin/commissions/${id}/sessions/${s.id}`} className="pj-table-strong">
-                      {new Date(s.date_seance).toLocaleDateString("fr-FR")}
+            <ul className="pj-sessions-list">
+              {detail.past_sessions.map((s) => {
+                const excerpt = extractExcerpt(s.ordre_du_jour, 90);
+                return (
+                  <li key={s.id} className="pj-session-row">
+                    <Link href={`/admin/commissions/${id}/sessions/${s.id}`} className="pj-session-link">
+                      <div className="pj-session-date">
+                        {new Date(s.date_seance).toLocaleDateString("fr-FR", {
+                          weekday: "long", day: "numeric", month: "long", year: "numeric",
+                        })}
+                        {s.compte_rendu_valide && (
+                          <span className="civiq-badge civiq-badge-success" style={{ marginLeft: 6 }}>
+                            CR validé
+                          </span>
+                        )}
+                      </div>
+                      {excerpt && (
+                        <div className="pj-session-excerpt" title={excerpt}>
+                          {excerpt}
+                        </div>
+                      )}
                     </Link>
-                    {s.compte_rendu_valide && (
-                      <span className="civiq-badge civiq-badge-success" style={{ marginLeft: 6 }}>
-                        CR validé
-                      </span>
-                    )}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

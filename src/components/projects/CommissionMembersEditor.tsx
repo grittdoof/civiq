@@ -117,7 +117,10 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontWeight: 600 }}>{memberDisplayName(m)}</span>
                     {m.role === "president" && (
-                      <span className="civiq-badge civiq-badge-default" style={{ marginLeft: 6 }}>Président</span>
+                      <span className="civiq-badge civiq-badge-default" style={{ marginLeft: 6 }}>Président·e</span>
+                    )}
+                    {m.role === "vice_president" && (
+                      <span className="civiq-badge civiq-badge-default" style={{ marginLeft: 6 }}>Vice-président·e</span>
                     )}
                     {noAcc && (
                       <span className="civiq-badge civiq-badge-muted" style={{ marginLeft: 6 }}>
@@ -211,7 +214,8 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
             onChange={(e) => setRole(e.target.value as CommissionMemberRole)}
           >
             <option value="membre">Rôle : Membre</option>
-            <option value="president">Rôle : Président</option>
+            <option value="vice_president">Rôle : Vice-président·e</option>
+            <option value="president">Rôle : Président·e</option>
           </select>
 
           {error && (

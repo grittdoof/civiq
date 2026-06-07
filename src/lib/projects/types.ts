@@ -31,7 +31,13 @@ export type FinancingStatus =
   | "refusee"
   | "soldee";
 
-export type CommissionMemberRole = "president" | "membre";
+export type CommissionMemberRole = "president" | "vice_president" | "membre";
+
+export const COMMISSION_MEMBER_ROLE_LABELS: Record<CommissionMemberRole, string> = {
+  president: "Président·e",
+  vice_president: "Vice-président·e",
+  membre: "Membre",
+};
 export type CommissionSessionStatut = "planifiee" | "tenue" | "annulee";
 export type SessionDecisionType =
   | "decision"
@@ -274,6 +280,8 @@ export interface Commission {
   color: string;
   /** Identifiant Lucide (cf. CommissionIcon) */
   icon: string;
+  /** Commission parente (pour les sous-commissions) */
+  parent_id: string | null;
   created_at: string;
 }
 

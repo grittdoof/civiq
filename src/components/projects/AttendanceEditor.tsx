@@ -135,7 +135,8 @@ export default function AttendanceEditor({
                     )}
                     {m.full_name}
                   </div>
-                  {m.role === "president" && <div className="pj-table-sub">Président</div>}
+                  {m.role === "president" && <div className="pj-table-sub">Président·e</div>}
+                  {m.role === "vice_president" && <div className="pj-table-sub">Vice-président·e</div>}
                   {m.isExternal && <div className="pj-table-sub">Externe</div>}
                 </td>
                 <td>

@@ -22,6 +22,7 @@ interface PatchBody {
   active?: boolean;
   color?: string;
   icon?: string;
+  parent_id?: string | null;
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -45,6 +46,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
   if (typeof body.icon === "string" && body.icon.trim()) {
     updates.icon = body.icon.trim();
+  }
+  if ("parent_id" in body) {
+    // Empêche qu'une commission ait elle-même comme parent
+    if (body.parent_id && body.parent_id === id) {
+      return NextResponse.json(
+        { error: "Une commission ne peut pas être sa propre sous-commission." },
+        { status: 400 },
+      );
+    }
+    updates.parent_id = body.parent_id || null;
   }
   const service = await createServiceClient();
   const { data, error } = await service

@@ -9,6 +9,7 @@ import AttendanceEditor from "@/components/projects/AttendanceEditor";
 import MinutesEditor from "@/components/projects/MinutesEditor";
 import SessionDocumentsEditor from "@/components/projects/SessionDocumentsEditor";
 import SignedAttendanceUpload from "@/components/projects/SignedAttendanceUpload";
+import SessionSecretarySelector from "@/components/projects/SessionSecretarySelector";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -41,6 +42,15 @@ export default async function SessionDetailPage({ params }: PageProps) {
   const presentCount = detail.attendance.filter((a) => a.present === true).length;
   const past = new Date(detail.session.date_seance) < new Date();
 
+  // Candidats secrétaire = membres internes (avec compte GoCiviq) de la
+  // commission. Les externes (sans user_id) ne peuvent pas éditer le CR.
+  const secretaryCandidates = detail.members
+    .filter((m) => m.user_id && m.profile)
+    .map((m) => ({ id: m.user_id!, full_name: m.profile?.full_name ?? null }));
+  const currentSecretaryName = detail.members.find(
+    (m) => m.user_id === detail.session?.secretaire_de_seance_user_id,
+  )?.profile?.full_name ?? null;
+
   const dateLabel = new Date(detail.session.date_seance).toLocaleString("fr-FR", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
     hour: "2-digit", minute: "2-digit",
@@ -58,6 +68,16 @@ export default async function SessionDetailPage({ params }: PageProps) {
         <div>
           <h1 className="civiq-page-title">{detail.commission?.nom}</h1>
           <p className="pj-page-subtitle">{dateLabel}{detail.session.lieu && <> — {detail.session.lieu}</>}</p>
+          <div style={{ marginTop: 8 }}>
+            <SessionSecretarySelector
+              commissionId={id}
+              sessionId={sid}
+              candidates={secretaryCandidates}
+              current={detail.session.secretaire_de_seance_user_id}
+              currentName={currentSecretaryName}
+              canEdit={canManageDocs}
+            />
+          </div>
         </div>
         <div className="pj-page-header-actions">
           <a

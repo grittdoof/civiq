@@ -174,7 +174,11 @@ export function AttendancePDF(props: AttendancePdfData) {
         {props.members.map((m, i) => (
           <View key={i} style={s.tr}>
             <Text style={[s.td, { flex: 3 }]}>{m.full_name}</Text>
-            <Text style={[s.td, { flex: 1 }]}>{m.role === "president" ? "Président" : "Membre"}</Text>
+            <Text style={[s.td, { flex: 1 }]}>
+              {m.role === "president" ? "Président·e"
+                : m.role === "vice_president" ? "Vice-président·e"
+                : "Membre"}
+            </Text>
             <Text style={[s.td, { flex: 1 }]}>
               {m.present === true ? "Présent" : m.present === false ? "Absent" : "—"}
             </Text>

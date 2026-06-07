@@ -1088,6 +1088,41 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   gap: 12px;
 }
 
+/* Hiérarchie commissions (parent + sous-commissions) */
+.pj-commissions-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pj-commission-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pj-subcommissions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  padding-left: 22px;
+  position: relative;
+}
+/* Trait vertical visuel reliant le parent à ses sous-commissions */
+.pj-subcommissions::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: -6px;
+  bottom: 8px;
+  width: 1.5px;
+  background: var(--civiq-border);
+  border-radius: 1px;
+}
+.pj-commission-card-sub {
+  padding: 12px 14px;
+}
+.pj-commission-card-sub h3 { font-size: 14px; }
+.pj-commission-card-sub .pj-section-description { font-size: 12px; margin-bottom: 6px; }
+
 /* ─── Signature pad ─── */
 .pj-signpad {
   display: flex;
@@ -1525,6 +1560,55 @@ a.pj-commission-badge:hover {
   flex-wrap: wrap;
   gap: 4px;
   margin-top: 2px;
+}
+
+/* Sélecteur de secrétaire de séance (inline) */
+.pj-secretary-inline,
+.pj-secretary-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.pj-secretary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--civiq-text-soft);
+  font-weight: 500;
+}
+.pj-secretary-display strong { color: var(--civiq-text); }
+
+/* Liste de séances avec date + extrait de l'ordre du jour */
+.pj-sessions-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.pj-session-row {
+  background: var(--civiq-surface);
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius-sm);
+  overflow: hidden;
+}
+.pj-session-link {
+  display: block;
+  padding: 10px 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--civiq-transition);
+}
+.pj-session-link:hover { background: var(--civiq-surface-2); }
+.pj-session-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--civiq-text);
+}
+.pj-session-excerpt {
+  font-size: 12.5px;
+  color: var(--civiq-text-soft);
+  margin-top: 3px;
+  /* Si le titre du browser ne suffit pas, on tronque visuellement */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Print ─── */
