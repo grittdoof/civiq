@@ -93,6 +93,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
             Émargement <span className="pj-section-count">({presentCount} / {totalMembers} présents)</span>
           </h2>
           <AttendanceEditor
+            commissionId={id}
             sessionId={sid}
             members={detail.members.map((m) => ({
               user_id: m.user_id,

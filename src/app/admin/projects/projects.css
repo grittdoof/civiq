@@ -594,6 +594,28 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   gap: 12px;
 }
 
+/* ─── Signature pad ─── */
+.pj-signpad {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+.pj-signpad-canvas {
+  border: 1.5px dashed var(--civiq-border);
+  border-radius: var(--civiq-radius-sm);
+  background: #fff;
+  touch-action: none;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.pj-signpad-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* ─── Print ─── */
 @media print {
   .civiq-no-print, .civiq-sidebar-desktop, .civiq-sidebar-mobile { display: none !important; }
