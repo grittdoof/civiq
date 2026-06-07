@@ -3,6 +3,7 @@ import { AlertTriangle, Clock, Wallet, ImageIcon, User } from "lucide-react";
 import { formatEuros } from "@/lib/projects/cost-calc";
 import { SECURED_FINANCING_STATUSES, type ProjectPhase } from "@/lib/projects/types";
 import type { ProjectListItem } from "@/lib/projects/queries";
+import CommissionIcon from "./CommissionIcon";
 
 interface Props {
   project: ProjectListItem;
@@ -67,6 +68,23 @@ export default function ProjectCard({ project, financingStatuses }: Props) {
       <div className="pj-card-body">
         <h3 className="pj-card-title">{project.titre}</h3>
         {desc && <p className="pj-card-desc">{desc}</p>}
+
+        {project.commissions && project.commissions.length > 0 && (
+          <div className="pj-card-commissions">
+            {project.commissions.map((c) => (
+              <span
+                key={c.id}
+                className="pj-commission-badge"
+                style={{ ['--comm-color' as string]: c.color }}
+                title={`Suivi par la commission ${c.nom}`}
+              >
+                <CommissionIcon name={c.icon} size={11} />
+                <span>{c.nom}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
         <div className="pj-card-meta">
           {project.budget_estime > 0 && (
             <span className="pj-card-meta-item" title="Budget estimé">

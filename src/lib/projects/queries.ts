@@ -40,6 +40,8 @@ export interface ProjectListItem extends Project {
   financing_total_obtenu?: number;
   open_milestones_count?: number;
   late_milestones_count?: number;
+  /** Commissions qui suivent ce projet (peuvent être transversales) */
+  commissions?: Array<{ id: string; nom: string; color: string; icon: string }>;
 }
 
 // ─── Projets ───
@@ -93,9 +95,9 @@ export async function listProjects(
 
   if (projects.length === 0) return [];
 
-  // Enrichissement : totaux de financement et jalons en retard
+  // Enrichissement : totaux de financement, jalons en retard, commissions
   const ids = projects.map((p) => p.id);
-  const [{ data: fins }, { data: jalons }] = await Promise.all([
+  const [{ data: fins }, { data: jalons }, { data: commLinks }] = await Promise.all([
     service
       .from("financings")
       .select("project_id, montant_demande, montant_obtenu")
@@ -103,6 +105,10 @@ export async function listProjects(
     service
       .from("milestones")
       .select("project_id, fait, echeance")
+      .in("project_id", ids),
+    service
+      .from("commission_projects")
+      .select("project_id, commission:commissions ( id, nom, color, icon )")
       .in("project_id", ids),
   ]);
 
@@ -125,6 +131,24 @@ export async function listProjects(
     jalByProj.set(j.project_id, cur);
   }
 
+  // Commissions par projet (peut être plusieurs / transversales)
+  type CommLink = {
+    project_id: string;
+    commission: { id: string; nom: string; color: string; icon: string } | null;
+  };
+  const commByProj = new Map<string, NonNullable<ProjectListItem["commissions"]>>();
+  for (const r of ((commLinks ?? []) as unknown as CommLink[])) {
+    if (!r.commission) continue;
+    const arr = commByProj.get(r.project_id) ?? [];
+    arr.push({
+      id: r.commission.id,
+      nom: r.commission.nom,
+      color: r.commission.color,
+      icon: r.commission.icon,
+    });
+    commByProj.set(r.project_id, arr);
+  }
+
   for (const p of projects) {
     const f = finByProj.get(p.id);
     p.financing_total_demande = f?.d ?? 0;
@@ -132,6 +156,7 @@ export async function listProjects(
     const j = jalByProj.get(p.id);
     p.open_milestones_count = j?.open ?? 0;
     p.late_milestones_count = j?.late ?? 0;
+    p.commissions = commByProj.get(p.id) ?? [];
   }
 
   return projects;
@@ -149,7 +174,13 @@ export interface ProjectDetail {
   source_ticket: { id: string; numero: number; titre: string } | null;
   global_cost: ProjectGlobalCost | null;
   /** Commissions qui suivent ce projet (peut être plusieurs / transversales) */
-  commissions: Array<{ id: string; nom: string; commission_project_id: string }>;
+  commissions: Array<{
+    id: string;
+    nom: string;
+    color: string;
+    icon: string;
+    commission_project_id: string;
+  }>;
 }
 
 export async function getProject(
@@ -243,19 +274,21 @@ export async function getProject(
     service.rpc("project_global_cost", { p_project_id: projectId }),
     service
       .from("commission_projects")
-      .select("id, commission:commissions ( id, nom )")
+      .select("id, commission:commissions ( id, nom, color, icon )")
       .eq("project_id", projectId),
   ]);
 
   type CommissionLinkRow = {
     id: string;
-    commission: { id: string; nom: string } | null;
+    commission: { id: string; nom: string; color: string; icon: string } | null;
   };
   const commissionsList = ((commissionsLink.data ?? []) as unknown as CommissionLinkRow[])
     .filter((r) => r.commission)
     .map((r) => ({
       id: r.commission!.id,
       nom: r.commission!.nom,
+      color: r.commission!.color,
+      icon: r.commission!.icon,
       commission_project_id: r.id,
     }));
 

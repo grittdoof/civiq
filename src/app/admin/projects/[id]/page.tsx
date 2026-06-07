@@ -21,6 +21,7 @@ import BilanEditor from "@/components/projects/BilanEditor";
 import SubscribersEditor from "@/components/projects/SubscribersEditor";
 import DocumentsEditor from "@/components/projects/DocumentsEditor";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
+import CommissionIcon from "@/components/projects/CommissionIcon";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -99,6 +100,20 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             {p.sans_subvention && (
               <span className="civiq-badge civiq-badge-warning">Autofinancement assumé</span>
             )}
+            {/* Pastille par commission rattachée : pictogramme + nom
+                dans la couleur de la commission */}
+            {detail.commissions.map((c) => (
+              <Link
+                key={c.id}
+                href={`/admin/commissions/${c.id}`}
+                className="pj-commission-badge"
+                style={{ ['--comm-color' as string]: c.color }}
+                title={`Commission ${c.nom}`}
+              >
+                <CommissionIcon name={c.icon} size={12} />
+                <span>{c.nom}</span>
+              </Link>
+            ))}
           </div>
         </div>
         {canEdit && (
