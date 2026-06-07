@@ -6,6 +6,44 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [2026-06-07] — Module « Gestion de projet » (beta)
+
+### Ajouté
+- **Nouveau module `projects`** au catalogue (réservé élus/agents, comme tickets). Pilotage complet des projets d'investissement de la commune sur leur cycle de vie standard en **7 étapes** : Émergence → Faisabilité → Décision & budget → Recherche de financement → Conception & marchés → Réalisation → Bilan & clôture.
+- **Machine à états serveur** (RPC `advance_project_phase`) :
+  - Recul d'étape autorisé mais commentaire obligatoire.
+  - Saut d'étape interdit sauf forçage admin avec commentaire.
+  - **Porte de financement** : passage en réalisation bloqué tant qu'aucune subvention n'a un statut `ar_recu` / `accordee` / `soldee` ET que `sans_subvention` n'est pas explicitement coché. Règle non contournable même par forçage admin.
+  - **Bilan obligatoire** avant clôture : coût réel + explication de l'écart.
+  - Journal de transitions complet (`project_phase_log`).
+- **Coûts d'exploitation sur 10 ans** avec calcul du coût global **nominal** et **actualisé** (formules d'actualisation classiques). Taux d'inflation / actualisation paramétrables par commune (`commune_settings`) avec override possible par projet.
+- **Parties prenantes en logique RACI** (décide / finance / exécute / consulté / informé) avec étape d'intervention. Annuaire commune réutilisable.
+- **Plan de financement** : suggestions DETR / DSIL / Département / Région / Europe, statuts complets, notifications sur accordée/refusée.
+- **Jalons** par phase avec échéances + alertes en retard.
+- **Vue kanban des 7 phases** + bandeau de synthèse financière consolidée (investissement total, subventions, reste à charge commune, coût global actualisé cumulé).
+- **Vue comparative** triable par coût global actualisé + graphique barres invest vs actualisé.
+- **Cartographie des parties prenantes** filtrable par type et rôle.
+- **Revue mensuelle** imprimable (alertes et prochaines échéances).
+- **Export PDF de fiche projet** (2 pages : identité + financement + calendrier, puis coûts 10 ans en avant-plan + parties prenantes + bilan).
+- **Lien tickets ↔ projets** : bouton « Transformer en projet » sur la page ticket, lien retour sur la fiche projet (`source_ticket_id`).
+- **Notifications push PWA** sur tous les événements majeurs : changement d'étape, jalons, subventions, transformation ticket→projet, séances de commission, validation de compte rendu.
+- **Commissions municipales** (sous-module) :
+  - Membres avec rôle président/membre.
+  - Projets rattachés (un projet peut être suivi par plusieurs commissions).
+  - **Séances** : planification + convocation push automatique aux membres + rappel J-1, quorum affiché, ordre du jour.
+  - **Émargement électronique** : signature tactile horodatée (canvas → PNG base64) avec PDF d'émargement signé.
+  - **Compte rendu** : édition par le secrétaire de séance, cycle brouillon → validé → verrouillé, PDF officiel, notification aux membres à la validation.
+  - **Relevé de décisions** : type décision/avis/action ; les actions liées à un projet créent automatiquement un jalon (trigger SQL).
+
+### Sécurité
+- 16 nouvelles tables, toutes avec **Row Level Security** stricte basée sur `commune_id` + restriction de rôle (`admin`, `editor`, `super_admin` uniquement — pas de viewer/citoyen).
+- Machine à états entièrement vérifiée côté serveur (RPC + tests purs JS).
+
+### Tests
+- **47 tests Vitest** sur la logique métier critique (state-machine + calcul de coût global). Tous verts.
+
+---
+
 ## [2026-04-20] — Profil + suppression sondage + CSS
 
 ### Ajouté

@@ -355,3 +355,23 @@ Toutes les futures migrations **doivent** utiliser :
 - `create index if not exists` pour les index
 Rien ne doit casser si la migration est rejouée.
 
+
+---
+
+## Session 7 — Module « Gestion de projet » (2026-06-07)
+
+> Détail complet dans [CLAUDE.md](./CLAUDE.md) (Session 7) et
+> [CHANGELOG.md](./CHANGELOG.md) (entrée 2026-06-07).
+
+### Synthèse
+- Nouveau module `projects` (beta) au catalogue, restreint aux élus/agents.
+- Cycle de vie en 7 étapes avec porte de financement et bilan obligatoires.
+- Coût global actualisé sur 10 ans, paramétrable par commune.
+- Parties prenantes RACI, financement, jalons, abonnés, documents.
+- Vues kanban, comparatif, cartographie, revue mensuelle.
+- Export PDF de fiche projet.
+- Lien tickets ↔ projets bidirectionnel.
+- Sous-module commissions : membres, projets, séances, émargement
+  électronique signé, compte rendu validé/verrouillé, exports PDF.
+- 47 tests Vitest verts (state-machine + cost-calc).
+- Migration 017 (1046 lignes, idempotente).

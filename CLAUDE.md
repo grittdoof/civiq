@@ -355,3 +355,86 @@ Toutes les futures migrations **doivent** utiliser :
 - `create index if not exists` pour les index
 Rien ne doit casser si la migration est rejouée.
 
+
+---
+
+## Session 7 — Module « Gestion de projet » (2026-06-07)
+
+### Prompt de départ
+> "Développe un nouveau module **Gestion de projet** permettant à une mairie de piloter ses projets d'investissement (voirie, équipements, aménagements…) en respectant un cycle de vie standard en 7 étapes avec des portes de validation, et en associant les parties prenantes à chaque étape."
+
+### Décisions d'architecture
+- **Multi-tenant** : isolation `commune_id` + RLS, restriction `admin|editor|super_admin` (pas de viewer/citoyen, comme tickets).
+- **Machine à états** : implémentée en **double** — RPC SQL `advance_project_phase()` source d'autorité + state-machine TS pure pour l'UX, miroir 1:1.
+- **Porte de financement** : règle non négociable, vérifiée côté serveur, non contournable même par force admin.
+- **Taux d'inflation / actualisation** : nouvelle table `commune_settings` (cohérence avec future extensibilité), surchargeables par projet.
+- **Signature électronique** : canvas tactile → PNG base64 dans `session_attendance.signature_data` (MVP simple, autonome, horodaté).
+- **Tests** : Vitest pour la logique pure (state-machine + cost-calc), 47 tests verts.
+
+### Migration 017 (1046 lignes, idempotente)
+- 8 enums : `project_phase`, `project_competence`, `stakeholder_type`, `stakeholder_role`, `financing_status`, `commission_member_role`, `commission_session_statut`, `session_decision_type`.
+- 16 tables : `commune_settings`, `projects`, `project_phase_log`, `project_subscribers`, `stakeholders`, `project_stakeholders` (RACI), `financings`, `milestones`, `project_lifecycle_costs` (1..10 ans), `project_documents`, `commissions`, `commission_members`, `commission_projects`, `commission_sessions`, `session_attendance`, `session_decisions`.
+- Fonctions/RPC : `project_phase_index`, `project_can_advance(uuid, phase)`, `advance_project_phase(uuid, phase, text, bool)`, `project_global_cost(uuid)`, `user_can_edit_project(uuid)`.
+- Triggers : auto-abonnement des pilotes, `updated_at`, décision type=action → jalon auto.
+- Buckets Storage : `project-documents`, `commission-pdfs`.
+- Lien `tickets.project_id` + extension `notification_preferences` (4 nouvelles colonnes).
+- Module catalogue inséré, **pas d'activation auto** (catalogue uniquement).
+
+### Architecture du code
+```
+src/lib/projects/
+├── types.ts            — miroirs des enums + labels FR + interfaces
+├── state-machine.ts    — décision pure de transition (mirroir RPC)
+├── cost-calc.ts        — computeGlobalCost / computeEcart / formatters
+├── queries.ts          — listProjects, getProject, getCommission, getSession…
+├── api-helpers.ts      — requireProjectAccess / requireProjectEdit
+├── push.ts             — sendProjectNotification + déclencheurs
+├── pdf-document.tsx    — fiche projet
+└── pdf-commission.tsx  — émargement + compte rendu
+
+src/components/projects/  (composants client)
+├── ProjectKanbanCard, ProjectStepper, ProjectPhaseAdvanceDialog
+├── FinancingsEditor, StakeholdersEditor, LifecycleCostsEditor,
+│   MilestonesEditor, BilanEditor, SubscribersEditor, ProjectForm
+├── CostComparisonChart, PrintButton, TransformTicketButton
+├── NewCommissionDialog, CommissionMembersEditor,
+│   CommissionProjectsEditor, NewSessionForm
+└── SignaturePad, AttendanceEditor, MinutesEditor
+
+src/app/admin/projects/
+├── page.tsx            — kanban 7 colonnes + bandeau financier
+├── nouveau/page.tsx    — création (préremplissage from_ticket=…)
+├── comparatif/page.tsx — table triée + chart barres
+├── cartographie/page.tsx — vue transversale parties prenantes
+├── revue-mensuelle/page.tsx — synthèse imprimable
+└── [id]/
+    ├── page.tsx        — fiche complète avec éditeurs interactifs
+    └── edit/page.tsx   — édition des champs scalaires
+
+src/app/admin/commissions/
+├── page.tsx
+└── [id]/
+    ├── page.tsx        — membres + projets + séances
+    └── sessions/
+        ├── nouvelle/page.tsx
+        └── [sid]/page.tsx  — émargement + CR
+
+src/app/api/projects/**        — toutes routes gated requireModule('projects')
+src/app/api/commissions/**
+src/app/api/stakeholders       — annuaire commune
+src/app/api/commune-settings   — taux inflation/actualisation
+```
+
+### Points d'attention
+- **Toujours appeler `advance_project_phase` via la RPC**, pas un UPDATE direct. La RPC vérifie les permissions et la porte.
+- **`tickets.project_id`** ajouté par migration 017 (cross-module) — le type `Ticket` a une nouvelle propriété optionnelle.
+- **Storage buckets** : 20 MB max pour documents/PDFs, signed URLs via service role.
+- **Notifications projets** : nouveaux préfs `notify_project_phase`, `notify_project_milestone`, `notify_project_financing`, `notify_commission` — default true.
+- **Vitest** ajouté aux devDeps : `npm test` lance `tests/unit/**/*.test.ts`.
+
+### Tests
+```
+npm test  → 47 ✓
+- tests/unit/projects/state-machine.test.ts (29)
+- tests/unit/projects/cost-calc.test.ts (18)
+```
