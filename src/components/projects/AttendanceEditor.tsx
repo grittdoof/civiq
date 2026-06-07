@@ -2,13 +2,25 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, X, PenTool } from "lucide-react";
+import { CheckCircle2, X, PenTool, UserPlus } from "lucide-react";
 import SignaturePad from "./SignaturePad";
 import type { CommissionMemberRole } from "@/lib/projects/types";
 
-interface Member { user_id: string; full_name: string | null; role: CommissionMemberRole; }
+interface Member {
+  /** id de commission_members */
+  member_id: string;
+  /** user_id si compte GoCiviq, null si externe */
+  user_id: string | null;
+  full_name: string;
+  role: CommissionMemberRole;
+  /** True pour les externes (sans compte) */
+  isExternal: boolean;
+}
+
 interface Attendance {
-  user_id: string;
+  /** id de commission_members (pour les externes) */
+  member_id: string | null;
+  user_id: string | null;
   present: boolean | null;
   signature_data: string | null;
   signe_le: string | null;
@@ -21,15 +33,16 @@ interface Props {
   attendance: Attendance[];
   currentUserId: string;
   isAdmin: boolean;
-  /** Si la séance est passée, masque le bouton signature */
   sessionPast: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Feuille d'émargement avec signature électronique horodatée.
-// Chaque conseiller signe pour lui-même (présence + signature
-// PNG base64). Un admin peut marquer présent/absent en cliquant
-// les pills (utile pour les absents avant édition du CR).
+// Feuille d'émargement — signature électronique horodatée.
+//
+// Membres internes : signent pour eux-mêmes (canvas SignaturePad).
+// Membres externes : seul un admin peut les marquer présents et
+// recueillir leur signature à leur place (cas du tactile partagé
+// en séance) ou la saisir.
 // ═══════════════════════════════════════════════════════════════
 
 export default function AttendanceEditor({
@@ -42,29 +55,52 @@ export default function AttendanceEditor({
   sessionPast,
 }: Props) {
   const router = useRouter();
-  const [signingFor, setSigningFor] = useState<string | null>(null);
-  const map = new Map(attendance.map((a) => [a.user_id, a]));
+  const [signingFor, setSigningFor] = useState<Member | null>(null);
+
+  // Lookup d'attendance : par user_id pour internes, par member_id pour externes
+  const byUser = new Map<string, Attendance>();
+  const byMember = new Map<string, Attendance>();
+  for (const a of attendance) {
+    if (a.user_id) byUser.set(a.user_id, a);
+    if (a.member_id) byMember.set(a.member_id, a);
+  }
+
+  function getAttendance(m: Member): Attendance | undefined {
+    if (m.isExternal) return byMember.get(m.member_id);
+    return m.user_id ? byUser.get(m.user_id) : undefined;
+  }
 
   const url = `/api/commissions/${commissionId}/sessions/${sessionId}/attendance`;
 
-  async function setPresence(userId: string, present: boolean) {
+  async function setPresence(m: Member, present: boolean) {
+    const body: Record<string, unknown> = { present };
+    if (m.isExternal) {
+      body.commission_member_id = m.member_id;
+    } else {
+      body.user_id = m.user_id;
+    }
     await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, present }),
+      body: JSON.stringify(body),
     });
     router.refresh();
   }
 
-  async function sign(userId: string, signatureDataUrl: string) {
+  async function sign(m: Member, signatureDataUrl: string) {
+    const body: Record<string, unknown> = {
+      present: true,
+      signature_data: signatureDataUrl,
+    };
+    if (m.isExternal) {
+      body.commission_member_id = m.member_id;
+    } else {
+      body.user_id = m.user_id;
+    }
     await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        user_id: userId,
-        present: true,
-        signature_data: signatureDataUrl,
-      }),
+      body: JSON.stringify(body),
     });
     setSigningFor(null);
     router.refresh();
@@ -83,21 +119,31 @@ export default function AttendanceEditor({
         </thead>
         <tbody>
           {members.map((m) => {
-            const a = map.get(m.user_id);
-            const isMe = m.user_id === currentUserId;
-            const canSign = isMe && !a?.signature_data && !sessionPast;
+            const a = getAttendance(m);
+            const isMe = !m.isExternal && m.user_id === currentUserId;
+            const canSignSelf = isMe && !a?.signature_data && !sessionPast;
+            // Pour les externes : seul l'admin peut signer à leur place
+            const canSignExternal = m.isExternal && isAdmin && !a?.signature_data;
             return (
-              <tr key={m.user_id}>
+              <tr key={m.member_id}>
                 <td>
-                  <div className="pj-table-strong">{m.full_name ?? "—"}</div>
+                  <div className="pj-table-strong" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {m.isExternal && (
+                      <span title="Membre externe (sans compte GoCiviq)" style={{ display: "inline-flex" }}>
+                        <UserPlus size={12} />
+                      </span>
+                    )}
+                    {m.full_name}
+                  </div>
                   {m.role === "president" && <div className="pj-table-sub">Président</div>}
+                  {m.isExternal && <div className="pj-table-sub">Externe</div>}
                 </td>
                 <td>
                   {isAdmin ? (
                     <div style={{ display: "flex", gap: 4 }}>
                       <button
                         type="button"
-                        onClick={() => setPresence(m.user_id, true)}
+                        onClick={() => setPresence(m, true)}
                         className={`civiq-badge ${a?.present === true ? "civiq-badge-success" : "civiq-badge-muted"}`}
                         style={{ cursor: "pointer" }}
                       >
@@ -105,7 +151,7 @@ export default function AttendanceEditor({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPresence(m.user_id, false)}
+                        onClick={() => setPresence(m, false)}
                         className={`civiq-badge ${a?.present === false ? "civiq-badge-warning" : "civiq-badge-muted"}`}
                         style={{ cursor: "pointer" }}
                       >
@@ -140,10 +186,10 @@ export default function AttendanceEditor({
                   )}
                 </td>
                 <td>
-                  {canSign && (
+                  {(canSignSelf || canSignExternal) && (
                     <button
                       type="button"
-                      onClick={() => setSigningFor(m.user_id)}
+                      onClick={() => setSigningFor(m)}
                       className="civiq-btn civiq-btn-outline civiq-btn-sm"
                     >
                       <PenTool size={12} /> Signer
@@ -159,12 +205,14 @@ export default function AttendanceEditor({
       {signingFor && (
         <div className="pj-modal-backdrop" onClick={() => setSigningFor(null)}>
           <div className="pj-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="pj-modal-title">Émargement — signature électronique</h3>
+            <h3 className="pj-modal-title">
+              Émargement — {signingFor.full_name}
+            </h3>
             <div className="pj-modal-body">
               <p className="pj-section-empty">
-                Tracez votre signature avec le doigt ou la souris dans le cadre
-                ci-dessous. La signature sera horodatée et conservée avec votre
-                identifiant pour valeur de feuille d&apos;émargement.
+                {signingFor.isExternal
+                  ? "Le membre externe trace sa signature au doigt sur l'écran (vous, administrateur, la collectez en séance)."
+                  : "Tracez votre signature avec le doigt ou la souris. Elle sera horodatée et conservée."}
               </p>
               <SignaturePad
                 onSign={(data) => sign(signingFor, data)}

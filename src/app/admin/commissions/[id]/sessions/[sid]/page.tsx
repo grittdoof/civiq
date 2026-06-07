@@ -96,11 +96,14 @@ export default async function SessionDetailPage({ params }: PageProps) {
             commissionId={id}
             sessionId={sid}
             members={detail.members.map((m) => ({
+              member_id: m.id,
               user_id: m.user_id,
-              full_name: m.profile?.full_name ?? null,
+              full_name: m.profile?.full_name ?? m.external_name ?? "—",
               role: m.role,
+              isExternal: !m.user_id,
             }))}
             attendance={detail.attendance.map((a) => ({
+              member_id: a.commission_member_id,
               user_id: a.conseiller_user_id,
               present: a.present,
               signature_data: a.signature_data,

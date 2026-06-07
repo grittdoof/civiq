@@ -12,6 +12,16 @@ async function checkAdminAccess(commissionId: string, role: string, communeId: s
   return data?.commune_id === communeId;
 }
 
+interface Body {
+  /** Membre interne avec compte GoCiviq */
+  user_id?: string;
+  /** Membre externe — au moins external_name requis */
+  external_name?: string;
+  external_email?: string;
+  external_phone?: string;
+  role?: CommissionMemberRole;
+}
+
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const guard = await requireModule("projects");
   if (!guard.ok) return guard.response;
@@ -20,12 +30,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!(await checkAdminAccess(id, guard.role, guard.communeId))) {
     return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
   }
-  const body = (await req.json()) as { user_id?: string; role?: CommissionMemberRole };
-  if (!body.user_id) return NextResponse.json({ error: "user_id requis" }, { status: 400 });
+  const body = (await req.json()) as Body;
+
+  const externalName = body.external_name?.trim();
+  if (!body.user_id && !externalName) {
+    return NextResponse.json(
+      { error: "user_id (compte interne) ou external_name (membre externe) requis" },
+      { status: 400 },
+    );
+  }
+
   const service = await createServiceClient();
   const { data, error } = await service
     .from("commission_members")
-    .insert({ commission_id: id, user_id: body.user_id, role: body.role ?? "membre" })
+    .insert({
+      commission_id: id,
+      user_id: body.user_id || null,
+      external_name: externalName || null,
+      external_email: body.external_email?.trim() || null,
+      external_phone: body.external_phone?.trim() || null,
+      role: body.role ?? "membre",
+    })
     .select("*, profile:profiles ( id, full_name, job_title )")
     .maybeSingle();
   if (error && error.code !== "23505") return NextResponse.json({ error: error.message }, { status: 500 });

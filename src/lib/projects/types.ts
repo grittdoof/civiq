@@ -261,8 +261,13 @@ export interface Commission {
 export interface CommissionMember {
   id: string;
   commission_id: string;
-  user_id: string;
+  /** Null si membre externe (sans compte GoCiviq) */
+  user_id: string | null;
   role: CommissionMemberRole;
+  /** Nom du membre externe (si user_id est null) */
+  external_name: string | null;
+  external_email: string | null;
+  external_phone: string | null;
   created_at: string;
 }
 
@@ -293,7 +298,10 @@ export interface CommissionSession {
 export interface SessionAttendance {
   id: string;
   session_id: string;
-  conseiller_user_id: string;
+  /** Null pour un membre externe */
+  conseiller_user_id: string | null;
+  /** Rattachement à commission_members (pour les externes) */
+  commission_member_id: string | null;
   present: boolean | null;
   signature_data: string | null;
   signe_le: string | null;

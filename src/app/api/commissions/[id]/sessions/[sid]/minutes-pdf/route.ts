@@ -42,12 +42,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     secretaireNom = sec?.full_name ?? null;
   }
 
-  const attMap = new Map(detail.attendance.map((a) => [a.conseiller_user_id, a]));
+  const byUser = new Map<string, typeof detail.attendance[number]>();
+  const byMember = new Map<string, typeof detail.attendance[number]>();
+  for (const a of detail.attendance) {
+    if (a.conseiller_user_id) byUser.set(a.conseiller_user_id, a);
+    if (a.commission_member_id) byMember.set(a.commission_member_id, a);
+  }
   const presents: string[] = [];
   const absents: string[] = [];
   for (const m of detail.members) {
-    const name = m.profile?.full_name ?? "—";
-    const a = attMap.get(m.user_id);
+    const name = m.profile?.full_name ?? m.external_name ?? "—";
+    const a = m.user_id ? byUser.get(m.user_id) : byMember.get(m.id);
     if (a?.present === true) presents.push(name);
     else if (a?.present === false) absents.push(name);
   }
