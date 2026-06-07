@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Printer, FileText } from "lucide-react";
-import "../../../../../projects/projects.css";
+import "../../../../projects/projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { getSession } from "@/lib/projects/queries";
