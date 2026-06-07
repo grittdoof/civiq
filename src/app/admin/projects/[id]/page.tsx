@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, Ticket, ExternalLink } from "lucide-react";
+import { ArrowLeft, Edit, Ticket, Gavel } from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -19,6 +19,7 @@ import LifecycleCostsEditor from "@/components/projects/LifecycleCostsEditor";
 import MilestonesEditor from "@/components/projects/MilestonesEditor";
 import BilanEditor from "@/components/projects/BilanEditor";
 import SubscribersEditor from "@/components/projects/SubscribersEditor";
+import DocumentsEditor from "@/components/projects/DocumentsEditor";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -271,24 +272,44 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* ── Documents ── */}
+        {/* ── Commissions rattachées (transversales possibles) ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
-            Documents <span className="pj-section-count">({detail.documents.length})</span>
+            <Gavel size={16} /> Commissions qui suivent ce projet
+            <span className="pj-section-count">({detail.commissions.length})</span>
           </h2>
-          {detail.documents.length === 0 ? (
-            <p className="pj-section-empty">Aucun document joint.</p>
+          {detail.commissions.length === 0 ? (
+            <p className="pj-section-empty">
+              Aucune commission ne suit ce projet pour le moment. Un projet
+              peut être suivi par plusieurs commissions (transversales) — la
+              gestion se fait depuis la fiche commission.
+            </p>
           ) : (
-            <ul className="pj-docs">
-              {detail.documents.map((d) => (
-                <li key={d.id}>
-                  <a href={d.url} target="_blank" rel="noreferrer">
-                    <ExternalLink size={12} /> {d.nom}
-                  </a>
+            <ul className="pj-subs">
+              {detail.commissions.map((c) => (
+                <li key={c.id} className="pj-sub-row">
+                  <Link
+                    href={`/admin/commissions/${c.id}`}
+                    style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "inherit", fontWeight: 600 }}
+                  >
+                    <Gavel size={14} /> {c.nom}
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
+        </section>
+
+        {/* ── Documents (avec upload) ── */}
+        <section className="civiq-card pj-section">
+          <h2 className="pj-section-title">
+            Documents <span className="pj-section-count">({detail.documents.length})</span>
+          </h2>
+          <DocumentsEditor
+            projectId={p.id}
+            initial={detail.documents}
+            canEdit={canEdit}
+          />
         </section>
 
         {/* ── Abonnés — éditeur ── */}

@@ -148,6 +148,8 @@ export interface ProjectDetail {
   phase_log: ProjectPhaseLog[];
   source_ticket: { id: string; numero: number; titre: string } | null;
   global_cost: ProjectGlobalCost | null;
+  /** Commissions qui suivent ce projet (peut être plusieurs / transversales) */
+  commissions: Array<{ id: string; nom: string; commission_project_id: string }>;
 }
 
 export async function getProject(
@@ -180,6 +182,7 @@ export async function getProject(
       phase_log: [],
       source_ticket: null,
       global_cost: null,
+      commissions: [],
     };
   }
 
@@ -193,6 +196,7 @@ export async function getProject(
     phaseLog,
     sourceTicket,
     globalCost,
+    commissionsLink,
   ] = await Promise.all([
     service
       .from("project_stakeholders")
@@ -237,7 +241,23 @@ export async function getProject(
           .maybeSingle()
       : Promise.resolve({ data: null }),
     service.rpc("project_global_cost", { p_project_id: projectId }),
+    service
+      .from("commission_projects")
+      .select("id, commission:commissions ( id, nom )")
+      .eq("project_id", projectId),
   ]);
+
+  type CommissionLinkRow = {
+    id: string;
+    commission: { id: string; nom: string } | null;
+  };
+  const commissionsList = ((commissionsLink.data ?? []) as unknown as CommissionLinkRow[])
+    .filter((r) => r.commission)
+    .map((r) => ({
+      id: r.commission!.id,
+      nom: r.commission!.nom,
+      commission_project_id: r.id,
+    }));
 
   type GlobalCostRow = {
     invest: number;
@@ -267,6 +287,7 @@ export async function getProject(
           taux_actualisation_used: Number(gc.taux_actualisation_used),
         }
       : null,
+    commissions: commissionsList,
   };
 }
 
