@@ -4,30 +4,29 @@ import { ArrowLeft, Edit, Ticket, ExternalLink } from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
-import { getProject } from "@/lib/projects/queries";
+import { createServiceClient } from "@/lib/supabase-server";
+import { getProject, listStakeholders, getCommuneSettings } from "@/lib/projects/queries";
 import {
   PROJECT_PHASE_LABELS,
-  STAKEHOLDER_ROLE_LABELS,
-  STAKEHOLDER_TYPE_LABELS,
-  FINANCING_STATUS_LABELS,
   type ProjectPhase,
 } from "@/lib/projects/types";
-import { computeEcart, formatEuros, formatPercent } from "@/lib/projects/cost-calc";
+import { formatEuros } from "@/lib/projects/cost-calc";
 import ProjectStepper from "@/components/projects/ProjectStepper";
+import ProjectPhaseAdvanceDialog from "@/components/projects/ProjectPhaseAdvanceDialog";
+import FinancingsEditor from "@/components/projects/FinancingsEditor";
+import StakeholdersEditor from "@/components/projects/StakeholdersEditor";
+import LifecycleCostsEditor from "@/components/projects/LifecycleCostsEditor";
+import MilestonesEditor from "@/components/projects/MilestonesEditor";
+import BilanEditor from "@/components/projects/BilanEditor";
+import SubscribersEditor from "@/components/projects/SubscribersEditor";
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/projects/:id — Fiche projet en LECTURE
+// /admin/projects/:id — Fiche projet
 //
-// Affiche toutes les sections : identité, stepper, objectifs,
-// parties prenantes (RACI), plan de financement, coûts 10 ans
-// + coût global, jalons, abonnés, bilan, documents, historique
-// des transitions, lien vers le ticket d'origine.
-//
-// L'édition se fait via :
-//   • /admin/projects/:id/edit          (champs scalaires)
-//   • boutons « Faire avancer / reculer » → composant client
-//
-// Composants client interactifs viendront aux commits 8-9.
+// Server component qui charge toutes les relations + l'annuaire
+// commune (stakeholders, profiles), puis délègue chaque bloc à un
+// éditeur client si l'utilisateur a les droits (admin/editor).
+// Sinon : lecture seule.
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -45,11 +44,30 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const detail = await getProject(ctx.communeId, id);
+  const [detail, stakeholdersDir, settings] = await Promise.all([
+    getProject(ctx.communeId, id),
+    listStakeholders(ctx.communeId),
+    getCommuneSettings(ctx.communeId),
+  ]);
+
   if (!detail.project) notFound();
   const p = detail.project;
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
-  const ecart = computeEcart(p.budget_estime, p.cout_reel);
+  const isAdmin = ["admin", "super_admin"].includes(ctx.role ?? "");
+
+  // Annuaire des profiles commune pour l'ajout d'abonnés
+  const service = await createServiceClient();
+  const { data: profilesDir } = await service
+    .from("profiles")
+    .select("id, full_name")
+    .eq("commune_id", ctx.communeId);
+  const profileDirectory = (profilesDir ?? []) as Array<{ id: string; full_name: string | null }>;
+
+  // Taux à passer à l'éditeur lifecycle (override projet > commune > default)
+  const taux_inflation =
+    p.taux_inflation ?? settings?.taux_inflation ?? 2.0;
+  const taux_actualisation =
+    p.taux_actualisation ?? settings?.taux_actualisation ?? 4.0;
 
   return (
     <main className="civiq-main pj-detail-page">
@@ -76,6 +94,9 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             <span className="civiq-badge civiq-badge-muted">
               Compétence : {labelCompetence(p.competence)}
             </span>
+            {p.sans_subvention && (
+              <span className="civiq-badge civiq-badge-warning">Autofinancement assumé</span>
+            )}
           </div>
         </div>
         {canEdit && (
@@ -109,6 +130,14 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
       <ProjectStepper current={p.phase} />
 
+      {canEdit && (
+        <ProjectPhaseAdvanceDialog
+          projectId={p.id}
+          currentPhase={p.phase}
+          isAdmin={isAdmin}
+        />
+      )}
+
       <div className="pj-detail-grid">
         {/* ── Objectifs ── */}
         <section className="civiq-card pj-section">
@@ -117,11 +146,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           {p.objectifs ? (
             <p className="pj-section-content">{p.objectifs}</p>
           ) : (
-            <p className="pj-section-empty">Pas d&apos;objectifs renseignés.</p>
+            <p className="pj-section-empty">
+              Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
+            </p>
           )}
         </section>
 
-        {/* ── Synthèse financière ── */}
+        {/* ── Synthèse financière (lecture, calcul en BDD) ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">Synthèse financière</h2>
           <div className="pj-cost-grid">
@@ -152,197 +183,90 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* ── Parties prenantes (RACI) ── */}
+        {/* ── Parties prenantes (RACI) — éditeur ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
             Parties prenantes <span className="pj-section-count">({detail.stakeholders.length})</span>
           </h2>
-          {detail.stakeholders.length === 0 ? (
-            <p className="pj-section-empty">Aucune partie prenante associée.</p>
+          {canEdit ? (
+            <StakeholdersEditor
+              projectId={p.id}
+              initial={detail.stakeholders}
+              directory={stakeholdersDir}
+            />
           ) : (
-            <table className="pj-table">
-              <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Type</th>
-                  <th>Rôle</th>
-                  <th>Étape</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.stakeholders.map((ps) => (
-                  <tr key={ps.id}>
-                    <td>
-                      <div className="pj-table-strong">{ps.stakeholder?.nom ?? "—"}</div>
-                      {ps.stakeholder?.organisation && (
-                        <div className="pj-table-sub">{ps.stakeholder.organisation}</div>
-                      )}
-                    </td>
-                    <td>
-                      {ps.stakeholder?.type
-                        ? STAKEHOLDER_TYPE_LABELS[ps.stakeholder.type]
-                        : "—"}
-                    </td>
-                    <td>
-                      <span className="civiq-badge civiq-badge-default">
-                        {STAKEHOLDER_ROLE_LABELS[ps.role]}
-                      </span>
-                    </td>
-                    <td>
-                      {ps.phase ? PROJECT_PHASE_LABELS[ps.phase as ProjectPhase] : "Tout le projet"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p className="pj-section-empty">Lecture seule.</p>
           )}
         </section>
 
-        {/* ── Plan de financement ── */}
+        {/* ── Plan de financement — éditeur ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
             Plan de financement <span className="pj-section-count">({detail.financings.length})</span>
           </h2>
-          {detail.financings.length === 0 ? (
-            <p className="pj-section-empty">Aucun financement renseigné.</p>
+          {canEdit ? (
+            <FinancingsEditor
+              projectId={p.id}
+              initial={detail.financings}
+              sansSubvention={p.sans_subvention}
+            />
           ) : (
-            <>
-              <table className="pj-table">
-                <thead>
-                  <tr>
-                    <th>Financeur</th>
-                    <th>Demandé</th>
-                    <th>Obtenu</th>
-                    <th>Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.financings.map((f) => (
-                    <tr key={f.id}>
-                      <td className="pj-table-strong">{f.financeur}</td>
-                      <td>{f.montant_demande ? formatEuros(f.montant_demande) : "—"}</td>
-                      <td>{f.montant_obtenu ? formatEuros(f.montant_obtenu) : "—"}</td>
-                      <td>
-                        <span className={`civiq-badge ${financingBadgeClass(f.statut)}`}>
-                          {FINANCING_STATUS_LABELS[f.statut]}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td className="pj-table-strong">Total</td>
-                    <td className="pj-table-strong">
-                      {formatEuros(detail.financings.reduce((s, f) => s + Number(f.montant_demande ?? 0), 0))}
-                    </td>
-                    <td className="pj-table-strong">
-                      {formatEuros(detail.financings.reduce((s, f) => s + Number(f.montant_obtenu ?? 0), 0))}
-                    </td>
-                    <td>{p.sans_subvention && <span className="civiq-badge civiq-badge-muted">Autofinancement</span>}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </>
+            <p className="pj-section-empty">Lecture seule.</p>
           )}
         </section>
 
-        {/* ── Coûts 10 ans ── */}
-        <section className="civiq-card pj-section">
+        {/* ── Coûts 10 ans — éditeur grille ── */}
+        <section className="civiq-card pj-section pj-section-wide">
           <h2 className="pj-section-title">
             Coûts de fonctionnement &amp; d&apos;entretien sur 10 ans
           </h2>
-          {detail.lifecycle.length === 0 ? (
-            <p className="pj-section-empty">
-              Aucun coût d&apos;exploitation renseigné. <em>Souvent l&apos;élément
-              décisif d&apos;un arbitrage d&apos;investissement.</em>
-            </p>
+          <p className="pj-section-description">
+            Saisis en euros constants (valeur d&apos;aujourd&apos;hui). Le coût global
+            actualisé prend en compte l&apos;inflation et le taux d&apos;actualisation.
+            <em> C&apos;est souvent l&apos;élément clé d&apos;arbitrage.</em>
+          </p>
+          {canEdit ? (
+            <LifecycleCostsEditor
+              projectId={p.id}
+              initial={detail.lifecycle}
+              budget_estime={p.budget_estime}
+              taux_inflation={taux_inflation}
+              taux_actualisation={taux_actualisation}
+            />
           ) : (
-            <table className="pj-table">
-              <thead>
-                <tr>
-                  <th>Année</th>
-                  <th>Fonctionnement</th>
-                  <th>Entretien</th>
-                  <th>Total constant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.lifecycle.map((l) => (
-                  <tr key={l.id}>
-                    <td>{l.annee}</td>
-                    <td>{formatEuros(l.cout_fonctionnement)}</td>
-                    <td>{formatEuros(l.cout_entretien)}</td>
-                    <td className="pj-table-strong">
-                      {formatEuros(Number(l.cout_fonctionnement) + Number(l.cout_entretien))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p className="pj-section-empty">Lecture seule.</p>
           )}
         </section>
 
-        {/* ── Jalons ── */}
+        {/* ── Jalons — éditeur ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
             Jalons <span className="pj-section-count">({detail.milestones.length})</span>
           </h2>
-          {detail.milestones.length === 0 ? (
-            <p className="pj-section-empty">Aucun jalon défini.</p>
+          {canEdit ? (
+            <MilestonesEditor
+              projectId={p.id}
+              initial={detail.milestones}
+              currentPhase={p.phase}
+            />
           ) : (
-            <ul className="pj-milestones">
-              {detail.milestones.map((m) => {
-                const late = !m.fait && m.echeance && new Date(m.echeance) < new Date();
-                return (
-                  <li key={m.id} className={`pj-milestone ${m.fait ? "is-done" : ""} ${late ? "is-late" : ""}`}>
-                    <input type="checkbox" checked={m.fait} readOnly />
-                    <div className="pj-milestone-body">
-                      <div className="pj-milestone-label">{m.libelle}</div>
-                      <div className="pj-milestone-meta">
-                        {PROJECT_PHASE_LABELS[m.phase]}
-                        {m.echeance && <> — échéance le {new Date(m.echeance).toLocaleDateString("fr-FR")}</>}
-                        {late && <> — <strong>en retard</strong></>}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <p className="pj-section-empty">Lecture seule.</p>
           )}
         </section>
 
-        {/* ── Bilan (visible à partir de realisation) ── */}
+        {/* ── Bilan (à partir de realisation) — éditeur ── */}
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
           <section className="civiq-card pj-section">
             <h2 className="pj-section-title">Bilan de réalisation</h2>
-            <div className="pj-cost-grid">
-              <div className="pj-cost-cell">
-                <div className="pj-cost-label">Coût réel</div>
-                <div className="pj-cost-value">
-                  {p.cout_reel !== null ? formatEuros(p.cout_reel) : "À renseigner"}
-                </div>
-              </div>
-              {ecart && (
-                <div
-                  className={`pj-cost-cell ${
-                    ecart.value > 0 ? "pj-cost-cell-warn" : "pj-cost-cell-success"
-                  }`}
-                >
-                  <div className="pj-cost-label">Écart</div>
-                  <div className="pj-cost-value">
-                    {ecart.value > 0 ? "+" : ""}
-                    {formatEuros(ecart.value)} ({formatPercent(ecart.pct)})
-                  </div>
-                </div>
-              )}
-            </div>
-            {p.explication_ecart ? (
-              <p className="pj-section-content">{p.explication_ecart}</p>
+            {canEdit ? (
+              <BilanEditor
+                projectId={p.id}
+                budget_estime={p.budget_estime}
+                cout_reel={p.cout_reel}
+                explication_ecart={p.explication_ecart}
+              />
             ) : (
-              <p className="pj-section-empty">
-                <strong>Bilan obligatoire avant clôture :</strong> renseigner le coût réel et l&apos;explication de l&apos;écart.
-              </p>
+              <p className="pj-section-empty">Lecture seule.</p>
             )}
           </section>
         )}
@@ -367,19 +291,20 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           )}
         </section>
 
-        {/* ── Abonnés ── */}
+        {/* ── Abonnés — éditeur ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
             Abonnés aux notifications <span className="pj-section-count">({detail.subscribers.length})</span>
           </h2>
-          {detail.subscribers.length === 0 ? (
-            <p className="pj-section-empty">Aucun abonné.</p>
+          {canEdit ? (
+            <SubscribersEditor
+              projectId={p.id}
+              initial={detail.subscribers}
+              directory={profileDirectory}
+              currentUserId={ctx.userId}
+            />
           ) : (
-            <ul className="pj-subs">
-              {detail.subscribers.map((s) => (
-                <li key={s.id}>{s.profile?.full_name ?? "—"}</li>
-              ))}
-            </ul>
+            <p className="pj-section-empty">Lecture seule.</p>
           )}
         </section>
 
@@ -397,7 +322,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
                   </div>
                   <div className="pj-history-what">
                     {l.from_phase ? PROJECT_PHASE_LABELS[l.from_phase] : "—"}{" → "}
-                    <strong>{PROJECT_PHASE_LABELS[l.to_phase]}</strong>
+                    <strong>{PROJECT_PHASE_LABELS[l.to_phase as ProjectPhase]}</strong>
                     {l.forced && <span className="civiq-badge civiq-badge-warning"> Forcé</span>}
                   </div>
                   {l.commentaire && (
@@ -419,19 +344,5 @@ function labelCompetence(c: string): string {
     case "intercommunale": return "Intercommunale";
     case "a_verifier": return "À vérifier";
     default: return c;
-  }
-}
-
-function financingBadgeClass(statut: string): string {
-  switch (statut) {
-    case "accordee":
-    case "soldee":
-      return "civiq-badge-success";
-    case "refusee":
-      return "civiq-badge-warning";
-    case "ar_recu":
-      return "civiq-badge-success";
-    default:
-      return "civiq-badge-muted";
   }
 }

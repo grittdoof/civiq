@@ -371,3 +371,173 @@
   font-style: italic;
   margin-top: 2px;
 }
+
+/* ─── Section wide (toute la grille) ─── */
+.pj-section-wide { grid-column: 1 / -1; }
+
+/* ─── Inputs ─── */
+.pj-input {
+  font-family: inherit;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius-sm);
+  background: var(--civiq-surface);
+  color: var(--civiq-text);
+  font-size: 14px;
+  transition: border-color var(--civiq-transition);
+}
+.pj-input:focus {
+  outline: none;
+  border-color: var(--civiq-primary);
+}
+.pj-input-inline {
+  padding: 4px 6px;
+  font-size: 13px;
+}
+textarea.pj-input { min-height: 60px; resize: vertical; }
+
+/* ─── Actions d'ajout ─── */
+.pj-add-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.pj-add-btn { margin-top: 12px; }
+.pj-add-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--civiq-surface-2);
+  border-radius: var(--civiq-radius-sm);
+}
+.pj-add-row .pj-input { flex: 1 1 140px; width: auto; }
+.pj-add-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--civiq-surface-2);
+  border-radius: var(--civiq-radius-sm);
+}
+.pj-add-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+/* ─── Avancement de phase ─── */
+.pj-advance-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* ─── Modal de confirmation ─── */
+.pj-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.pj-modal {
+  background: var(--civiq-surface);
+  border-radius: var(--civiq-radius);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+.pj-modal-title {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--civiq-border);
+  font-size: 16px;
+  font-weight: 700;
+}
+.pj-modal-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pj-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--civiq-border);
+  background: var(--civiq-surface-2);
+}
+.pj-modal-error {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: var(--civiq-bg-coral);
+  color: var(--civiq-warning);
+  border-radius: var(--civiq-radius-sm);
+  font-size: 14px;
+}
+.pj-modal-success {
+  padding: 10px 12px;
+  background: var(--civiq-bg-green);
+  color: var(--civiq-success);
+  border-radius: var(--civiq-radius-sm);
+  font-size: 14px;
+}
+.pj-modal-warnings {
+  margin-top: 6px;
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+/* ─── Checkbox + save bar ─── */
+.pj-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.pj-save-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+.pj-save-meta {
+  font-size: 13px;
+  color: var(--civiq-text-soft);
+}
+.pj-bilan-warning {
+  background: var(--civiq-bg-yellow);
+  padding: 10px 12px;
+  border-radius: var(--civiq-radius-sm);
+  margin-top: 12px;
+}
+
+.pj-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.pj-lifecycle-table input { max-width: 140px; }
+
+.spin {
+  animation: pj-spin 0.8s linear infinite;
+}
+@keyframes pj-spin {
+  to { transform: rotate(360deg); }
+}
