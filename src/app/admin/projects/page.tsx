@@ -6,21 +6,29 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listProjects } from "@/lib/projects/queries";
-import { PROJECT_PHASES, PROJECT_PHASE_LABELS, PROJECT_PHASE_ICONS, SECURED_FINANCING_STATUSES, type ProjectPhase } from "@/lib/projects/types";
+import {
+  PROJECT_PHASES,
+  PROJECT_PHASE_LABELS,
+  PROJECT_PHASE_HINTS,
+  type ProjectPhase,
+} from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
-import ProjectKanbanCard, { isFinancingSecured } from "@/components/projects/ProjectKanbanCard";
+import ProjectCard from "@/components/projects/ProjectCard";
+import PhaseIcon from "@/components/projects/PhaseIcon";
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/projects — Vue kanban des projets par phase
+// /admin/projects — Lanes horizontales par phase.
 //
-// Bandeau de synthèse financière consolidée + 7 colonnes
-// d'avancement. Le détail (RACI, financements, jalons, etc.)
-// est sur la fiche projet.
+// Disposition (inversée par rapport à un kanban classique) :
+//   • Les 7 phases sont des LIGNES (lanes horizontales)
+//   • Les projets sont des CARDS horizontales dans leur lane
+//   • Cards modernes avec photo de couverture, titre, description
+//   • Pictogrammes Lucide fins (pas d'emoji)
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsKanbanPage() {
+export default async function ProjectsPage() {
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
     const active = await isModuleActive("projects");
@@ -30,7 +38,6 @@ export default async function ProjectsKanbanPage() {
 
   const projects = await listProjects(ctx.communeId);
 
-  // Statut des financements par projet (pour repérer la porte non franchie)
   const service = await createServiceClient();
   const { data: allFinancings } = await service
     .from("financings")
@@ -51,9 +58,7 @@ export default async function ProjectsKanbanPage() {
     totalObtenu += Number(f.montant_obtenu ?? 0);
   }
 
-  // Synthèse financière consolidée
   const totalInvest = projects.reduce((sum, p) => sum + (p.budget_estime ?? 0), 0);
-  // Coût global actualisé : RPC par projet → on agrège
   let totalActualise = 0;
   for (const p of projects) {
     const { data: gc } = await service.rpc("project_global_cost", { p_project_id: p.id });
@@ -63,7 +68,6 @@ export default async function ProjectsKanbanPage() {
   }
   const resteACharge = totalInvest - totalObtenu;
 
-  // Regroupement par phase
   const byPhase = new Map<ProjectPhase, typeof projects>();
   for (const p of PROJECT_PHASES) byPhase.set(p, []);
   for (const p of projects) byPhase.get(p.phase)!.push(p);
@@ -71,12 +75,13 @@ export default async function ProjectsKanbanPage() {
   const canCreate = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
   return (
-    <main className="civiq-main pj-kanban-page">
+    <main className="civiq-main pj-projects-page">
       <div className="pj-page-header">
         <div>
           <h1 className="civiq-page-title">Gestion de projet</h1>
           <p className="pj-page-subtitle">
-            Pilotez vos investissements sur le cycle de vie complet : émergence → bilan.
+            Pilotez vos investissements sur le cycle de vie complet :
+            de l&apos;émergence au bilan.
           </p>
         </div>
         <div className="pj-page-header-actions">
@@ -97,14 +102,13 @@ export default async function ProjectsKanbanPage() {
         </div>
       </div>
 
-      {/* Bandeau financier consolidé */}
       <section className="pj-summary-bar">
         <div className="pj-summary-card">
           <div className="pj-summary-label">Projets</div>
           <div className="pj-summary-value">{projects.length}</div>
         </div>
         <div className="pj-summary-card">
-          <div className="pj-summary-label">Investissement total prévu</div>
+          <div className="pj-summary-label">Investissement prévu</div>
           <div className="pj-summary-value">{formatEuros(totalInvest)}</div>
         </div>
         <div className="pj-summary-card">
@@ -127,11 +131,9 @@ export default async function ProjectsKanbanPage() {
 
       {projects.length === 0 ? (
         <div className="civiq-card pj-empty">
-          <div className="pj-empty-icon" aria-hidden>📋</div>
           <p className="pj-empty-title">Aucun projet pour l&apos;instant</p>
           <p className="pj-empty-hint">
-            Créez votre premier projet d&apos;investissement : voirie, équipement,
-            aménagement…
+            Créez votre premier projet d&apos;investissement.
           </p>
           {canCreate && (
             <Link href="/admin/projects/nouveau" className="civiq-btn civiq-btn-default">
@@ -140,39 +142,35 @@ export default async function ProjectsKanbanPage() {
           )}
         </div>
       ) : (
-        <div className="pj-kanban">
+        <div className="pj-lanes">
           {PROJECT_PHASES.map((phase) => {
             const items = byPhase.get(phase) ?? [];
             return (
-              <div key={phase} className="pj-kanban-col">
-                <div className="pj-kanban-col-header">
-                  <span className="pj-kanban-col-title">
-                    <span className="pj-kanban-col-icon" aria-hidden>
-                      {PROJECT_PHASE_ICONS[phase]}
-                    </span>
-                    {PROJECT_PHASE_LABELS[phase]}
-                  </span>
-                  <span className="pj-kanban-col-count">{items.length}</span>
-                </div>
-                <div className="pj-kanban-col-body">
-                  {items.length === 0 ? (
-                    <div className="pj-kanban-col-empty">—</div>
-                  ) : (
-                    items.map((p) => (
-                      <ProjectKanbanCard
+              <section key={phase} className="pj-lane">
+                <header className="pj-lane-header">
+                  <div className="pj-lane-icon" aria-hidden>
+                    <PhaseIcon phase={phase} size={20} strokeWidth={1.75} />
+                  </div>
+                  <div className="pj-lane-meta">
+                    <h2 className="pj-lane-title">{PROJECT_PHASE_LABELS[phase]}</h2>
+                    <p className="pj-lane-hint">{PROJECT_PHASE_HINTS[phase]}</p>
+                  </div>
+                  <span className="pj-lane-count">{items.length}</span>
+                </header>
+                {items.length === 0 ? (
+                  <div className="pj-lane-empty">Aucun projet dans cette étape.</div>
+                ) : (
+                  <div className="pj-lane-cards">
+                    {items.map((p) => (
+                      <ProjectCard
                         key={p.id}
                         project={p}
-                        financingSecured={
-                          p.sans_subvention ||
-                          (statusesByProject.get(p.id) ?? []).some((s) =>
-                            (SECURED_FINANCING_STATUSES as string[]).includes(s),
-                          )
-                        }
+                        financingStatuses={statusesByProject.get(p.id) ?? []}
                       />
-                    ))
-                  )}
-                </div>
-              </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             );
           })}
         </div>
@@ -180,6 +178,3 @@ export default async function ProjectsKanbanPage() {
     </main>
   );
 }
-
-// Re-export utilisé via les types — pas réellement nécessaire ici
-void isFinancingSecured;

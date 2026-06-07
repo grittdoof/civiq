@@ -3,28 +3,17 @@ import {
   PROJECT_PHASES,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_SHORT,
-  PROJECT_PHASE_ICONS,
   PROJECT_PHASE_HINTS,
   type ProjectPhase,
 } from "@/lib/projects/types";
+import PhaseIcon from "./PhaseIcon";
 
 interface Props {
   current: ProjectPhase;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Stepper responsive — pas de scroll horizontal.
-//
-//   Desktop (≥ 900px) : grille 7 colonnes avec pictogrammes
-//                       + labels courts. Bullet visuel sous chaque
-//                       icône, ligne de progression.
-//   Mobile (< 900px)  : carte verticale qui résume "Étape 3 / 7"
-//                       avec le pictogramme et le label complet,
-//                       + barre de progression horizontale qui
-//                       remplit la largeur (pas de scroll).
-//
-// Les étapes futures sont semi-grisées (opacity), l'étape courante
-// est mise en valeur, les étapes faites sont vertes avec check.
+// Stepper responsive — pictogrammes Lucide fins et neutres.
 // ═══════════════════════════════════════════════════════════════
 
 export default function ProjectStepper({ current }: Props) {
@@ -37,7 +26,7 @@ export default function ProjectStepper({ current }: Props) {
       <div className="pj-stepper-mobile">
         <div className="pj-stepper-mobile-card">
           <div className="pj-stepper-mobile-icon" aria-hidden>
-            {PROJECT_PHASE_ICONS[current]}
+            <PhaseIcon phase={current} size={32} strokeWidth={1.5} />
           </div>
           <div className="pj-stepper-mobile-body">
             <div className="pj-stepper-mobile-step">
@@ -72,7 +61,7 @@ export default function ProjectStepper({ current }: Props) {
                     {done ? <Check size={12} strokeWidth={3} /> : i + 1}
                   </span>
                   <span className="pj-stepper-mobile-item-icon" aria-hidden>
-                    {PROJECT_PHASE_ICONS[phase]}
+                    <PhaseIcon phase={phase} size={16} />
                   </span>
                   <span className="pj-stepper-mobile-item-label">
                     {PROJECT_PHASE_LABELS[phase]}
@@ -102,7 +91,7 @@ export default function ProjectStepper({ current }: Props) {
               title={PROJECT_PHASE_HINTS[phase]}
             >
               <div className="pj-stepper-icon" aria-hidden>
-                {PROJECT_PHASE_ICONS[phase]}
+                <PhaseIcon phase={phase} size={20} strokeWidth={1.75} />
               </div>
               <div className="pj-stepper-dot">
                 {done ? <Check size={12} strokeWidth={3} /> : <span>{i + 1}</span>}

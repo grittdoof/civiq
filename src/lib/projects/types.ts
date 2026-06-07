@@ -77,16 +77,29 @@ export const PROJECT_PHASE_HINTS: Record<ProjectPhase, string> = {
   bilan_cloture: "Bilan financier et clôture administrative",
 };
 
-/** Pictogrammes (emoji) par phase — utilisés dans le stepper et le kanban
- *  pour scanner visuellement l'étape du projet. */
+/** @deprecated Conservé pour rétrocompatibilité PDF (texte) — préférer
+ *  PROJECT_PHASE_LUCIDE pour l'UI React. */
 export const PROJECT_PHASE_ICONS: Record<ProjectPhase, string> = {
-  emergence: "💡",
-  faisabilite: "🔍",
-  decision_budget: "🗳️",
-  financement: "💰",
-  conception_marches: "📐",
-  realisation: "🚧",
-  bilan_cloture: "🏁",
+  emergence: "•",
+  faisabilite: "•",
+  decision_budget: "•",
+  financement: "•",
+  conception_marches: "•",
+  realisation: "•",
+  bilan_cloture: "•",
+};
+
+/** Identifiants symboliques pour résoudre vers une icône Lucide
+ *  côté composants UI (cf. src/components/projects/PhaseIcon.tsx).
+ *  Choix d'icônes fines et neutres, pas d'emoji. */
+export const PROJECT_PHASE_LUCIDE: Record<ProjectPhase, string> = {
+  emergence: "Lightbulb",
+  faisabilite: "Search",
+  decision_budget: "Landmark",
+  financement: "Wallet",
+  conception_marches: "Ruler",
+  realisation: "HardHat",
+  bilan_cloture: "Flag",
 };
 
 export const PROJECT_PHASE_SHORT: Record<ProjectPhase, string> = {
@@ -158,6 +171,8 @@ export interface Project {
   cout_reel: number | null;
   ecart: number | null;
   explication_ecart: string | null;
+  photo_url: string | null;
+  photo_storage_path: string | null;
   date_creation: string;
   date_maj: string;
   created_by: string | null;

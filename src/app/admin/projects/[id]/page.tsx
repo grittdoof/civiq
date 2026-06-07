@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, Ticket, Gavel } from "lucide-react";
+import { ArrowLeft, Edit, Ticket, Gavel, Info } from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -20,6 +20,7 @@ import MilestonesEditor from "@/components/projects/MilestonesEditor";
 import BilanEditor from "@/components/projects/BilanEditor";
 import SubscribersEditor from "@/components/projects/SubscribersEditor";
 import DocumentsEditor from "@/components/projects/DocumentsEditor";
+import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -128,6 +129,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           </span>
         </div>
       )}
+
+      {/* Photo de couverture */}
+      <ProjectPhotoUpload
+        projectId={p.id}
+        current={(p as typeof p & { photo_url?: string | null }).photo_url ?? null}
+        canEdit={canEdit}
+      />
 
       <ProjectStepper current={p.phase} />
 
@@ -239,10 +247,18 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           )}
         </section>
 
-        {/* ── Jalons — éditeur ── */}
+        {/* ── Étapes clés (jalons) — éditeur ── */}
         <section className="civiq-card pj-section">
           <h2 className="pj-section-title">
-            Jalons <span className="pj-section-count">({detail.milestones.length})</span>
+            Étapes clés
+            <span
+              className="pj-info-tooltip"
+              tabIndex={0}
+              title="Une étape clé (ou jalon) est un événement important dans la vie du projet : livraison, dépôt de dossier, fin de chantier… Chacune a une date d'échéance et un responsable."
+            >
+              <Info size={13} />
+            </span>
+            <span className="pj-section-count">({detail.milestones.length})</span>
           </h2>
           {canEdit ? (
             <MilestonesEditor

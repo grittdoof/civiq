@@ -58,7 +58,7 @@ export default function MilestonesEditor({ projectId, initial, currentPhase }: P
   }
 
   async function deleteRow(mid: string) {
-    if (!confirm("Supprimer ce jalon ?")) return;
+    if (!confirm("Supprimer cette étape clé ?")) return;
     const res = await fetch(`/api/projects/${projectId}/milestones/${mid}`, { method: "DELETE" });
     if (res.ok) {
       setRows(rows.filter((r) => r.id !== mid));
@@ -69,7 +69,7 @@ export default function MilestonesEditor({ projectId, initial, currentPhase }: P
   return (
     <>
       {rows.length === 0 ? (
-        <p className="pj-section-empty">Aucun jalon défini.</p>
+        <p className="pj-section-empty">Aucune étape clé définie.</p>
       ) : (
         <ul className="pj-milestones">
           {rows.map((m) => {
@@ -106,7 +106,7 @@ export default function MilestonesEditor({ projectId, initial, currentPhase }: P
       {adding ? (
         <div className="pj-add-row">
           <input
-            placeholder="Libellé du jalon"
+            placeholder="Libellé de l'étape clé (ex : Dépôt permis de construire)"
             className="pj-input"
             value={newRow.libelle}
             onChange={(e) => setNewRow({ ...newRow, libelle: e.target.value })}
@@ -148,7 +148,7 @@ export default function MilestonesEditor({ projectId, initial, currentPhase }: P
           onClick={() => setAdding(true)}
           className="civiq-btn civiq-btn-outline civiq-btn-sm pj-add-btn"
         >
-          <Plus size={14} /> Ajouter un jalon
+          <Plus size={14} /> Ajouter une étape clé
         </button>
       )}
     </>
