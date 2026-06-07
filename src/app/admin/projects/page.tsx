@@ -6,7 +6,7 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listProjects } from "@/lib/projects/queries";
-import { PROJECT_PHASES, PROJECT_PHASE_LABELS, SECURED_FINANCING_STATUSES, type ProjectPhase } from "@/lib/projects/types";
+import { PROJECT_PHASES, PROJECT_PHASE_LABELS, PROJECT_PHASE_ICONS, SECURED_FINANCING_STATUSES, type ProjectPhase } from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
 import ProjectKanbanCard, { isFinancingSecured } from "@/components/projects/ProjectKanbanCard";
 
@@ -146,7 +146,12 @@ export default async function ProjectsKanbanPage() {
             return (
               <div key={phase} className="pj-kanban-col">
                 <div className="pj-kanban-col-header">
-                  <span className="pj-kanban-col-title">{PROJECT_PHASE_LABELS[phase]}</span>
+                  <span className="pj-kanban-col-title">
+                    <span className="pj-kanban-col-icon" aria-hidden>
+                      {PROJECT_PHASE_ICONS[phase]}
+                    </span>
+                    {PROJECT_PHASE_LABELS[phase]}
+                  </span>
                   <span className="pj-kanban-col-count">{items.length}</span>
                 </div>
                 <div className="pj-kanban-col-body">

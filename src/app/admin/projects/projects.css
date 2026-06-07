@@ -61,19 +61,21 @@
 .pj-empty-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
 .pj-empty-hint { color: var(--civiq-text-soft); margin-bottom: 16px; font-size: 14px; }
 
-/* ─── Kanban ─── */
+/* ─── Kanban (responsive, sans scroll horizontal) ─── */
 .pj-kanban {
   display: grid;
-  grid-template-columns: repeat(7, minmax(180px, 1fr));
-  gap: 12px;
-  overflow-x: auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
   padding-bottom: 8px;
 }
-@media (max-width: 1280px) {
-  .pj-kanban { grid-template-columns: repeat(4, minmax(220px, 1fr)); }
+@media (max-width: 1400px) {
+  .pj-kanban { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-@media (max-width: 768px) {
-  .pj-kanban { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+@media (max-width: 900px) {
+  .pj-kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .pj-kanban { grid-template-columns: 1fr; }
 }
 
 .pj-kanban-col {
@@ -94,7 +96,14 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--civiq-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.pj-kanban-col-icon { font-size: 16px; line-height: 1; }
 .pj-kanban-col-count {
   font-size: 12px;
   background: var(--civiq-surface);
@@ -190,18 +199,23 @@
   font-size: 14px;
 }
 
-/* ─── Stepper ─── */
+/* ═══════════════════════════════════════════════════════════════
+ * Stepper RESPONSIVE — pas de scroll horizontal.
+ * Desktop ≥ 900px : grille 7 colonnes avec icônes.
+ * Mobile < 900px  : carte verticale + barre de progression.
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* Desktop */
 .pj-stepper {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
   list-style: none;
-  padding: 16px;
+  padding: 16px 12px;
   margin-bottom: 16px;
   background: var(--civiq-surface);
   border: 1px solid var(--civiq-border);
   border-radius: var(--civiq-radius);
-  overflow-x: auto;
 }
 .pj-stepper-step {
   display: flex;
@@ -209,17 +223,27 @@
   align-items: center;
   text-align: center;
   position: relative;
+  min-width: 0;
+  opacity: 0.55;
+  transition: opacity var(--civiq-transition);
 }
+.pj-stepper-step.is-done,
+.pj-stepper-step.is-active { opacity: 1; }
 .pj-stepper-step:not(:last-child)::after {
   content: "";
   position: absolute;
-  top: 12px;
-  left: 60%;
-  right: -40%;
+  top: 36px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
   height: 2px;
   background: var(--civiq-border);
 }
 .pj-stepper-step.is-done::after { background: var(--civiq-success); }
+.pj-stepper-icon {
+  font-size: 22px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
 .pj-stepper-dot {
   width: 24px;
   height: 24px;
@@ -243,8 +267,121 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--civiq-text-soft);
+  word-break: break-word;
+  hyphens: auto;
+  line-height: 1.2;
 }
 .pj-stepper-step.is-active .pj-stepper-label { color: var(--civiq-primary); }
+
+/* Mobile : caché par défaut, visible sous 900px */
+.pj-stepper-mobile { display: none; }
+
+@media (max-width: 899px) {
+  .pj-stepper { display: none; }
+  .pj-stepper-mobile {
+    display: block;
+    background: var(--civiq-surface);
+    border: 1px solid var(--civiq-border);
+    border-radius: var(--civiq-radius);
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+  .pj-stepper-mobile-card {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .pj-stepper-mobile-icon {
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .pj-stepper-mobile-step {
+    font-size: 11px;
+    color: var(--civiq-text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .pj-stepper-mobile-label {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--civiq-text);
+    margin-bottom: 2px;
+  }
+  .pj-stepper-mobile-hint {
+    font-size: 12px;
+    color: var(--civiq-text-soft);
+    line-height: 1.4;
+  }
+  .pj-stepper-mobile-progress {
+    margin-top: 12px;
+    height: 6px;
+    background: var(--civiq-border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .pj-stepper-mobile-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--civiq-success), var(--civiq-primary));
+    transition: width 0.4s ease;
+  }
+  .pj-stepper-mobile-details {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .pj-stepper-mobile-details summary {
+    cursor: pointer;
+    color: var(--civiq-primary);
+    font-weight: 600;
+    padding: 4px 0;
+    list-style: none;
+  }
+  .pj-stepper-mobile-details summary::-webkit-details-marker { display: none; }
+  .pj-stepper-mobile-list {
+    list-style: none;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .pj-stepper-mobile-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--civiq-surface-2);
+    border-radius: var(--civiq-radius-sm);
+    font-size: 13px;
+    opacity: 0.6;
+  }
+  .pj-stepper-mobile-item.is-done,
+  .pj-stepper-mobile-item.is-active { opacity: 1; }
+  .pj-stepper-mobile-item.is-active {
+    background: var(--civiq-bg-blue);
+    border: 1px solid var(--civiq-primary);
+  }
+  .pj-stepper-mobile-item-bullet {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--civiq-border);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .pj-stepper-mobile-item.is-done .pj-stepper-mobile-item-bullet { background: var(--civiq-success); }
+  .pj-stepper-mobile-item.is-active .pj-stepper-mobile-item-bullet { background: var(--civiq-primary); }
+  .pj-stepper-mobile-item-icon { font-size: 16px; line-height: 1; flex-shrink: 0; }
+  .pj-stepper-mobile-item-label { flex: 1; font-weight: 500; }
+  .pj-stepper-mobile-item.is-active .pj-stepper-mobile-item-label { font-weight: 700; }
+  .pj-stepper-mobile-item-cursor { color: var(--civiq-primary); flex-shrink: 0; }
+}
 
 /* ─── Grille des sections ─── */
 .pj-detail-grid {

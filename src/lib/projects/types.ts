@@ -77,6 +77,28 @@ export const PROJECT_PHASE_HINTS: Record<ProjectPhase, string> = {
   bilan_cloture: "Bilan financier et clôture administrative",
 };
 
+/** Pictogrammes (emoji) par phase — utilisés dans le stepper et le kanban
+ *  pour scanner visuellement l'étape du projet. */
+export const PROJECT_PHASE_ICONS: Record<ProjectPhase, string> = {
+  emergence: "💡",
+  faisabilite: "🔍",
+  decision_budget: "🗳️",
+  financement: "💰",
+  conception_marches: "📐",
+  realisation: "🚧",
+  bilan_cloture: "🏁",
+};
+
+export const PROJECT_PHASE_SHORT: Record<ProjectPhase, string> = {
+  emergence: "Émergence",
+  faisabilite: "Faisabilité",
+  decision_budget: "Décision",
+  financement: "Financement",
+  conception_marches: "Conception",
+  realisation: "Travaux",
+  bilan_cloture: "Clôture",
+};
+
 export const FINANCING_STATUS_LABELS: Record<FinancingStatus, string> = {
   a_demander: "À demander",
   demandee: "Demandée",
