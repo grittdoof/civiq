@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   Document, Page, View, Text, StyleSheet, Font,
 } from "@react-pdf/renderer";
+import { PdfHeader, PdfFooter } from "./pdf-header";
 import {
   PROJECT_PHASE_LABELS,
   STAKEHOLDER_ROLE_LABELS,
@@ -36,7 +37,8 @@ function fmtEur(n: number): string { return EUR.format(n); }
 function fmtPct(n: number): string { return (n / 100).toLocaleString("fr-FR", { style: "percent", maximumFractionDigits: 1 }); }
 
 const s = StyleSheet.create({
-  page: { fontFamily: "Inter", fontSize: 10, padding: 32, color: "#1f2937" },
+  // Padding bottom plus large pour laisser place au pied de page fixé
+  page: { fontFamily: "Inter", fontSize: 10, padding: 32, paddingBottom: 72, color: "#1f2937" },
   header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, borderBottom: 1, borderColor: "#e5e7eb", paddingBottom: 10 },
   communeName: { fontSize: 14, fontWeight: 700, color: "#111827" },
   generatedAt: { fontSize: 9, color: "#6b7280" },
@@ -66,6 +68,7 @@ const s = StyleSheet.create({
 
 export interface ProjectPdfData {
   communeName: string;
+  communeLogoUrl: string | null;
   generatedAt: string;
 
   titre: string;
@@ -104,11 +107,13 @@ export function ProjectPDF(props: ProjectPdfData) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        {/* En-tête commune */}
-        <View style={s.header}>
-          <Text style={s.communeName}>{props.communeName}</Text>
-          <Text style={s.generatedAt}>Édité le {props.generatedAt}</Text>
-        </View>
+        <PdfHeader
+          communeName={props.communeName}
+          communeLogoUrl={props.communeLogoUrl}
+          documentType="Fiche projet"
+          editedOn={props.generatedAt}
+        />
+        <PdfFooter communeName={props.communeName} documentType="Fiche projet" />
 
         {/* 1. Identité */}
         <Text style={s.title}>{props.titre}</Text>
@@ -197,10 +202,13 @@ export function ProjectPDF(props: ProjectPdfData) {
 
       {/* PAGE 2 : Coûts 10 ans (mise en avant) + parties prenantes + bilan */}
       <Page size="A4" style={s.page}>
-        <View style={s.header}>
-          <Text style={s.communeName}>{props.communeName}</Text>
-          <Text style={s.generatedAt}>{props.titre}</Text>
-        </View>
+        <PdfHeader
+          communeName={props.communeName}
+          communeLogoUrl={props.communeLogoUrl}
+          documentType={`Fiche projet — ${props.titre}`}
+          editedOn={props.generatedAt}
+        />
+        <PdfFooter communeName={props.communeName} documentType="Fiche projet" />
 
         {/* 6. Coûts 10 ans + synthèse */}
         <View style={s.section}>

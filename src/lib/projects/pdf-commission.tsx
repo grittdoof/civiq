@@ -1,6 +1,7 @@
 /* eslint-disable jsx-a11y/alt-text */
 import path from "node:path";
 import { Document, Page, View, Text, Image, StyleSheet, Font } from "@react-pdf/renderer";
+import { PdfHeader, PdfFooter } from "./pdf-header";
 
 if (typeof window === "undefined") {
   const fontsDir = path.join(process.cwd(), "public", "fonts");
@@ -15,9 +16,7 @@ if (typeof window === "undefined") {
 Font.registerHyphenationCallback((word) => [word]);
 
 const s = StyleSheet.create({
-  page: { fontFamily: "Inter", fontSize: 10, padding: 32, color: "#1f2937" },
-  header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12, borderBottom: 1, borderColor: "#e5e7eb", paddingBottom: 8 },
-  communeName: { fontSize: 12, fontWeight: 700 },
+  page: { fontFamily: "Inter", fontSize: 10, padding: 32, paddingBottom: 72, color: "#1f2937" },
   title: { fontSize: 16, fontWeight: 700, marginTop: 8, marginBottom: 4 },
   subtitle: { fontSize: 10, color: "#6b7280", marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginTop: 12, marginBottom: 6 },
@@ -32,6 +31,7 @@ const s = StyleSheet.create({
 
 export interface MinutesPdfData {
   communeName: string;
+  communeLogoUrl: string | null;
   commissionName: string;
   dateSeance: string;
   lieu: string | null;
@@ -49,10 +49,16 @@ export function MinutesPDF(props: MinutesPdfData) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <View style={s.header}>
-          <Text style={s.communeName}>{props.communeName}</Text>
-          <Text style={{ fontSize: 9, color: "#6b7280" }}>Édité le {props.generatedAt}</Text>
-        </View>
+        <PdfHeader
+          communeName={props.communeName}
+          communeLogoUrl={props.communeLogoUrl}
+          documentType="Compte rendu de séance"
+          editedOn={props.generatedAt}
+        />
+        <PdfFooter
+          communeName={props.communeName}
+          documentType={`Compte rendu — ${props.commissionName}`}
+        />
 
         <Text style={s.title}>Compte rendu de séance</Text>
         <Text style={s.subtitle}>
@@ -101,9 +107,11 @@ export function MinutesPDF(props: MinutesPdfData) {
           </>
         )}
 
-        <Text style={s.footer}>
-          {props.communeName} — {props.validatedAt ? `Compte rendu validé le ${props.validatedAt}` : "Brouillon"}
-        </Text>
+        {props.validatedAt && (
+          <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16, fontStyle: "italic" }}>
+            Compte rendu validé le {props.validatedAt}
+          </Text>
+        )}
       </Page>
     </Document>
   );
@@ -111,6 +119,7 @@ export function MinutesPDF(props: MinutesPdfData) {
 
 export interface AttendancePdfData {
   communeName: string;
+  communeLogoUrl: string | null;
   commissionName: string;
   dateSeance: string;
   lieu: string | null;
@@ -130,10 +139,16 @@ export function AttendancePDF(props: AttendancePdfData) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <View style={s.header}>
-          <Text style={s.communeName}>{props.communeName}</Text>
-          <Text style={{ fontSize: 9, color: "#6b7280" }}>Édité le {props.generatedAt}</Text>
-        </View>
+        <PdfHeader
+          communeName={props.communeName}
+          communeLogoUrl={props.communeLogoUrl}
+          documentType="Feuille d'émargement"
+          editedOn={props.generatedAt}
+        />
+        <PdfFooter
+          communeName={props.communeName}
+          documentType={`Émargement — ${props.commissionName}`}
+        />
 
         <Text style={s.title}>Feuille d&apos;émargement</Text>
         <Text style={s.subtitle}>
@@ -177,8 +192,8 @@ export function AttendancePDF(props: AttendancePdfData) {
           </View>
         ))}
 
-        <Text style={s.footer}>
-          {props.communeName} — Feuille d&apos;émargement valant pour preuve de présence
+        <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16, fontStyle: "italic" }}>
+          Feuille d&apos;émargement valant pour preuve de présence.
         </Text>
       </Page>
     </Document>

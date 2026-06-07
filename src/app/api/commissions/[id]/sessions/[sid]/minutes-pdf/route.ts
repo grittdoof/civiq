@@ -30,7 +30,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   }
 
   const service = await createServiceClient();
-  const { data: commune } = await service.from("communes").select("name").eq("id", guard.communeId).single();
+  const { data: commune } = await service.from("communes").select("name, logo_url").eq("id", guard.communeId).single();
 
   let secretaireNom: string | null = null;
   if (detail.session.secretaire_de_seance_user_id) {
@@ -73,6 +73,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const buffer = await renderToBuffer(
     MinutesPDF({
       communeName: commune?.name ?? "Commune",
+      communeLogoUrl: commune?.logo_url ?? null,
       commissionName: detail.commission?.nom ?? "Commission",
       dateSeance: new Date(detail.session.date_seance).toLocaleString("fr-FR", {
         weekday: "long", day: "numeric", month: "long", year: "numeric",

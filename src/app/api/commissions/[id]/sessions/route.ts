@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import { sanitizeRichText } from "@/components/projects/RichTextEditor";
 
 // POST /api/commissions/:id/sessions
 // Crée une séance + envoie la convocation push aux membres.
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       commission_id: id,
       date_seance: body.date_seance,
       lieu: body.lieu?.trim() || null,
-      ordre_du_jour: body.ordre_du_jour?.trim() || null,
+      ordre_du_jour: body.ordre_du_jour ? sanitizeRichText(body.ordre_du_jour.trim()) || null : null,
       secretaire_de_seance_user_id: body.secretaire_de_seance_user_id || null,
     })
     .select("*")

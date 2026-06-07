@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   if (!detail.session) return new NextResponse("Séance introuvable", { status: 404 });
 
   const service = await createServiceClient();
-  const { data: commune } = await service.from("communes").select("name").eq("id", guard.communeId).single();
+  const { data: commune } = await service.from("communes").select("name, logo_url").eq("id", guard.communeId).single();
 
   // Lookup d'attendance — par user_id pour les internes et par
   // commission_member_id pour les externes
@@ -44,6 +44,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const buffer = await renderToBuffer(
     AttendancePDF({
       communeName: commune?.name ?? "Commune",
+      communeLogoUrl: commune?.logo_url ?? null,
       commissionName: detail.commission?.nom ?? "Commission",
       dateSeance: new Date(detail.session.date_seance).toLocaleString("fr-FR", {
         weekday: "long", day: "numeric", month: "long", year: "numeric",

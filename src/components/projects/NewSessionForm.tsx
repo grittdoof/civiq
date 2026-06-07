@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Loader2 } from "lucide-react";
+import RichTextEditor from "./RichTextEditor";
 
 interface Profile { id: string; full_name: string | null; }
 
@@ -66,14 +67,12 @@ export default function NewSessionForm({ commissionId, profiles }: { commissionI
             />
           </div>
           <div className="pj-form-field pj-form-field-wide">
-            <label className="civiq-field-label" htmlFor="odj">Ordre du jour</label>
-            <textarea
-              id="odj"
-              rows={5}
-              className="pj-input"
+            <label className="civiq-field-label">Ordre du jour</label>
+            <RichTextEditor
               value={odj}
-              onChange={(e) => setOdj(e.target.value)}
-              placeholder="1. Approbation du PV précédent\n2. Examen du projet de salle polyvalente\n…"
+              onChange={setOdj}
+              placeholder="Rédigez l'ordre du jour : titres, listes à puces ou numérotées, gras…"
+              rows={6}
             />
           </div>
           <div className="pj-form-field pj-form-field-wide">

@@ -7,6 +7,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import { getSession } from "@/lib/projects/queries";
 import AttendanceEditor from "@/components/projects/AttendanceEditor";
 import MinutesEditor from "@/components/projects/MinutesEditor";
+import SessionDocumentsEditor from "@/components/projects/SessionDocumentsEditor";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -32,6 +33,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
   const isAdmin = ["admin", "super_admin"].includes(ctx.role ?? "");
   const isSecretaire = detail.session.secretaire_de_seance_user_id === ctx.userId;
   const canEditMinutes = isAdmin || isSecretaire;
+  const canManageDocs = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
   // Quorum
   const totalMembers = detail.members.length;
@@ -58,7 +60,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </div>
         <div className="pj-page-header-actions">
           <a
-            href={`/api/commissions/${id}/sessions/${sid}/attendance-pdf`}
+            href={`/projects-pdf?kind=attendance&cid=${id}&sid=${sid}`}
             target="_blank"
             rel="noreferrer"
             className="civiq-btn civiq-btn-outline"
@@ -67,7 +69,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           </a>
           {detail.session.compte_rendu_valide && (
             <a
-              href={`/api/commissions/${id}/sessions/${sid}/minutes-pdf`}
+              href={`/projects-pdf?kind=minutes&cid=${id}&sid=${sid}`}
               target="_blank"
               rel="noreferrer"
               className="civiq-btn civiq-btn-outline"
@@ -82,7 +84,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
         <section className="civiq-card pj-section pj-section-wide">
           <h2 className="pj-section-title">Ordre du jour</h2>
           {detail.session.ordre_du_jour ? (
-            <p className="pj-section-content">{detail.session.ordre_du_jour}</p>
+            // ordre_du_jour est passé par sanitizeRichText à l'écriture →
+            // sûr à injecter en HTML
+            <div
+              className="pj-rich"
+              dangerouslySetInnerHTML={{ __html: detail.session.ordre_du_jour }}
+            />
           ) : (
             <p className="pj-section-empty">Pas d&apos;ordre du jour renseigné.</p>
           )}
@@ -112,6 +119,26 @@ export default async function SessionDetailPage({ params }: PageProps) {
             currentUserId={ctx.userId}
             isAdmin={isAdmin}
             sessionPast={past}
+          />
+        </section>
+
+        <section className="civiq-card pj-section pj-section-wide">
+          <h2 className="pj-section-title">
+            Documents de la séance
+            <span className="pj-section-count">({detail.documents.length})</span>
+          </h2>
+          <SessionDocumentsEditor
+            commissionId={id}
+            sessionId={sid}
+            initial={detail.documents.map((d) => ({
+              id: d.id,
+              session_id: d.session_id,
+              nom: d.nom,
+              url: d.url,
+              type: d.type,
+              uploaded_at: d.uploaded_at,
+            }))}
+            canEdit={canManageDocs}
           />
         </section>
 

@@ -400,12 +400,22 @@ export async function getCommission(
   };
 }
 
+export interface SessionDocument {
+  id: string;
+  session_id: string;
+  nom: string;
+  url: string;
+  type: "ordre_du_jour" | "presentation" | "rapport" | "annexe" | "autre";
+  uploaded_at: string;
+}
+
 export interface SessionDetail {
   session: CommissionSession | null;
   commission: Commission | null;
   attendance: Array<SessionAttendance & { profile: { id: string; full_name: string | null } | null }>;
   decisions: SessionDecision[];
   members: Array<CommissionMember & { profile: { id: string; full_name: string | null } | null }>;
+  documents: SessionDocument[];
 }
 
 export async function getSession(
@@ -420,16 +430,16 @@ export async function getSession(
     .maybeSingle();
 
   if (!session) {
-    return { session: null, commission: null, attendance: [], decisions: [], members: [] };
+    return { session: null, commission: null, attendance: [], decisions: [], members: [], documents: [] };
   }
 
   type SessRow = { commission: Commission | null };
   const commission = (session as unknown as SessRow).commission;
   if (!commission || commission.commune_id !== communeId) {
-    return { session: null, commission: null, attendance: [], decisions: [], members: [] };
+    return { session: null, commission: null, attendance: [], decisions: [], members: [], documents: [] };
   }
 
-  const [attendance, decisions, members] = await Promise.all([
+  const [attendance, decisions, members, documents] = await Promise.all([
     service
       .from("session_attendance")
       .select("*, profile:profiles ( id, full_name )")
@@ -443,7 +453,27 @@ export async function getSession(
       .from("commission_members")
       .select("*, profile:profiles ( id, full_name )")
       .eq("commission_id", commission.id),
+    service
+      .from("session_documents")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("uploaded_at", { ascending: false }),
   ]);
+
+  // Re-signer les URLs des documents (bucket privé)
+  const docsList = (documents.data ?? []) as SessionDocument[];
+  const docsSigned = await Promise.all(
+    docsList.map(async (d) => {
+      const sp = (d as SessionDocument & { storage_path?: string }).storage_path;
+      if (sp) {
+        const { data: signed } = await service.storage
+          .from("project-documents")
+          .createSignedUrl(sp, 60 * 60 * 24 * 7);
+        return { ...d, url: signed?.signedUrl ?? d.url };
+      }
+      return d;
+    }),
+  );
 
   return {
     session: session as unknown as CommissionSession,
@@ -451,5 +481,6 @@ export async function getSession(
     attendance: (attendance.data ?? []) as unknown as SessionDetail["attendance"],
     decisions: (decisions.data ?? []) as SessionDecision[],
     members: (members.data ?? []) as unknown as SessionDetail["members"],
+    documents: docsSigned,
   };
 }

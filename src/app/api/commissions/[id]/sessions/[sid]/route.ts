@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
+import { sanitizeRichText } from "@/components/projects/RichTextEditor";
 import type { CommissionSessionStatut } from "@/lib/projects/types";
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
@@ -27,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const updates: Record<string, unknown> = {};
   if ("date_seance" in body) updates.date_seance = body.date_seance;
   if ("lieu" in body) updates.lieu = body.lieu?.trim() || null;
-  if ("ordre_du_jour" in body) updates.ordre_du_jour = body.ordre_du_jour?.trim() || null;
+  if ("ordre_du_jour" in body) updates.ordre_du_jour = body.ordre_du_jour ? sanitizeRichText(body.ordre_du_jour.trim()) || null : null;
   if ("statut" in body) updates.statut = body.statut;
   if ("secretaire_de_seance_user_id" in body) updates.secretaire_de_seance_user_id = body.secretaire_de_seance_user_id || null;
 

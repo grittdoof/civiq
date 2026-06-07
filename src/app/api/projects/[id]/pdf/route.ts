@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { data: commune } = await service
     .from("communes")
-    .select("name")
+    .select("name, logo_url")
     .eq("id", guard.communeId)
     .single();
 
@@ -39,6 +39,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
   const pdfData: ProjectPdfData = {
     communeName: commune?.name ?? "Commune",
+    communeLogoUrl: commune?.logo_url ?? null,
     generatedAt: new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
     titre: p.titre,
     description: p.description,

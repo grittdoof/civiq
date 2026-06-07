@@ -1279,6 +1279,75 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
   .pj-cal-event-date { min-width: 60px; font-size: 11px; }
 }
 
+/* ─── Rich Text Editor ─── */
+.pj-rte {
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius-sm);
+  background: var(--civiq-surface);
+  position: relative;
+}
+.pj-rte.is-focused { border-color: var(--civiq-primary); }
+.pj-rte-toolbar {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--civiq-border);
+  background: var(--civiq-surface-2);
+  border-radius: var(--civiq-radius-sm) var(--civiq-radius-sm) 0 0;
+  flex-wrap: wrap;
+}
+.pj-rte-btn {
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--civiq-text-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pj-rte-btn:hover { background: var(--civiq-border); color: var(--civiq-text); }
+.pj-rte-sep {
+  width: 1px;
+  background: var(--civiq-border);
+  margin: 0 4px;
+}
+.pj-rte-area {
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  outline: none;
+  min-height: 130px;
+}
+.pj-rte-area p { margin: 0 0 8px; }
+.pj-rte-area p:last-child { margin-bottom: 0; }
+.pj-rte-area ul, .pj-rte-area ol { padding-left: 22px; margin: 4px 0 8px; }
+.pj-rte-area li { margin: 2px 0; }
+.pj-rte-area h3 { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
+.pj-rte-placeholder {
+  position: absolute;
+  top: 50px;
+  left: 14px;
+  pointer-events: none;
+  color: var(--civiq-text-light);
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* Rendu HTML public (lecture) */
+.pj-rich {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.pj-rich p { margin: 0 0 8px; }
+.pj-rich p:last-child { margin-bottom: 0; }
+.pj-rich ul, .pj-rich ol { padding-left: 22px; margin: 4px 0 8px; }
+.pj-rich h1, .pj-rich h2, .pj-rich h3 { font-weight: 700; margin: 10px 0 6px; }
+.pj-rich h3 { font-size: 15px; }
+.pj-rich strong { font-weight: 700; }
+.pj-rich em { font-style: italic; }
+
 /* ─── Print ─── */
 @media print {
   .civiq-no-print, .civiq-sidebar-desktop, .civiq-sidebar-mobile { display: none !important; }

@@ -107,12 +107,12 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               <Edit size={14} /> Modifier
             </Link>
             <a
-              href={`/api/projects/${p.id}/pdf`}
+              href={`/projects-pdf?kind=project&id=${p.id}`}
               className="civiq-btn civiq-btn-outline"
               target="_blank"
               rel="noreferrer"
             >
-              📄 Exporter en PDF
+              Exporter en PDF
             </a>
           </div>
         )}
