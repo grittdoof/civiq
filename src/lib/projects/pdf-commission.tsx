@@ -108,7 +108,7 @@ export function MinutesPDF(props: MinutesPdfData) {
         )}
 
         {props.validatedAt && (
-          <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16, fontStyle: "italic" }}>
+          <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16 }}>
             Compte rendu validé le {props.validatedAt}
           </Text>
         )}
@@ -192,7 +192,7 @@ export function AttendancePDF(props: AttendancePdfData) {
           </View>
         ))}
 
-        <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16, fontStyle: "italic" }}>
+        <Text style={{ fontSize: 8, color: "#6b7280", marginTop: 16 }}>
           Feuille d&apos;émargement valant pour preuve de présence.
         </Text>
       </Page>
