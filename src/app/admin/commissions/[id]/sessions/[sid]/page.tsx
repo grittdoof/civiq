@@ -40,7 +40,9 @@ export default async function SessionDetailPage({ params }: PageProps) {
   // Quorum
   const totalMembers = detail.members.length;
   const presentCount = detail.attendance.filter((a) => a.present === true).length;
-  const past = new Date(detail.session.date_seance) < new Date();
+  // Les signatures restent ouvertes tant que le compte rendu n'est
+  // pas validé (verrouillé). Une fois le CR validé, on lock.
+  const signaturesLocked = detail.session.compte_rendu_valide;
 
   // Candidats secrétaire = membres internes (avec compte GoCiviq) de la
   // commission. Les externes (sans user_id) ne peuvent pas éditer le CR.
@@ -149,7 +151,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
             }))}
             currentUserId={ctx.userId}
             isAdmin={isAdmin}
-            sessionPast={past}
+            signaturesLocked={signaturesLocked}
           />
         </section>
 

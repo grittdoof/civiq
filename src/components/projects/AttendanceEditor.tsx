@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, X, PenTool, UserPlus } from "lucide-react";
+import { CheckCircle2, X, PenTool, UserPlus, Lock } from "lucide-react";
 import SignaturePad from "./SignaturePad";
 import type { CommissionMemberRole } from "@/lib/projects/types";
 
@@ -33,7 +33,9 @@ interface Props {
   attendance: Attendance[];
   currentUserId: string;
   isAdmin: boolean;
-  sessionPast: boolean;
+  /** Émargement verrouillé : le compte rendu a été validé.
+   *  Tant qu'il est en brouillon, les signatures restent ouvertes. */
+  signaturesLocked: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,7 +54,7 @@ export default function AttendanceEditor({
   attendance,
   currentUserId,
   isAdmin,
-  sessionPast,
+  signaturesLocked,
 }: Props) {
   const router = useRouter();
   const [signingFor, setSigningFor] = useState<Member | null>(null);
@@ -106,8 +108,68 @@ export default function AttendanceEditor({
     router.refresh();
   }
 
+  // ── Résolution du contexte « moi » pour l'aide explicite ──
+  const myMember = members.find((m) => !m.isExternal && m.user_id === currentUserId) ?? null;
+  const myAttendance = myMember ? byUser.get(myMember.user_id!) : undefined;
+  const alreadySigned = !!myAttendance?.signature_data;
+  const canIsign = !!myMember && !alreadySigned && !signaturesLocked;
+
   return (
     <>
+      {/* ─── Bandeau « Signer maintenant » mis en avant ─── */}
+      {myMember && (
+        <div className="pj-sign-banner">
+          {canIsign ? (
+            <>
+              <div>
+                <strong>Bienvenue {myMember.full_name}.</strong>
+                <p className="pj-table-sub" style={{ marginTop: 2 }}>
+                  Vous êtes membre de cette commission. Cliquez ci-contre pour
+                  signer électroniquement la feuille d&apos;émargement.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSigningFor(myMember)}
+                className="civiq-btn civiq-btn-default"
+              >
+                <PenTool size={14} /> Signer maintenant
+              </button>
+            </>
+          ) : alreadySigned ? (
+            <div className="pj-sign-banner-done">
+              <CheckCircle2 size={16} />
+              <span>
+                <strong>Merci, votre signature est enregistrée.</strong>
+                {myAttendance?.signe_le && (
+                  <span className="pj-table-sub" style={{ marginLeft: 6 }}>
+                    le {new Date(myAttendance.signe_le).toLocaleString("fr-FR")}
+                  </span>
+                )}
+              </span>
+            </div>
+          ) : signaturesLocked ? (
+            <div className="pj-sign-banner-locked">
+              <Lock size={16} />
+              <span>
+                <strong>Émargement verrouillé.</strong>{" "}
+                Le compte rendu a été validé, les signatures ne peuvent plus
+                être ajoutées.
+              </span>
+            </div>
+          ) : null}
+        </div>
+      )}
+      {!myMember && !isAdmin && (
+        <div className="pj-sign-banner pj-sign-banner-info">
+          <span>
+            Vous n&apos;êtes pas membre de cette commission, vous ne pouvez
+            donc pas signer. Les signatures sont réservées aux conseillers
+            désignés.
+          </span>
+        </div>
+      )}
+
       <table className="pj-table">
         <thead>
           <tr>
@@ -121,7 +183,7 @@ export default function AttendanceEditor({
           {members.map((m) => {
             const a = getAttendance(m);
             const isMe = !m.isExternal && m.user_id === currentUserId;
-            const canSignSelf = isMe && !a?.signature_data && !sessionPast;
+            const canSignSelf = isMe && !a?.signature_data && !signaturesLocked;
             // Pour les externes : seul l'admin peut signer à leur place
             const canSignExternal = m.isExternal && isAdmin && !a?.signature_data;
             return (

@@ -1562,6 +1562,47 @@ a.pj-commission-badge:hover {
   margin-top: 2px;
 }
 
+/* ─── Bandeau « Signer maintenant » au-dessus de l'émargement ─── */
+.pj-sign-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  border-radius: var(--civiq-radius);
+  background: var(--civiq-bg-blue);
+  border: 1px solid var(--civiq-primary);
+  flex-wrap: wrap;
+}
+.pj-sign-banner > div:first-child { flex: 1; min-width: 220px; }
+.pj-sign-banner-done {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--civiq-success);
+  background: var(--civiq-bg-green);
+  margin: -14px -18px;
+  padding: 14px 18px;
+  border-radius: var(--civiq-radius);
+}
+.pj-sign-banner-locked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--civiq-text-soft);
+  background: var(--civiq-surface-2);
+  margin: -14px -18px;
+  padding: 14px 18px;
+  border-radius: var(--civiq-radius);
+}
+.pj-sign-banner-info {
+  background: var(--civiq-surface-2);
+  border-color: var(--civiq-border);
+  color: var(--civiq-text-soft);
+  font-size: 13px;
+}
+
 /* Sélecteur de secrétaire de séance (inline) */
 .pj-secretary-inline,
 .pj-secretary-display {
