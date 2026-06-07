@@ -23,7 +23,10 @@ const cspDirectives = [
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https://*.supabase.co https://*.tile.openstreetmap.org https://tile.openstreetmap.org",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://nominatim.openstreetmap.org https://api.cal.com https://vercel.live https://*.vercel-insights.com https://*.ingest.sentry.io https://*.ingest.de.sentry.io",
-  "frame-src 'self' https://cal.com https://*.cal.com",
+  // vercel.live : Toolbar Vercel Live Feedback sur les deployments de preview.
+  // Sans ça : « Framing 'https://vercel.live/' violates the following CSP » et
+  // « Unsafe attempt to load URL https://vercel.live/_next-live/feedback/… »
+  "frame-src 'self' https://cal.com https://*.cal.com https://vercel.live",
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
