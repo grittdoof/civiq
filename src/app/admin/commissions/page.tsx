@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Gavel, Users as UsersIcon } from "lucide-react";
+import CommissionIcon from "@/components/projects/CommissionIcon";
 import "../projects/projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -91,7 +92,18 @@ export default async function CommissionsListPage() {
                 style={{ display: "block", textDecoration: "none", color: "inherit" }}
               >
                 <h3 className="pj-section-title" style={{ marginBottom: 4 }}>
-                  <Gavel size={16} /> {c.nom}
+                  <span
+                    style={{
+                      width: 28, height: 28, borderRadius: 8,
+                      background: c.color, color: "#fff",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                    aria-hidden
+                  >
+                    <CommissionIcon name={c.icon} size={15} color="#fff" />
+                  </span>
+                  {c.nom}
                   {!c.active && <span className="civiq-badge civiq-badge-muted">Inactive</span>}
                 </h3>
                 {c.description && <p className="pj-section-description">{c.description}</p>}

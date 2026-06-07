@@ -29,12 +29,36 @@ export async function GET(req: NextRequest) {
   }
 
   const filter = req.nextUrl.searchParams.get("filter") ?? "tous";
+  // Multi-select des assignés : ?assignees=id1,id2,id3
+  const assigneesParam = req.nextUrl.searchParams.get("assignees");
+  const assigneeIds = assigneesParam
+    ? assigneesParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
 
   const filters: Parameters<typeof listTickets>[1] = {};
   if (filter === "ouverts") filters.statut = OUVERT_STATUTS;
   else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
 
-  const tickets = await listTickets(ctx.communeId, filters);
+  let tickets = await listTickets(ctx.communeId, filters);
+
+  // Filtre assignés (assigne_a OU multi-assignés via ticket_assignees)
+  if (assigneeIds.length > 0) {
+    const serviceFilter = await createServiceClient();
+    const { data: multi } = await serviceFilter
+      .from("ticket_assignees")
+      .select("ticket_id, profile_id")
+      .in("profile_id", assigneeIds);
+    const ticketsWithAnyAssignee = new Set(
+      (multi ?? []).map((r) => r.ticket_id as string),
+    );
+    const assigneeSet = new Set(assigneeIds);
+    tickets = tickets.filter(
+      (t) =>
+        (t.assigne_a && assigneeSet.has(t.assigne_a)) ||
+        ticketsWithAnyAssignee.has(t.id),
+    );
+  }
+
   const ticketIds = tickets.map((t) => t.id);
 
   const service = await createServiceClient();
@@ -121,10 +145,14 @@ export async function GET(req: NextRequest) {
   const generatedAt = new Date().toLocaleDateString("fr-FR", {
     day: "numeric", month: "long", year: "numeric",
   });
-  const filterLabel =
+  let filterLabel =
     filter === "ouverts" ? "tickets ouverts" :
     filter === "cloture" ? "tickets clôturés" :
     "";
+  if (assigneeIds.length > 0) {
+    const suffix = assigneeIds.length === 1 ? "1 agent" : `${assigneeIds.length} agents`;
+    filterLabel = filterLabel ? `${filterLabel} — ${suffix}` : `tickets de ${suffix}`;
+  }
 
   let pdfBuffer: Buffer;
   try {

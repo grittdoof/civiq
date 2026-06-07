@@ -2079,3 +2079,107 @@ button.civiq-card,
     display: none;
   }
 }
+
+/* ─── PDF Chooser (page /tickets-pdf sans go=1) ─── */
+.tk-pdf-chooser {
+  width: 100%;
+  max-width: 560px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.tk-pdf-chooser-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tk-pdf-chooser-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg);
+  margin: 0;
+}
+.tk-pdf-chooser-section { display: flex; flex-direction: column; gap: 10px; }
+.tk-pdf-chooser-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tk-pdf-chooser-subtitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin: 0;
+}
+.tk-pdf-chooser-hint { font-size: 12px; color: var(--fg-muted); margin: 0; }
+.tk-pdf-chooser-bulk { display: flex; gap: 6px; }
+.tk-pdf-chooser-radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.tk-pdf-chooser-radio {
+  flex: 1 1 100px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tk-pdf-chooser-radio input { display: none; }
+.tk-pdf-chooser-radio.is-checked {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+.tk-pdf-chooser-count {
+  font-size: 12px;
+  background: var(--border-light);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--fg-muted);
+}
+.tk-pdf-chooser-radio.is-checked .tk-pdf-chooser-count {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--accent);
+}
+.tk-pdf-chooser-users {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+}
+.tk-pdf-chooser-user label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tk-pdf-chooser-user label:hover { background: var(--border-light); }
+.tk-pdf-chooser-user-name { flex: 1; font-size: 14px; font-weight: 500; }
+.tk-pdf-chooser-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

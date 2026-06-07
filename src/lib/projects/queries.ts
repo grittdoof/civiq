@@ -475,8 +475,19 @@ export async function getSession(
     }),
   );
 
+  // Re-signer l'URL du PDF d'émargement signé si présent
+  let sessionTyped = session as unknown as CommissionSession;
+  if (sessionTyped.signed_attendance_pdf_path) {
+    const { data: signedAtt } = await service.storage
+      .from("project-documents")
+      .createSignedUrl(sessionTyped.signed_attendance_pdf_path, 60 * 60 * 24 * 7);
+    if (signedAtt?.signedUrl) {
+      sessionTyped = { ...sessionTyped, signed_attendance_pdf_url: signedAtt.signedUrl };
+    }
+  }
+
   return {
-    session: session as unknown as CommissionSession,
+    session: sessionTyped,
     commission,
     attendance: (attendance.data ?? []) as unknown as SessionDetail["attendance"],
     decisions: (decisions.data ?? []) as SessionDecision[],

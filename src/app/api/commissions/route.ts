@@ -15,6 +15,8 @@ interface CreateBody {
   nom?: string;
   description?: string | null;
   responsable_user_id?: string | null;
+  color?: string;
+  icon?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -36,6 +38,8 @@ export async function POST(req: NextRequest) {
       nom,
       description: body.description?.trim() || null,
       responsable_user_id: body.responsable_user_id || null,
+      color: /^#[0-9A-Fa-f]{6}$/.test(body.color ?? "") ? body.color : "#5A8DEE",
+      icon: body.icon?.trim() || "Gavel",
     })
     .select("*")
     .single();

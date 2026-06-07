@@ -8,6 +8,7 @@ import { getSession } from "@/lib/projects/queries";
 import AttendanceEditor from "@/components/projects/AttendanceEditor";
 import MinutesEditor from "@/components/projects/MinutesEditor";
 import SessionDocumentsEditor from "@/components/projects/SessionDocumentsEditor";
+import SignedAttendanceUpload from "@/components/projects/SignedAttendanceUpload";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -99,6 +100,16 @@ export default async function SessionDetailPage({ params }: PageProps) {
           <h2 className="pj-section-title">
             Émargement <span className="pj-section-count">({presentCount} / {totalMembers} présents)</span>
           </h2>
+
+          {/* Option PDF scanné : pratique quand on fait signer sur papier en séance */}
+          <SignedAttendanceUpload
+            commissionId={id}
+            sessionId={sid}
+            initialUrl={detail.session.signed_attendance_pdf_url}
+            initialUploadedAt={detail.session.signed_attendance_uploaded_at}
+            canEdit={canManageDocs}
+          />
+
           <AttendanceEditor
             commissionId={id}
             sessionId={sid}

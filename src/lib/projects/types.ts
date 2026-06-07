@@ -270,8 +270,32 @@ export interface Commission {
   description: string | null;
   responsable_user_id: string | null;
   active: boolean;
+  /** Couleur HEX #RRGGBB pour identifier visuellement la commission */
+  color: string;
+  /** Identifiant Lucide (cf. CommissionIcon) */
+  icon: string;
   created_at: string;
 }
+
+/** Palette de couleurs proposée par défaut pour les commissions */
+export const COMMISSION_COLOR_PALETTE = [
+  "#5A8DEE", // bleu (défaut)
+  "#FF5A5F", // coral
+  "#2BB673", // vert
+  "#F39C12", // ambre
+  "#9B59B6", // violet
+  "#1ABC9C", // turquoise
+  "#E74C3C", // rouge
+  "#34495E", // bleu nuit
+];
+
+/** Liste blanche des icônes Lucide proposées pour une commission */
+export const COMMISSION_ICONS = [
+  "Gavel", "Wallet", "HardHat", "Building2", "MapPin",
+  "Trees", "GraduationCap", "Heart", "Users", "ShieldCheck",
+  "Lightbulb", "Calendar", "Briefcase", "Landmark",
+] as const;
+export type CommissionIconName = typeof COMMISSION_ICONS[number];
 
 export interface CommissionMember {
   id: string;
@@ -306,6 +330,11 @@ export interface CommissionSession {
   compte_rendu_valide_at: string | null;
   compte_rendu_valide_by: string | null;
   compte_rendu_pdf_url: string | null;
+  /** PDF scanné de la feuille d'émargement signée à la main */
+  signed_attendance_pdf_url: string | null;
+  signed_attendance_pdf_path: string | null;
+  signed_attendance_uploaded_by: string | null;
+  signed_attendance_uploaded_at: string | null;
   created_at: string;
   updated_at: string;
 }

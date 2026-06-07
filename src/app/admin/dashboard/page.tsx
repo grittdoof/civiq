@@ -35,18 +35,31 @@ export default async function AdminDashboardPage() {
 
   const service = await createServiceClient();
 
-  // Modules activés
+  // Modules activés — la chaîne d'autorisation est :
+  //   super_admin → catalogue complet
+  //   sinon       → commune_modules ∩ NOT profile_module_overrides(enabled=false)
+  // (le viewer ne devrait jamais arriver ici, mais on retire ses widgets)
   const isSuperAdmin = ctx.role === "super_admin";
   let activeModules: string[] = [];
   if (isSuperAdmin) {
     const { data } = await service.from("modules").select("id").eq("is_available", true);
     activeModules = (data ?? []).map((m) => m.id);
+  } else if (ctx.role === "viewer") {
+    activeModules = [];
   } else {
-    const { data } = await service
-      .from("commune_modules")
-      .select("module_id")
-      .eq("commune_id", ctx.communeId);
-    activeModules = (data ?? []).map((m) => m.module_id);
+    const [{ data: commune }, { data: overrides }] = await Promise.all([
+      service.from("commune_modules").select("module_id").eq("commune_id", ctx.communeId),
+      service
+        .from("profile_module_overrides")
+        .select("module_id, enabled")
+        .eq("profile_id", ctx.userId),
+    ]);
+    const disabled = new Set(
+      (overrides ?? []).filter((o) => o.enabled === false).map((o) => o.module_id as string),
+    );
+    activeModules = (commune ?? [])
+      .map((m) => m.module_id as string)
+      .filter((id) => !disabled.has(id));
   }
 
   const hasSurveys = activeModules.includes("surveys");

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calendar, List, ChevronLeft, ChevronRight, Flag, Gavel, Wallet } from "lucide-react";
+import { Calendar, List, ChevronLeft, ChevronRight } from "lucide-react";
 import type { CalendarEvent } from "@/lib/projects/calendar-queries";
+import CommissionIcon from "./CommissionIcon";
 
 interface Props {
   events: CalendarEvent[];
@@ -11,6 +12,15 @@ interface Props {
 
 // ═══════════════════════════════════════════════════════════════
 // Vue calendrier — bascule liste chronologique / vue mensuelle.
+//
+// Liste : les événements en cours (passés non clos + aujourd'hui)
+//   sont affichés du plus récent au plus lointain. Les futurs sont
+//   masqués derrière un toggle "Inclure les événements à venir".
+//
+// Mois : grille semaine (lundi-dimanche) avec, pour chaque jour,
+//   les événements en mini-cards portant la couleur de leur
+//   commission (séances) ou la couleur par défaut (étapes clés).
+//   Affichage du nom + sujet, dans la limite de l'espace.
 // ═══════════════════════════════════════════════════════════════
 
 const MONTHS = [
@@ -19,24 +29,9 @@ const MONTHS = [
 ];
 const DAYS_SHORT = ["L", "M", "M", "J", "V", "S", "D"];
 
-function eventIcon(kind: CalendarEvent["kind"]) {
-  switch (kind) {
-    case "milestone": return <Flag size={14} />;
-    case "session": return <Gavel size={14} />;
-    case "financing_ar_pending": return <Wallet size={14} />;
-  }
-}
-
-function eventColor(kind: CalendarEvent["kind"]): string {
-  switch (kind) {
-    case "milestone": return "var(--civiq-primary)";
-    case "session": return "var(--accent)";
-    case "financing_ar_pending": return "var(--civiq-warning)";
-  }
-}
-
 export default function CalendarView({ events }: Props) {
   const [mode, setMode] = useState<"list" | "month">("list");
+  const [showFuture, setShowFuture] = useState(false);
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -53,6 +48,33 @@ export default function CalendarView({ events }: Props) {
     setCursor({ year: d.getFullYear(), month: d.getMonth() });
   }
 
+  // ─── Liste : « en cours » = passés non clos + futurs si showFuture ─
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const listEvents = events
+    .filter((e) => {
+      const d = new Date(e.date);
+      // En cours : pas dans le futur OU overdue (signal de retard)
+      if (d <= todayMidnight || e.overdue) return true;
+      // Futur : seulement si toggle activé
+      return showFuture;
+    })
+    // Tri du plus récent au plus lointain : DESC
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Group events par mois (en gardant l'ordre DESC global)
+  const monthOrder: string[] = [];
+  const eventsByMonth = new Map<string, CalendarEvent[]>();
+  for (const e of listEvents) {
+    const ym = e.date.slice(0, 7);
+    if (!eventsByMonth.has(ym)) {
+      eventsByMonth.set(ym, []);
+      monthOrder.push(ym);
+    }
+    eventsByMonth.get(ym)!.push(e);
+  }
+
   // Group events par jour pour la vue mois
   const eventsByDay = new Map<string, CalendarEvent[]>();
   for (const e of events) {
@@ -62,56 +84,66 @@ export default function CalendarView({ events }: Props) {
     eventsByDay.set(day, arr);
   }
 
-  // Group events par mois pour la vue liste
-  const eventsByMonth = new Map<string, CalendarEvent[]>();
-  for (const e of events) {
-    const ym = e.date.slice(0, 7);
-    const arr = eventsByMonth.get(ym) ?? [];
-    arr.push(e);
-    eventsByMonth.set(ym, arr);
-  }
-
-  // ─── Construction de la grille du mois ───
+  // Construction de la grille du mois
   const firstDay = new Date(cursor.year, cursor.month, 1);
   const lastDay = new Date(cursor.year, cursor.month + 1, 0);
-  // Décalage début : 0 (lundi) à 6 (dimanche)
   const startOffset = (firstDay.getDay() + 6) % 7;
   const daysInMonth = lastDay.getDate();
   const today = new Date();
   const isToday = (y: number, m: number, d: number) =>
     today.getFullYear() === y && today.getMonth() === m && today.getDate() === d;
 
+  const futureCount = events.filter(
+    (e) => new Date(e.date) > todayMidnight && !e.overdue,
+  ).length;
+
   return (
     <>
-      <div className="pj-cal-tabs">
-        <button
-          type="button"
-          onClick={() => setMode("list")}
-          className={`pj-cal-tab ${mode === "list" ? "is-active" : ""}`}
-        >
-          <List size={14} /> Chronologique
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("month")}
-          className={`pj-cal-tab ${mode === "month" ? "is-active" : ""}`}
-        >
-          <Calendar size={14} /> Mois
-        </button>
+      <div className="pj-cal-controls">
+        <div className="pj-cal-tabs">
+          <button
+            type="button"
+            onClick={() => setMode("list")}
+            className={`pj-cal-tab ${mode === "list" ? "is-active" : ""}`}
+          >
+            <List size={14} /> Chronologique
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("month")}
+            className={`pj-cal-tab ${mode === "month" ? "is-active" : ""}`}
+          >
+            <Calendar size={14} /> Mois
+          </button>
+        </div>
+        {mode === "list" && futureCount > 0 && (
+          <label className="pj-cal-future-toggle">
+            <input
+              type="checkbox"
+              checked={showFuture}
+              onChange={(e) => setShowFuture(e.target.checked)}
+            />
+            <span>Inclure les {futureCount} événement{futureCount > 1 ? "s" : ""} à venir</span>
+          </label>
+        )}
       </div>
 
       {mode === "list" && (
         <div className="pj-cal-list">
-          {events.length === 0 ? (
-            <p className="pj-section-empty">Aucune date clé à venir.</p>
+          {listEvents.length === 0 ? (
+            <p className="pj-section-empty">
+              Aucun événement en cours.
+              {!showFuture && futureCount > 0 && (
+                <> Cochez la case ci-dessus pour voir les {futureCount} événement{futureCount > 1 ? "s" : ""} à venir.</>
+              )}
+            </p>
           ) : (
-            [...eventsByMonth.entries()].map(([ym, evs]) => {
+            monthOrder.map((ym) => {
               const [y, m] = ym.split("-").map(Number);
+              const evs = eventsByMonth.get(ym)!;
               return (
                 <div key={ym} className="pj-cal-month-block">
-                  <h3 className="pj-cal-month-title">
-                    {MONTHS[m - 1]} {y}
-                  </h3>
+                  <h3 className="pj-cal-month-title">{MONTHS[m - 1]} {y}</h3>
                   <ul className="pj-cal-events">
                     {evs.map((e) => (
                       <li key={e.id} className={`pj-cal-event ${e.overdue ? "is-overdue" : ""}`}>
@@ -123,12 +155,13 @@ export default function CalendarView({ events }: Props) {
                         </div>
                         <Link href={e.href} className="pj-cal-event-body" prefetch={false}>
                           <span
-                            className="pj-cal-event-icon"
-                            style={{ color: eventColor(e.kind) }}
+                            className="pj-cal-event-pill"
+                            style={{ background: e.color }}
+                            aria-hidden
                           >
-                            {eventIcon(e.kind)}
+                            <CommissionIcon name={e.icon} size={14} color="#fff" />
                           </span>
-                          <span>
+                          <span style={{ flex: 1, minWidth: 0 }}>
                             <span className="pj-cal-event-title">{e.title}</span>
                             {e.subtitle && (
                               <span className="pj-cal-event-sub">{e.subtitle}</span>
@@ -179,19 +212,28 @@ export default function CalendarView({ events }: Props) {
                 >
                   <span className="pj-cal-day-num">{day}</span>
                   {evs.length > 0 && (
-                    <div className="pj-cal-day-dots">
-                      {evs.slice(0, 4).map((e) => (
+                    <div className="pj-cal-day-events">
+                      {evs.slice(0, 3).map((e) => (
                         <Link
                           key={e.id}
                           href={e.href}
-                          title={e.title}
                           prefetch={false}
-                          className="pj-cal-day-dot"
-                          style={{ background: eventColor(e.kind) }}
-                        />
+                          className="pj-cal-day-event"
+                          style={{ borderLeftColor: e.color }}
+                          title={`${e.title}${e.subtitle ? ` — ${e.subtitle}` : ""}`}
+                        >
+                          <span className="pj-cal-day-event-title">
+                            {e.kind === "session" ? "Séance" : e.title}
+                          </span>
+                          <span className="pj-cal-day-event-sub">
+                            {e.kind === "session"
+                              ? (e.commissionName ?? e.subtitle)
+                              : (e.projectName ?? e.subtitle)}
+                          </span>
+                        </Link>
                       ))}
-                      {evs.length > 4 && (
-                        <span className="pj-cal-day-more">+{evs.length - 4}</span>
+                      {evs.length > 3 && (
+                        <span className="pj-cal-day-more">+{evs.length - 3}</span>
                       )}
                     </div>
                   )}

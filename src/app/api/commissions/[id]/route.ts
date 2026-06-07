@@ -20,6 +20,8 @@ interface PatchBody {
   description?: string | null;
   responsable_user_id?: string | null;
   active?: boolean;
+  color?: string;
+  icon?: string;
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -38,6 +40,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   if ("description" in body) updates.description = body.description?.trim() || null;
   if ("responsable_user_id" in body) updates.responsable_user_id = body.responsable_user_id || null;
   if (typeof body.active === "boolean") updates.active = body.active;
+  if (typeof body.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(body.color)) {
+    updates.color = body.color;
+  }
+  if (typeof body.icon === "string" && body.icon.trim()) {
+    updates.icon = body.icon.trim();
+  }
   const service = await createServiceClient();
   const { data, error } = await service
     .from("commissions")

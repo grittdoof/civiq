@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
+import { COMMISSION_COLOR_PALETTE, COMMISSION_ICONS, type CommissionIconName } from "@/lib/projects/types";
+import CommissionIcon from "./CommissionIcon";
 
 interface Profile { id: string; full_name: string | null; }
 
@@ -12,6 +14,8 @@ export default function NewCommissionDialog({ profiles }: { profiles: Profile[] 
   const [nom, setNom] = useState("");
   const [description, setDescription] = useState("");
   const [responsable, setResponsable] = useState("");
+  const [color, setColor] = useState(COMMISSION_COLOR_PALETTE[0]);
+  const [icon, setIcon] = useState<CommissionIconName>("Gavel");
   const [loading, setLoading] = useState(false);
 
   async function submit() {
@@ -24,12 +28,16 @@ export default function NewCommissionDialog({ profiles }: { profiles: Profile[] 
         nom: nom.trim(),
         description: description.trim() || null,
         responsable_user_id: responsable || null,
+        color,
+        icon,
       }),
     });
     setLoading(false);
     if (res.ok) {
       setOpen(false);
       setNom(""); setDescription(""); setResponsable("");
+      setColor(COMMISSION_COLOR_PALETTE[0]);
+      setIcon("Gavel");
       router.refresh();
     }
   }
@@ -51,7 +59,7 @@ export default function NewCommissionDialog({ profiles }: { profiles: Profile[] 
               <label className="civiq-field-label">Nom</label>
               <input
                 className="pj-input"
-                placeholder="ex: Finances, Travaux/Voirie, Urbanisme…"
+                placeholder="ex : Finances, Travaux/Voirie, Urbanisme…"
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
               />
@@ -73,6 +81,44 @@ export default function NewCommissionDialog({ profiles }: { profiles: Profile[] 
                   <option key={p.id} value={p.id}>{p.full_name ?? p.id}</option>
                 ))}
               </select>
+
+              {/* Aperçu live */}
+              <div className="pj-comm-preview" style={{ ['--comm-color' as string]: color }}>
+                <span className="pj-comm-chip">
+                  <CommissionIcon name={icon} size={14} color="#fff" />
+                  <span>{nom || "Nom de la commission"}</span>
+                </span>
+              </div>
+
+              <label className="civiq-field-label">Couleur</label>
+              <div className="pj-color-picker">
+                {COMMISSION_COLOR_PALETTE.map((c) => (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => setColor(c)}
+                    className={`pj-color-swatch ${color === c ? "is-selected" : ""}`}
+                    style={{ background: c }}
+                    aria-label={`Couleur ${c}`}
+                  />
+                ))}
+              </div>
+
+              <label className="civiq-field-label">Icône</label>
+              <div className="pj-icon-picker">
+                {COMMISSION_ICONS.map((name) => (
+                  <button
+                    type="button"
+                    key={name}
+                    onClick={() => setIcon(name)}
+                    className={`pj-icon-swatch ${icon === name ? "is-selected" : ""}`}
+                    style={icon === name ? { background: color, color: "#fff", borderColor: color } : undefined}
+                    aria-label={name}
+                  >
+                    <CommissionIcon name={name} size={16} />
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="pj-modal-footer">
               <button type="button" onClick={() => setOpen(false)} className="civiq-btn civiq-btn-ghost" disabled={loading}>
