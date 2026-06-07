@@ -8,6 +8,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { getCommission } from "@/lib/projects/queries";
 import CommissionMembersEditor from "@/components/projects/CommissionMembersEditor";
 import CommissionProjectsEditor from "@/components/projects/CommissionProjectsEditor";
+import CommissionAdminActions from "@/components/projects/CommissionAdminActions";
 import type { ProjectPhase } from "@/lib/projects/types";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,11 @@ export default async function CommissionDetailPage({ params }: PageProps) {
   // sa commission (membres, projets rattachés, séances).
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
   const canCreateSession = canEdit;
+  // Modifier les attributs de la commission (nom, couleur, etc.) :
+  // ouvert aux éditeurs.
+  const canEditCommission = canEdit;
+  // Suppression : admin commune ou super_admin
+  const canDeleteCommission = ["admin", "super_admin"].includes(ctx.role ?? "");
 
   return (
     <main className="civiq-main pj-detail-page">
@@ -52,16 +58,32 @@ export default async function CommissionDetailPage({ params }: PageProps) {
             <p className="pj-page-subtitle">{detail.commission.description}</p>
           )}
         </div>
-        {canCreateSession && (
-          <div className="pj-page-header-actions">
+        <div className="pj-page-header-actions">
+          {(canEditCommission || canDeleteCommission) && (
+            <CommissionAdminActions
+              commissionId={id}
+              initial={{
+                nom: detail.commission.nom,
+                description: detail.commission.description,
+                responsable_user_id: detail.commission.responsable_user_id,
+                color: detail.commission.color,
+                icon: detail.commission.icon,
+                active: detail.commission.active,
+              }}
+              profiles={(profilesDir ?? []) as { id: string; full_name: string | null }[]}
+              canEdit={canEditCommission}
+              canDelete={canDeleteCommission}
+            />
+          )}
+          {canCreateSession && (
             <Link
               href={`/admin/commissions/${id}/sessions/nouvelle`}
               className="civiq-btn civiq-btn-default"
             >
               <CalendarPlus size={14} /> Nouvelle séance
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </header>
 
       <div className="pj-detail-grid">

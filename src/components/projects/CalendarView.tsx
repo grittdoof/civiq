@@ -31,7 +31,9 @@ const DAYS_SHORT = ["L", "M", "M", "J", "V", "S", "D"];
 
 export default function CalendarView({ events }: Props) {
   const [mode, setMode] = useState<"list" | "month">("list");
-  const [showFuture, setShowFuture] = useState(false);
+  // Vue par défaut = événements à venir. Toggle pour réintroduire
+  // les passés (utile pour les archives ou un récap).
+  const [showPast, setShowPast] = useState(false);
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -48,22 +50,30 @@ export default function CalendarView({ events }: Props) {
     setCursor({ year: d.getFullYear(), month: d.getMonth() });
   }
 
-  // ─── Liste : « en cours » = passés non clos + futurs si showFuture ─
+  // ─── Liste : par défaut on affiche les événements à venir
+  //     (date >= aujourd'hui, ASC du plus proche au plus lointain).
+  //     Si showPast est activé, on inclut aussi les passés (avec leur
+  //     ordre chrono ASC pour rester cohérent).
+  //     Les événements overdue (étapes clés en retard, subventions
+  //     sans AR > 30j) sont TOUJOURS affichés car ils nécessitent
+  //     une action.
   const todayMidnight = new Date();
   todayMidnight.setHours(0, 0, 0, 0);
 
   const listEvents = events
     .filter((e) => {
       const d = new Date(e.date);
-      // En cours : pas dans le futur OU overdue (signal de retard)
-      if (d <= todayMidnight || e.overdue) return true;
-      // Futur : seulement si toggle activé
-      return showFuture;
+      // À venir : toujours
+      if (d >= todayMidnight) return true;
+      // Passé en retard non traité : toujours
+      if (e.overdue) return true;
+      // Passé normal : seulement si toggle activé
+      return showPast;
     })
-    // Tri du plus récent au plus lointain : DESC
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Tri chronologique ASC : prochaines échéances en haut
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Group events par mois (en gardant l'ordre DESC global)
+  // Group events par mois (en gardant l'ordre ASC global)
   const monthOrder: string[] = [];
   const eventsByMonth = new Map<string, CalendarEvent[]>();
   for (const e of listEvents) {
@@ -93,8 +103,9 @@ export default function CalendarView({ events }: Props) {
   const isToday = (y: number, m: number, d: number) =>
     today.getFullYear() === y && today.getMonth() === m && today.getDate() === d;
 
-  const futureCount = events.filter(
-    (e) => new Date(e.date) > todayMidnight && !e.overdue,
+  // Nombre d'événements passés (non overdue) qu'on cache par défaut
+  const pastCount = events.filter(
+    (e) => new Date(e.date) < todayMidnight && !e.overdue,
   ).length;
 
   return (
@@ -116,14 +127,16 @@ export default function CalendarView({ events }: Props) {
             <Calendar size={14} /> Mois
           </button>
         </div>
-        {mode === "list" && futureCount > 0 && (
+        {mode === "list" && pastCount > 0 && (
           <label className="pj-cal-future-toggle">
             <input
               type="checkbox"
-              checked={showFuture}
-              onChange={(e) => setShowFuture(e.target.checked)}
+              checked={showPast}
+              onChange={(e) => setShowPast(e.target.checked)}
             />
-            <span>Inclure les {futureCount} événement{futureCount > 1 ? "s" : ""} à venir</span>
+            <span>
+              Afficher les {pastCount} événement{pastCount > 1 ? "s" : ""} passé{pastCount > 1 ? "s" : ""}
+            </span>
           </label>
         )}
       </div>
@@ -132,9 +145,9 @@ export default function CalendarView({ events }: Props) {
         <div className="pj-cal-list">
           {listEvents.length === 0 ? (
             <p className="pj-section-empty">
-              Aucun événement en cours.
-              {!showFuture && futureCount > 0 && (
-                <> Cochez la case ci-dessus pour voir les {futureCount} événement{futureCount > 1 ? "s" : ""} à venir.</>
+              Aucun événement à venir.
+              {!showPast && pastCount > 0 && (
+                <> Cochez la case ci-dessus pour voir les {pastCount} événement{pastCount > 1 ? "s" : ""} passé{pastCount > 1 ? "s" : ""}.</>
               )}
             </p>
           ) : (
