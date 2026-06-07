@@ -1,0 +1,373 @@
+/* ═══════════════════════════════════════════════════════════════
+ * Module Gestion de projet — styles dédiés
+ * Préfixe « pj- » pour éviter les collisions avec les autres modules.
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* ─── En-tête de page ─── */
+.pj-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.pj-page-subtitle {
+  color: var(--civiq-text-soft);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.pj-page-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── Bandeau de synthèse financière ─── */
+.pj-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.pj-summary-card {
+  background: var(--civiq-surface);
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius);
+  padding: 14px 16px;
+}
+.pj-summary-label {
+  font-size: 12px;
+  color: var(--civiq-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.pj-summary-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--civiq-text);
+  margin-top: 4px;
+}
+.pj-summary-value-success { color: var(--civiq-success); }
+.pj-summary-value-warn { color: var(--civiq-warning); }
+
+/* ─── Empty state ─── */
+.pj-empty {
+  text-align: center;
+  padding: 48px 24px;
+}
+.pj-empty-icon { font-size: 40px; margin-bottom: 8px; }
+.pj-empty-title { font-size: 17px; font-weight: 600; margin-bottom: 4px; }
+.pj-empty-hint { color: var(--civiq-text-soft); margin-bottom: 16px; font-size: 14px; }
+
+/* ─── Kanban ─── */
+.pj-kanban {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+@media (max-width: 1280px) {
+  .pj-kanban { grid-template-columns: repeat(4, minmax(220px, 1fr)); }
+}
+@media (max-width: 768px) {
+  .pj-kanban { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+}
+
+.pj-kanban-col {
+  background: var(--civiq-surface-2);
+  border-radius: var(--civiq-radius);
+  padding: 10px;
+  min-height: 280px;
+}
+.pj-kanban-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px 10px;
+  border-bottom: 1px solid var(--civiq-border);
+  margin-bottom: 10px;
+}
+.pj-kanban-col-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--civiq-text);
+}
+.pj-kanban-col-count {
+  font-size: 12px;
+  background: var(--civiq-surface);
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius-pill);
+  padding: 1px 8px;
+  color: var(--civiq-text-soft);
+  font-weight: 600;
+}
+.pj-kanban-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pj-kanban-col-empty {
+  text-align: center;
+  font-size: 12px;
+  color: var(--civiq-text-light);
+  padding: 24px 0;
+}
+
+/* ─── Carte de projet (kanban) ─── */
+.pj-kanban-card {
+  display: block;
+  padding: 12px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.pj-kanban-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--civiq-text);
+  line-height: 1.35;
+}
+.pj-kanban-card-pilotes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pj-kanban-card-pilote {
+  font-size: 11px;
+  color: var(--civiq-text-soft);
+  background: var(--civiq-surface-2);
+  padding: 2px 6px;
+  border-radius: var(--civiq-radius-pill);
+}
+.pj-kanban-card-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pj-kanban-card-budget {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--civiq-text-soft);
+  font-weight: 600;
+}
+
+/* ─── Page détail ─── */
+.pj-detail-back { margin-bottom: 8px; }
+.pj-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.pj-detail-pilotes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.pj-detail-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pj-source-ticket {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--civiq-bg-blue);
+  font-size: 14px;
+}
+
+/* ─── Stepper ─── */
+.pj-stepper {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  list-style: none;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: var(--civiq-surface);
+  border: 1px solid var(--civiq-border);
+  border-radius: var(--civiq-radius);
+  overflow-x: auto;
+}
+.pj-stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+.pj-stepper-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 60%;
+  right: -40%;
+  height: 2px;
+  background: var(--civiq-border);
+}
+.pj-stepper-step.is-done::after { background: var(--civiq-success); }
+.pj-stepper-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--civiq-border);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  z-index: 1;
+}
+.pj-stepper-step.is-done .pj-stepper-dot { background: var(--civiq-success); }
+.pj-stepper-step.is-active .pj-stepper-dot {
+  background: var(--civiq-primary);
+  box-shadow: 0 0 0 3px var(--civiq-bg-blue);
+}
+.pj-stepper-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--civiq-text-soft);
+}
+.pj-stepper-step.is-active .pj-stepper-label { color: var(--civiq-primary); }
+
+/* ─── Grille des sections ─── */
+.pj-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 1024px) {
+  .pj-detail-grid { grid-template-columns: 1fr; }
+}
+.pj-section { padding: 18px 20px; }
+.pj-history { grid-column: 1 / -1; }
+.pj-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--civiq-text);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pj-section-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--civiq-text-soft);
+}
+.pj-section-description {
+  color: var(--civiq-text-soft);
+  font-style: italic;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.pj-section-content { font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+.pj-section-empty { font-size: 13px; color: var(--civiq-text-light); }
+
+/* ─── Bloc coûts ─── */
+.pj-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.pj-cost-cell {
+  background: var(--civiq-surface-2);
+  padding: 12px;
+  border-radius: var(--civiq-radius-sm);
+}
+.pj-cost-cell-highlight {
+  background: var(--civiq-bg-blue);
+  border: 1px solid var(--civiq-primary);
+}
+.pj-cost-cell-warn { background: var(--civiq-bg-coral); }
+.pj-cost-cell-success { background: var(--civiq-bg-green); }
+.pj-cost-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--civiq-text-soft);
+  margin-bottom: 4px;
+}
+.pj-cost-value { font-size: 18px; font-weight: 700; }
+.pj-cost-rates { font-size: 11px; color: var(--civiq-text-soft); margin-top: 4px; }
+
+/* ─── Tables ─── */
+.pj-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.pj-table th, .pj-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--civiq-border);
+}
+.pj-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--civiq-text-soft);
+  font-weight: 600;
+}
+.pj-table tfoot td { font-weight: 600; }
+.pj-table-strong { font-weight: 600; }
+.pj-table-sub { font-size: 12px; color: var(--civiq-text-soft); }
+
+/* ─── Jalons ─── */
+.pj-milestones { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.pj-milestone {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--civiq-radius-sm);
+  background: var(--civiq-surface-2);
+}
+.pj-milestone.is-done { opacity: 0.6; }
+.pj-milestone.is-late { background: var(--civiq-bg-coral); }
+.pj-milestone-label { font-weight: 600; font-size: 14px; }
+.pj-milestone-meta { font-size: 12px; color: var(--civiq-text-soft); }
+
+/* ─── Documents et abonnés ─── */
+.pj-docs, .pj-subs { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.pj-docs a { display: inline-flex; align-items: center; gap: 6px; color: var(--civiq-primary); text-decoration: none; }
+.pj-docs a:hover { text-decoration: underline; }
+
+/* ─── Historique ─── */
+.pj-history-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pj-history-list li {
+  padding-left: 12px;
+  border-left: 2px solid var(--civiq-border);
+}
+.pj-history-when {
+  font-size: 12px;
+  color: var(--civiq-text-soft);
+}
+.pj-history-what { font-size: 14px; margin: 2px 0; }
+.pj-history-comment {
+  font-size: 13px;
+  color: var(--civiq-text-soft);
+  font-style: italic;
+  margin-top: 2px;
+}
