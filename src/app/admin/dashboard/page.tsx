@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   Inbox, FileText, AlertTriangle, CheckCircle2,
   Wrench, Plus, ArrowRight, MapPin,
+  FolderKanban, Gavel, CalendarDays,
 } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
@@ -34,22 +35,36 @@ export default async function AdminDashboardPage() {
 
   const service = await createServiceClient();
 
-  // Modules activés
+  // Modules activés — la chaîne d'autorisation est :
+  //   super_admin → catalogue complet
+  //   sinon       → commune_modules ∩ NOT profile_module_overrides(enabled=false)
+  // (le viewer ne devrait jamais arriver ici, mais on retire ses widgets)
   const isSuperAdmin = ctx.role === "super_admin";
   let activeModules: string[] = [];
   if (isSuperAdmin) {
     const { data } = await service.from("modules").select("id").eq("is_available", true);
     activeModules = (data ?? []).map((m) => m.id);
+  } else if (ctx.role === "viewer") {
+    activeModules = [];
   } else {
-    const { data } = await service
-      .from("commune_modules")
-      .select("module_id")
-      .eq("commune_id", ctx.communeId);
-    activeModules = (data ?? []).map((m) => m.module_id);
+    const [{ data: commune }, { data: overrides }] = await Promise.all([
+      service.from("commune_modules").select("module_id").eq("commune_id", ctx.communeId),
+      service
+        .from("profile_module_overrides")
+        .select("module_id, enabled")
+        .eq("profile_id", ctx.userId),
+    ]);
+    const disabled = new Set(
+      (overrides ?? []).filter((o) => o.enabled === false).map((o) => o.module_id as string),
+    );
+    activeModules = (commune ?? [])
+      .map((m) => m.module_id as string)
+      .filter((id) => !disabled.has(id));
   }
 
   const hasSurveys = activeModules.includes("surveys");
   const hasTickets = activeModules.includes("tickets");
+  const hasProjects = activeModules.includes("projects");
 
   // ─── Stats sondages ───
   let surveysActive = 0;
@@ -90,6 +105,65 @@ export default async function AdminDashboardPage() {
       return (order[b.priorite] ?? 0) - (order[a.priorite] ?? 0);
     })
     .slice(0, 3);
+
+  // ─── Stats projets ───
+  let projectsTotal = 0;
+  let projectsInRealisation = 0;
+  let projectsNeedAttention = 0; // jalons retard ou porte non franchie
+  let commissionsCount = 0;
+  let nextSessions: Array<{ id: string; commission_nom: string; date_seance: string; commission_id: string }> = [];
+  if (hasProjects && ctx.communeId) {
+    const { data: projs } = await service
+      .from("projects")
+      .select("id, phase, sans_subvention")
+      .eq("commune_id", ctx.communeId);
+    projectsTotal = projs?.length ?? 0;
+    projectsInRealisation = projs?.filter((p) => p.phase === "realisation").length ?? 0;
+
+    // Projets en alerte : jalons en retard OR porte de financement non franchie
+    if (projs && projs.length > 0) {
+      const ids = projs.map((p) => p.id);
+      const [{ data: lateMs }, { data: secured }] = await Promise.all([
+        service.from("milestones").select("project_id").in("project_id", ids).eq("fait", false).lt("echeance", new Date().toISOString()),
+        service.from("financings").select("project_id, statut").in("project_id", ids).in("statut", ["ar_recu", "accordee", "soldee"]),
+      ]);
+      const projectsWithLate = new Set((lateMs ?? []).map((r) => r.project_id as string));
+      const projectsWithSecured = new Set((secured ?? []).map((r) => r.project_id as string));
+      projectsNeedAttention = projs.filter((p) => {
+        if (projectsWithLate.has(p.id)) return true;
+        if (
+          (p.phase === "financement" || p.phase === "conception_marches") &&
+          !p.sans_subvention &&
+          !projectsWithSecured.has(p.id)
+        ) return true;
+        return false;
+      }).length;
+    }
+
+    // Commissions + prochaines séances
+    const { data: comms } = await service
+      .from("commissions")
+      .select("id, nom")
+      .eq("commune_id", ctx.communeId)
+      .eq("active", true);
+    commissionsCount = comms?.length ?? 0;
+    if (comms && comms.length > 0) {
+      const { data: sess } = await service
+        .from("commission_sessions")
+        .select("id, commission_id, date_seance")
+        .in("commission_id", comms.map((c) => c.id))
+        .gte("date_seance", new Date().toISOString())
+        .order("date_seance")
+        .limit(3);
+      const nomById = new Map(comms.map((c) => [c.id as string, c.nom as string]));
+      nextSessions = (sess ?? []).map((s) => ({
+        id: s.id as string,
+        commission_id: s.commission_id as string,
+        commission_nom: nomById.get(s.commission_id as string) ?? "Commission",
+        date_seance: s.date_seance as string,
+      }));
+    }
+  }
 
   return (
     <main className="civiq-main">
@@ -144,7 +218,107 @@ export default async function AdminDashboardPage() {
             tone="success"
           />
         )}
+        {hasProjects && (
+          <Kpi
+            href="/admin/projects"
+            icon={<FolderKanban size={18} />}
+            value={projectsTotal}
+            label="Projets pilotés"
+            sub={projectsInRealisation ? `${projectsInRealisation} en travaux` : "—"}
+          />
+        )}
+        {hasProjects && (
+          <Kpi
+            href="/admin/projects"
+            icon={<AlertTriangle size={18} />}
+            value={projectsNeedAttention}
+            label="Projets à surveiller"
+            sub="retards ou subvention non sécurisée"
+            tone={projectsNeedAttention > 0 ? "danger" : "default"}
+          />
+        )}
+        {hasProjects && (
+          <Kpi
+            href="/admin/commissions"
+            icon={<Gavel size={18} />}
+            value={commissionsCount}
+            label="Commissions"
+            sub={nextSessions[0]
+              ? `prochaine ${new Date(nextSessions[0].date_seance).toLocaleDateString("fr-FR")}`
+              : "aucune séance planifiée"}
+          />
+        )}
       </div>
+
+      {/* Section Pilotage de projets */}
+      {hasProjects && (
+        <section style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
+            <Link
+              href="/admin/projects"
+              style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "inherit" }}
+            >
+              <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--accent-light)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FolderKanban size={16} />
+              </div>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", letterSpacing: "-0.01em" }}>
+                Gestion de projet
+              </h2>
+            </Link>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Link href="/admin/projects" className="civiq-btn civiq-btn-outline civiq-btn-sm">
+                Tous les projets <ArrowRight size={13} />
+              </Link>
+              <Link href="/admin/commissions" className="civiq-btn civiq-btn-outline civiq-btn-sm">
+                Commissions <ArrowRight size={13} />
+              </Link>
+              {(ctx.role === "admin" || ctx.role === "editor" || ctx.role === "super_admin") && (
+                <Link href="/admin/projects/nouveau" className="civiq-btn civiq-btn-default civiq-btn-sm">
+                  <Plus size={13} /> Nouveau projet
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {nextSessions.length === 0 ? (
+            projectsTotal === 0 ? (
+              <div className="civiq-card" style={{ textAlign: "center", padding: 32, borderStyle: "dashed" }}>
+                <FolderKanban size={28} style={{ color: "var(--accent)", margin: "0 auto 8px" }} />
+                <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>
+                  Démarrez le pilotage de vos investissements.
+                </p>
+              </div>
+            ) : null
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ fontSize: 12, color: "var(--fg-muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Prochaines séances de commission
+              </div>
+              {nextSessions.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/admin/commissions/${s.commission_id}/sessions/${s.id}`}
+                  prefetch={false}
+                  className="civiq-card civiq-card-hover"
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", textDecoration: "none" }}
+                >
+                  <CalendarDays size={18} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{s.commission_nom}</div>
+                    <div style={{ fontSize: 12, color: "var(--fg-muted)" }}>
+                      {new Date(s.date_seance).toLocaleString("fr-FR", {
+                        weekday: "long", day: "numeric", month: "long",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                  <ArrowRight size={14} style={{ color: "var(--fg-muted)" }} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Section Tickets en haut (si actif) */}
       {hasTickets && (

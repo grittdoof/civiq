@@ -64,6 +64,9 @@ export interface Ticket {
 
   echeance: string | null;
   updated_at: string;
+
+  /** Si renseigné, le ticket a été transformé en projet (module projects). */
+  project_id?: string | null;
 }
 
 export interface TicketPhoto {

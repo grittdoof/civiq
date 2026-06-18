@@ -6,6 +6,37 @@
 
 ---
 
+## 📌 Où on en est — Juin 2026
+
+### ✅ Module « Gestion de projet » livré (beta) — Session 7
+- [x] Cycle de vie en 7 étapes avec machine à états serveur
+- [x] Porte de financement non contournable
+- [x] Bilan obligatoire avant clôture
+- [x] Coûts d'exploitation 10 ans + actualisation paramétrable
+- [x] Parties prenantes RACI réutilisables
+- [x] Plan de financement avec statuts et notifications
+- [x] Vue kanban + bandeau financier consolidé
+- [x] Vue comparative avec chart actualisé
+- [x] Cartographie transversale des parties prenantes
+- [x] Revue mensuelle imprimable
+- [x] Export PDF fiche projet
+- [x] Lien tickets ↔ projets
+- [x] Commissions municipales (membres, projets, séances)
+- [x] Émargement avec signature électronique
+- [x] Compte rendu brouillon → validé → verrouillé + PDF
+- [x] Notifications push branchées sur tous les événements
+- [x] 47 tests Vitest sur la logique métier (state-machine + coûts)
+
+### 🔮 Itérations envisageables sur le module projets
+- [ ] Drag & drop entre colonnes du kanban (transitions visuelles)
+- [ ] Pondération du coût global par confiance (scénarios pessimiste/réaliste/optimiste)
+- [ ] Workflow de validation des comptes rendus à plusieurs lecteurs
+- [ ] Intégration de modèles de jalons par compétence (DETR-ready)
+- [ ] Cron pour les rappels automatiques (jalons J-7/J-0, séance J-1, subvention sans AR depuis X jours)
+- [ ] Page super-admin avec stats projets agrégées multi-communes
+
+---
+
 ## 📌 Où on en est — Avril 2026
 
 ### ✅ Socle livré

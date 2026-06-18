@@ -19,6 +19,7 @@ export default function PdfLoader() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filter = searchParams.get("filter") ?? "tous";
+  const assignees = searchParams.get("assignees") ?? "";
 
   const [phase, setPhase] = useState<Phase>("preparing");
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,11 @@ export default function PdfLoader() {
     (async () => {
       try {
         setPhase("fetching");
-        const url = `/api/tickets/pdf${filter !== "tous" ? `?filter=${filter}` : ""}`;
+        const params = new URLSearchParams();
+        if (filter !== "tous") params.set("filter", filter);
+        if (assignees) params.set("assignees", assignees);
+        const qs = params.toString();
+        const url = `/api/tickets/pdf${qs ? `?${qs}` : ""}`;
         const res = await fetch(url, { credentials: "include" });
         if (cancelled) return;
         if (!res.ok) {
@@ -69,7 +74,7 @@ export default function PdfLoader() {
     return () => {
       cancelled = true;
     };
-  }, [filter]);
+  }, [filter, assignees]);
 
   // Libère le blob URL si l'utilisateur ferme l'onglet
   useEffect(() => {

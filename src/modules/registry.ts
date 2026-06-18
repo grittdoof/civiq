@@ -15,10 +15,12 @@ import { eventsModule } from "./events";
 import { alertsModule } from "./alerts";
 import { urbanismModule } from "./urbanism";
 import { ticketsModule } from "./tickets";
+import { projectsModule } from "./projects";
 
 export const MODULES: ModuleDefinition[] = [
   surveysModule,
   ticketsModule,
+  projectsModule,
   budgetModule,
   eventsModule,
   alertsModule,
