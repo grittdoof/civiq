@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { SurveySchema, SurveyStep, SurveyField, FieldType, FieldOption } from "@/types/survey";
 import { Plus, Trash2, ChevronUp, ChevronDown, Settings, GripVertical, X } from "lucide-react";
+import IconPicker, { resolveIcon } from "./IconPicker";
 
 // ═══════════════════════════════════════════════════
 // SURVEY BUILDER — Éditeur visuel de schema de sondage
@@ -455,7 +456,12 @@ function StepPanel({
           <GripVertical size={16} />
         </div>
         <div className="sb-step-title">
-          <span className="sb-step-icon">{step.icon || "📋"}</span>
+          <span className="sb-step-icon">
+            {(() => {
+              const Icon = resolveIcon(step.icon);
+              return Icon ? <Icon size={18} /> : <span aria-hidden>📋</span>;
+            })()}
+          </span>
           <div>
             <strong>{step.title}</strong>
             <span className="sb-step-meta">{step.fields.length} champ{step.fields.length !== 1 ? "s" : ""}</span>
@@ -486,13 +492,9 @@ function StepPanel({
                 className="sb-meta-input"
                 placeholder="Titre de l'étape"
               />
-              <input
-                type="text"
-                value={step.icon || ""}
-                onChange={(e) => onUpdate({ ...step, icon: e.target.value || undefined })}
-                className="sb-meta-input sb-icon-input"
-                placeholder="🏠"
-                maxLength={4}
+              <IconPicker
+                value={step.icon}
+                onChange={(name) => onUpdate({ ...step, icon: name })}
               />
             </div>
             <input
@@ -759,7 +761,18 @@ export default function SurveyBuilder({ schema, onChange }: SurveyBuilderProps) 
 
         .sb-step-drag { color: #ccc; cursor: grab; }
         .sb-step-title { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-        .sb-step-icon { font-size: 20px; }
+        .sb-step-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          background: #f0f7ff;
+          color: #1a2744;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          font-size: 16px;
+        }
         .sb-step-title strong { display: block; font-size: 15px; color: #1a2744; }
         .sb-step-meta { font-size: 12px; color: #aaa; }
 
@@ -797,7 +810,123 @@ export default function SurveyBuilder({ schema, onChange }: SurveyBuilderProps) 
           flex: 1;
         }
         .sb-meta-input:focus { border-color: #3b6fa0; }
-        .sb-icon-input { max-width: 64px; text-align: center; font-size: 20px; }
+
+        /* ─── IconPicker ─── */
+        .sb-icon-picker {
+          position: relative;
+          flex-shrink: 0;
+        }
+        .sb-icon-picker-trigger {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 38px;
+          padding: 0 10px 0 12px;
+          background: #fff;
+          border: 1.5px solid #e8e5de;
+          border-radius: 6px;
+          color: #1a2744;
+          cursor: pointer;
+          font-family: inherit;
+          transition: border-color 0.15s, background 0.15s;
+        }
+        .sb-icon-picker-trigger:hover { border-color: #3b6fa0; }
+        .sb-icon-picker-caret { color: #999; }
+        .sb-icon-picker-empty { color: #bbb; font-size: 14px; }
+
+        .sb-icon-picker-popover {
+          position: absolute;
+          top: calc(100% + 6px);
+          right: 0;
+          z-index: 50;
+          width: 320px;
+          max-width: 92vw;
+          background: #fff;
+          border: 1px solid #e8e5de;
+          border-radius: 10px;
+          box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.22);
+          padding: 10px;
+          animation: sb-icon-pop 0.14s ease-out;
+        }
+        @keyframes sb-icon-pop {
+          from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .sb-icon-picker-search {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 10px;
+          background: #faf9f6;
+          border: 1px solid #e8e5de;
+          border-radius: 6px;
+          color: #888;
+          margin-bottom: 8px;
+        }
+        .sb-icon-picker-input {
+          flex: 1;
+          border: none;
+          background: transparent;
+          font-family: inherit;
+          font-size: 13.5px;
+          color: #1a2744;
+          outline: none;
+        }
+        .sb-icon-picker-clear {
+          width: 22px;
+          height: 22px;
+          border-radius: 4px;
+          border: none;
+          background: transparent;
+          color: #aaa;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .sb-icon-picker-clear:hover { background: #f5f3ed; color: #1a2744; }
+
+        .sb-icon-picker-grid {
+          display: grid;
+          grid-template-columns: repeat(8, 1fr);
+          gap: 4px;
+          max-height: 260px;
+          overflow-y: auto;
+          padding: 2px;
+        }
+        .sb-icon-picker-item {
+          aspect-ratio: 1;
+          border: 1.5px solid transparent;
+          background: transparent;
+          border-radius: 8px;
+          color: #555;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.12s, color 0.12s, border-color 0.12s;
+        }
+        .sb-icon-picker-item:hover { background: #f0f7ff; color: #1a2744; }
+        .sb-icon-picker-item.selected {
+          background: #1a2744;
+          color: #fff;
+          border-color: #1a2744;
+        }
+        .sb-icon-picker-empty-state {
+          grid-column: 1 / -1;
+          text-align: center;
+          color: #aaa;
+          font-size: 13px;
+          padding: 24px 8px;
+        }
+        .sb-icon-picker-footer {
+          margin-top: 8px;
+          padding-top: 8px;
+          border-top: 1px solid #f0ede5;
+          font-size: 11px;
+          color: #aaa;
+          text-align: right;
+        }
 
         /* ─── Fields ─── */
         .sb-empty-fields {

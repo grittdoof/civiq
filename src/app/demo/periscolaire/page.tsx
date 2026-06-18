@@ -364,41 +364,17 @@ const DEMO_SCHEMA: SurveySchema = {
 
 export default function DemoPage() {
   return (
-    <main className="civiq-page">
-      {/* Header */}
-      <header
-        className="civiq-header"
-        style={{
-          background:
-            "linear-gradient(135deg, #1a2744 0%, #243a5e 50%, #3b6fa0 100%)",
-        }}
-      >
-        <div className="civiq-header-inner">
-          <div className="civiq-badge">🏛 Commune de Châteauneuf — Démonstration</div>
-          <h1>Besoins périscolaires 2026–2027</h1>
-          <p>
-            Aidez-nous à construire l'offre périscolaire qui correspond à vos
-            besoins : mercredi après-midi, vacances scolaires, aide aux devoirs,
-            bénévolat et plus encore.
-          </p>
-          <div className="civiq-meta">
-            <span>⏱ Environ 5 minutes</span>
-            <span>🔒 Réponses anonymisées</span>
-            <span>📅 Jusqu'au 30 juin 2026</span>
-          </div>
-        </div>
-
-        {/* Demo banner */}
-        <div className="demo-banner">
-          <span>
-            👁 Ceci est une <strong>démonstration</strong> — les réponses ne
-            sont pas enregistrées.
-          </span>
-          <Link href="/auth/register" className="demo-cta">
-            Créer mon espace commune →
-          </Link>
-        </div>
-      </header>
+    <main className="civiq-page civiq-page-flow">
+      {/* Demo banner */}
+      <div className="demo-banner">
+        <span>
+          👁 Ceci est une <strong>démonstration</strong> — les réponses ne
+          sont pas enregistrées.
+        </span>
+        <Link href="/auth/register" className="demo-cta">
+          Créer mon espace commune →
+        </Link>
+      </div>
 
       <SurveyRenderer
         schema={DEMO_SCHEMA}
@@ -406,6 +382,12 @@ export default function DemoPage() {
         communeSlug="chateauneuf-demo"
         primaryColor="#1a2744"
         accentColor="#c9a84c"
+        surveyTitle="Besoins périscolaires 2026–2027"
+        surveyDescription="Aidez-nous à construire l'offre périscolaire qui correspond à vos besoins : mercredi après-midi, vacances scolaires, aide aux devoirs, bénévolat et plus encore."
+        communeName="Commune de Châteauneuf"
+        estimatedTime="Environ 5 minutes"
+        allowAnonymous={true}
+        endsAt="2026-06-30"
         thankYouText="Merci d'avoir testé GoCiviq ! Dans une vraie commune, vos réponses auraient été enregistrées et analysées par les élus."
         onSubmit={async () => {
           // Demo mode: simulate a small delay, no DB save

@@ -1,19 +1,27 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type { SurveySchema, SurveyField, SurveyStep } from "@/types/survey";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Clock,
   Lock,
+  Clock,
+  CalendarDays,
+  CornerDownLeft,
+  type LucideIcon,
 } from "lucide-react";
+import {
+  ICON_BY_NAME,
+  EMOJI_TO_ICON_NAME,
+} from "./icon-library";
 
 // ═══════════════════════════════════════════════════
-// SURVEY RENDERER — Moteur de rendu dynamique
-// Génère un formulaire multi-étapes à partir du JSON schema
+// SURVEY RENDERER — Flow UX (une question / un écran)
+// Inspiration Typeform : enchaînement fluide, animations
+// directionnelles, auto-advance sur choix unique, full
+// hauteur mobile avec footer sticky.
 // ═══════════════════════════════════════════════════
 
 interface SurveyRendererProps {
@@ -24,7 +32,14 @@ interface SurveyRendererProps {
   accentColor?: string;
   headerText?: string;
   thankYouText?: string;
-  // RGPD
+  // Slide d'accueil (premier écran du flow)
+  surveyTitle?: string;
+  surveyDescription?: string;
+  communeName?: string;
+  communeLogoUrl?: string;
+  estimatedTime?: string;
+  allowAnonymous?: boolean;
+  endsAt?: string;
   requireConsent?: boolean;
   consentText?: string;
   rgpdFinalite?: string;
@@ -33,14 +48,134 @@ interface SurveyRendererProps {
   onSubmit?: (data: Record<string, unknown>) => Promise<void>;
 }
 
+// ─── Flow slide model ───
+// On aplatit toutes les étapes en une suite de "slides" navigables
+// écran-par-écran. Chaque étape commence par une slide d'INTRO qui
+// explique la section (icône + titre + description + nb de questions),
+// puis enchaîne avec les slides de QUESTION individuelles. Le titre
+// de l'étape est exposé comme libellé de section au-dessus de chaque
+// question.
+
+type FlowSlide =
+  | {
+      kind: "welcome";
+    }
+  | {
+      kind: "intro";
+      stepIndex: number;
+      step: SurveyStep;
+      totalSteps: number;
+      questionsCount: number;
+    }
+  | {
+      kind: "question";
+      field: SurveyField;
+      stepIndex: number;
+      stepTitle: string;
+    };
+
+function buildSlides(
+  schema: SurveySchema,
+  options: { hasWelcome: boolean }
+): FlowSlide[] {
+  const out: FlowSlide[] = [];
+  if (options.hasWelcome) {
+    out.push({ kind: "welcome" });
+  }
+  const totalSteps = schema.steps.length;
+  schema.steps.forEach((step, sIdx) => {
+    out.push({
+      kind: "intro",
+      stepIndex: sIdx,
+      step,
+      totalSteps,
+      questionsCount: step.fields.length,
+    });
+    step.fields.forEach((field) => {
+      out.push({
+        kind: "question",
+        field,
+        stepIndex: sIdx,
+        stepTitle: step.title,
+      });
+    });
+  });
+  return out;
+}
+
+function fieldVisible(
+  field: SurveyField,
+  data: Record<string, unknown>
+): boolean {
+  if (!field.conditional) return true;
+  const depVal = data[field.conditional.field];
+  return Array.isArray(field.conditional.value)
+    ? field.conditional.value.includes(depVal as string)
+    : depVal === field.conditional.value;
+}
+
+function hasValue(val: unknown): boolean {
+  if (val === undefined || val === null || val === "") return false;
+  if (Array.isArray(val) && val.length === 0) return false;
+  return true;
+}
+
+// Types qui s'auto-avancent après sélection
+const AUTO_ADVANCE_TYPES = new Set(["radio", "select", "scale"]);
+
+// Mots-clés → nom d'icône Lucide, en dernier recours quand l'icône
+// du schema est absente ou inconnue.
+function iconNameFromKeywords(text: string): string | null {
+  const t = text.toLowerCase();
+  if (/(foyer|famille|maison|domicile|enfants?)/.test(t)) return "Home";
+  if (/(cantine|repas|restauration|menu)/.test(t)) return "UtensilsCrossed";
+  if (/(mercredi|jour|planning|crénea?u|horair)/.test(t)) return "CalendarDays";
+  if (/(vacances?|été|estiv|hiver|toussaint|printemps)/.test(t)) return "TreePalm";
+  if (/(devoirs?|scolaire|école|étud)/.test(t)) return "BookOpen";
+  if (/(college|collège|lycée|adolescent)/.test(t)) return "GraduationCap";
+  if (/(bénévol|bénévoles?|engage|solidar|aide)/.test(t)) return "HeartHandshake";
+  if (/(commentaire|libre|retour|avis|suggestion|message)/.test(t)) return "MessageSquare";
+  if (/(consult|particip|atelier|réunion)/.test(t)) return "Users";
+  if (/(travail|emploi|professionnel|métier)/.test(t)) return "Briefcase";
+  if (/(vote|élec|scrutin)/.test(t)) return "Vote";
+  if (/(commune|mairie|territoir|équipement)/.test(t)) return "Building2";
+  if (/(quartier|lieu|adresse|lieu)/.test(t)) return "MapPin";
+  if (/(vélo|cycl|mobilit|déplace)/.test(t)) return "Bike";
+  if (/(transport|bus|trajet)/.test(t)) return "Bus";
+  if (/(nature|environnement|parc|arbres)/.test(t)) return "Trees";
+  if (/(idée|innov|projet|propos)/.test(t)) return "Lightbulb";
+  return null;
+}
+
+function getStepLucideIcon(step: SurveyStep): LucideIcon {
+  // 1) Le schema stocke un nom Lucide explicite (cas standard depuis l'IconPicker)
+  if (step.icon && ICON_BY_NAME[step.icon]) return ICON_BY_NAME[step.icon];
+  // 2) Rétro-compat : le schema stocke un emoji historique
+  if (step.icon && EMOJI_TO_ICON_NAME[step.icon]) {
+    return ICON_BY_NAME[EMOJI_TO_ICON_NAME[step.icon]];
+  }
+  // 3) Inférence par mots-clés sur id puis titre
+  const byKeyword =
+    iconNameFromKeywords(step.id) || iconNameFromKeywords(step.title);
+  if (byKeyword && ICON_BY_NAME[byKeyword]) return ICON_BY_NAME[byKeyword];
+  // 4) Défaut
+  return ICON_BY_NAME["ClipboardList"];
+}
+
 export default function SurveyRenderer({
   schema,
   surveyId,
-  communeSlug,
+  communeSlug: _communeSlug,
   primaryColor = "#1a2744",
   accentColor = "#c9a84c",
-  headerText,
   thankYouText,
+  surveyTitle,
+  surveyDescription,
+  communeName,
+  communeLogoUrl,
+  estimatedTime,
+  allowAnonymous,
+  endsAt,
   requireConsent = true,
   consentText = "Je consens à ce que mes réponses soient collectées et analysées dans le cadre de cette consultation. Je peux exercer mes droits (accès, rectification, suppression) en contactant la commune.",
   rgpdFinalite,
@@ -48,118 +183,174 @@ export default function SurveyRenderer({
   rgpdContactEmail,
   onSubmit,
 }: SurveyRendererProps) {
-  const [currentStep, setCurrentStep] = useState(0);
+  void _communeSlug;
   const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [cursor, setCursor] = useState(0); // index dans allSlides
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [atConsent, setAtConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [startTime] = useState(Date.now());
   const [consentGiven, setConsentGiven] = useState(false);
+  const [shake, setShake] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const steps = schema.steps;
-  const totalSteps = steps.length;
+  // Une slide d'accueil est ajoutée si au moins un élément de contexte
+  // (titre, description, commune) est fourni.
+  const hasWelcome = Boolean(surveyTitle || surveyDescription || communeName);
+  const allSlides = useMemo(
+    () => buildSlides(schema, { hasWelcome }),
+    [schema, hasWelcome]
+  );
+
+  // Indices des slides effectivement visibles (welcome + intros toujours
+  // visibles, questions filtrées par leur conditional)
+  const visibleIndices = useMemo(
+    () =>
+      allSlides
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) =>
+          s.kind === "question" ? fieldVisible(s.field, formData) : true
+        )
+        .map(({ i }) => i),
+    [allSlides, formData]
+  );
+
+  // Indices des slides de type "question" (pour le compteur X/N qui
+  // n'inclut pas les intros — celles-ci affichent leur propre "Étape X sur N")
+  const visibleQuestionIndices = useMemo(
+    () => visibleIndices.filter((i) => allSlides[i].kind === "question"),
+    [visibleIndices, allSlides]
+  );
+
+  const currentSlide = atConsent ? null : allSlides[cursor];
+  const currentQuestion =
+    currentSlide?.kind === "question" ? currentSlide : null;
+  const currentVisiblePos = visibleIndices.indexOf(cursor);
+
+  const totalQuestions = visibleQuestionIndices.length;
+  const totalVisible = totalQuestions + (requireConsent ? 1 : 0);
+  const questionPos =
+    currentSlide?.kind === "question"
+      ? visibleQuestionIndices.indexOf(cursor) + 1
+      : 0;
+  const stepPos = atConsent ? totalVisible : questionPos;
   const progress = submitted
     ? 100
-    : Math.round((currentStep / totalSteps) * 100);
+    : Math.min(
+        100,
+        Math.round(
+          ((atConsent
+            ? totalVisible
+            : currentSlide?.kind === "intro"
+            ? // intro avance la barre vers la prochaine question
+              (visibleQuestionIndices.filter((i) => i < cursor).length || 0)
+            : questionPos) /
+            Math.max(totalVisible, 1)) *
+            100
+        )
+      );
 
-  // ─── Field value handlers ───
+  // ID du dernier champ pour lequel l'utilisateur vient de saisir une valeur.
+  // Sert à éviter de re-déclencher l'auto-advance quand on revient en arrière
+  // sur une question déjà répondue.
+  const justAnsweredRef = useRef<string | null>(null);
 
+  // ─── Setters ───
   const setValue = useCallback((fieldId: string, value: unknown) => {
+    justAnsweredRef.current = fieldId;
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
-    setMissing((prev) => prev.filter((f) => f !== fieldId));
+    setErrorMsg(null);
   }, []);
 
-  const toggleArrayValue = useCallback(
-    (fieldId: string, value: string) => {
-      setFormData((prev) => {
-        const arr = (prev[fieldId] as string[]) || [];
-        return {
-          ...prev,
-          [fieldId]: arr.includes(value)
-            ? arr.filter((v) => v !== value)
-            : [...arr, value],
-        };
-      });
-      setMissing((prev) => prev.filter((f) => f !== fieldId));
-    },
-    []
-  );
+  const toggleArrayValue = useCallback((fieldId: string, value: string) => {
+    justAnsweredRef.current = fieldId;
+    setFormData((prev) => {
+      const arr = (prev[fieldId] as string[]) || [];
+      return {
+        ...prev,
+        [fieldId]: arr.includes(value)
+          ? arr.filter((v) => v !== value)
+          : [...arr, value],
+      };
+    });
+    setErrorMsg(null);
+  }, []);
 
-  // ─── Validation ───
-  // Renvoie la liste des `field.id` manquants pour l'étape donnée.
-  // Tient compte de l'affichage conditionnel (un champ requis caché
-  // par condition n'est pas évalué).
-
-  const missingFieldsForStep = useCallback(
-    (stepIndex: number): string[] => {
-      const step = steps[stepIndex];
-      if (!step) return [];
-      const missing: string[] = [];
-      for (const field of step.fields) {
-        if (!field.required) continue;
-        // conditionnel masqué : on saute
-        if (field.conditional) {
-          const depVal = formData[field.conditional.field];
-          const visible = Array.isArray(field.conditional.value)
-            ? field.conditional.value.includes(depVal as string)
-            : depVal === field.conditional.value;
-          if (!visible) continue;
-        }
-        const val = formData[field.id];
-        if (val === undefined || val === null || val === "") missing.push(field.id);
-        else if (Array.isArray(val) && val.length === 0) missing.push(field.id);
-      }
-      return missing;
-    },
-    [steps, formData]
-  );
-
-  const validateStep = useCallback(
-    (stepIndex: number): boolean => missingFieldsForStep(stepIndex).length === 0,
-    [missingFieldsForStep]
-  );
-
-  const [showErrors, setShowErrors] = useState(false);
-  const [missing, setMissing] = useState<string[]>([]);
+  // ─── Validation question courante ───
+  const validateCurrent = useCallback((): string | null => {
+    if (atConsent || !currentQuestion) return null;
+    const f = currentQuestion.field;
+    if (!f.required) return null;
+    const val = formData[f.id];
+    if (!hasValue(val)) return "Cette réponse est obligatoire";
+    if (f.type === "email" && typeof val === "string") {
+      const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+      if (!ok) return "Adresse email invalide";
+    }
+    if (f.type === "number" && typeof val === "number") {
+      if (f.min !== undefined && val < f.min) return `Valeur minimale : ${f.min}`;
+      if (f.max !== undefined && val > f.max) return `Valeur maximale : ${f.max}`;
+    }
+    return null;
+  }, [atConsent, currentQuestion, formData]);
 
   // ─── Navigation ───
-
   const goNext = useCallback(() => {
-    const m = missingFieldsForStep(currentStep);
-    if (m.length > 0) {
-      setMissing(m);
-      setShowErrors(true);
-      // Focus sur le premier champ manquant
-      requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLElement>(`[data-field-id="${m[0]}"]`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          const focusable = el.querySelector<HTMLElement>("input, select, textarea, button");
-          focusable?.focus({ preventScroll: true });
-        }
-      });
+    if (submitted || submitting) return;
+    if (atConsent) return;
+
+    const err = validateCurrent();
+    if (err) {
+      setErrorMsg(err);
+      setShake(true);
+      setTimeout(() => setShake(false), 380);
       return;
     }
-    setShowErrors(false);
-    setMissing([]);
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep((s) => s + 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    setErrorMsg(null);
+
+    // chercher la prochaine question visible
+    const next = visibleIndices.find((i) => i > cursor);
+    setDirection(1);
+    if (next === undefined) {
+      if (requireConsent) {
+        setAtConsent(true);
+      } else {
+        // Pas de consent → submit direct
+        void handleSubmit();
+      }
+    } else {
+      setCursor(next);
     }
-  }, [currentStep, totalSteps, missingFieldsForStep]);
+  }, [
+    atConsent,
+    cursor,
+    visibleIndices,
+    validateCurrent,
+    requireConsent,
+    submitted,
+    submitting,
+  ]); // handleSubmit défini plus bas mais référence stable
 
   const goPrev = useCallback(() => {
-    if (currentStep > 0) {
-      setCurrentStep((s) => s - 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    if (submitted || submitting) return;
+    setErrorMsg(null);
+    justAnsweredRef.current = null;
+    setDirection(-1);
+    if (atConsent) {
+      setAtConsent(false);
+      return;
     }
-  }, [currentStep]);
+    const prevs = visibleIndices.filter((i) => i < cursor);
+    if (prevs.length === 0) return;
+    setCursor(prevs[prevs.length - 1]);
+  }, [atConsent, cursor, visibleIndices, submitted, submitting]);
 
   const handleSubmit = useCallback(async () => {
-    // Validation finale de l'étape courante avant envoi
-    const m = missingFieldsForStep(currentStep);
-    if (m.length > 0) {
-      setMissing(m);
-      setShowErrors(true);
+    if (requireConsent && !consentGiven) {
+      setErrorMsg("Vous devez accepter le consentement pour envoyer vos réponses.");
+      setShake(true);
+      setTimeout(() => setShake(false), 380);
       return;
     }
     setSubmitting(true);
@@ -170,7 +361,6 @@ export default function SurveyRenderer({
       if (onSubmit) {
         await onSubmit(payload);
       } else {
-        // Default: POST to API
         await fetch(`/api/responses`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -189,13 +379,87 @@ export default function SurveyRenderer({
       setSubmitted(true);
     } catch (err) {
       console.error("Submit error:", err);
+      setErrorMsg("Une erreur est survenue. Veuillez réessayer.");
     } finally {
       setSubmitting(false);
     }
-  }, [formData, onSubmit, surveyId, startTime, missingFieldsForStep, currentStep, requireConsent, consentGiven, consentText]);
+  }, [
+    formData,
+    onSubmit,
+    surveyId,
+    startTime,
+    consentGiven,
+    consentText,
+    requireConsent,
+  ]);
 
-  // ─── Render field ───
+  // ─── Auto-advance sur choix unique ───
+  // Une fois la valeur posée sur un champ radio/select/scale,
+  // on enchaîne automatiquement après 380ms pour laisser le
+  // micro-feedback de sélection s'afficher.
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentFieldId = currentQuestion?.field.id;
+  const currentFieldType = currentQuestion?.field.type;
+  const currentValue = currentFieldId ? formData[currentFieldId] : undefined;
+  useEffect(() => {
+    if (atConsent || submitted) return;
+    if (!currentFieldType || !AUTO_ADVANCE_TYPES.has(currentFieldType)) return;
+    if (!hasValue(currentValue)) return;
+    // Auto-advance uniquement si la valeur vient d'être saisie pour CE champ
+    // pendant la visite courante (pas si on revient sur une question déjà répondue).
+    if (justAnsweredRef.current !== currentFieldId) return;
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    autoAdvanceRef.current = setTimeout(() => {
+      justAnsweredRef.current = null;
+      goNext();
+    }, 380);
+    return () => {
+      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    };
+  }, [currentFieldId, currentFieldType, currentValue, atConsent, submitted, goNext]);
 
+  // ─── Raccourcis clavier ───
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Entrée → continuer (sauf dans textarea, ou Shift+Entrée)
+      if (e.key === "Enter" && !e.shiftKey) {
+        const t = e.target as HTMLElement | null;
+        if (t && t.tagName === "TEXTAREA") return;
+        // Sur un input texte, Enter est un raccourci valide
+        e.preventDefault();
+        if (atConsent) {
+          void handleSubmit();
+        } else {
+          goNext();
+        }
+      }
+      // Esc → retour
+      if (e.key === "Escape") {
+        e.preventDefault();
+        goPrev();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [goNext, goPrev, atConsent, handleSubmit]);
+
+  // ─── Autofocus de l'input à chaque transition ───
+  const screenRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (submitted) return;
+    // petit délai pour laisser l'animation se poser
+    const t = setTimeout(() => {
+      const root = screenRef.current;
+      if (!root) return;
+      const focusable = root.querySelector<HTMLElement>(
+        "input:not([type=checkbox]):not([type=radio]), textarea, select"
+      );
+      focusable?.focus({ preventScroll: true });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [cursor, atConsent, submitted]);
+
+  // ─── Render des champs ───
   const renderField = useCallback(
     (field: SurveyField) => {
       const value = formData[field.id];
@@ -210,7 +474,14 @@ export default function SurveyRenderer({
               value={(value as string) || ""}
               onChange={(e) => setValue(field.id, e.target.value)}
               placeholder={field.placeholder}
-              className="civiq-input"
+              className="civiq-flow-input"
+              autoComplete={
+                field.type === "email"
+                  ? "email"
+                  : field.type === "tel"
+                  ? "tel"
+                  : "off"
+              }
             />
           );
 
@@ -220,130 +491,27 @@ export default function SurveyRenderer({
               value={(value as string) || ""}
               onChange={(e) => setValue(field.id, e.target.value)}
               placeholder={field.placeholder}
-              className="civiq-input civiq-textarea"
+              className="civiq-flow-input civiq-flow-textarea"
               rows={4}
             />
-          );
-
-        case "select":
-          return (
-            <select
-              value={(value as string) || ""}
-              onChange={(e) => setValue(field.id, e.target.value)}
-              className="civiq-input civiq-select"
-            >
-              <option value="">— Sélectionner —</option>
-              {field.options?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          );
-
-        case "radio":
-          return (
-            <div className="civiq-options">
-              {field.options?.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`civiq-option-card ${
-                    value === opt.value ? "selected" : ""
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name={field.id}
-                    value={opt.value}
-                    checked={value === opt.value}
-                    onChange={() => setValue(field.id, opt.value)}
-                  />
-                  <div className="civiq-option-label">
-                    <strong>{opt.label}</strong>
-                    {opt.sublabel && <span>{opt.sublabel}</span>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          );
-
-        case "checkbox":
-        case "checkbox_grid":
-          const arrVal = (value as string[]) || [];
-          return (
-            <div
-              className={`civiq-options ${
-                field.columns === 2 ? "civiq-grid-2" : ""
-              }`}
-            >
-              {field.options?.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`civiq-option-card ${
-                    arrVal.includes(opt.value) ? "selected" : ""
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={arrVal.includes(opt.value)}
-                    onChange={() => toggleArrayValue(field.id, opt.value)}
-                  />
-                  <div className="civiq-option-label">
-                    <strong>{opt.label}</strong>
-                    {opt.sublabel && <span>{opt.sublabel}</span>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          );
-
-        case "scale":
-          return (
-            <div>
-              <div className="civiq-scale-row">
-                {Array.from(
-                  { length: (field.max || 5) - (field.min || 1) + 1 },
-                  (_, i) => (field.min || 1) + i
-                ).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    className={`civiq-scale-btn ${
-                      value === n ? "selected" : ""
-                    }`}
-                    onClick={() => setValue(field.id, n)}
-                    style={{
-                      ...(value === n
-                        ? { background: primaryColor, borderColor: primaryColor, color: "#fff" }
-                        : {}),
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-              {(field.min_label || field.max_label) && (
-                <div className="civiq-scale-labels">
-                  <span>{field.min_label}</span>
-                  <span>{field.max_label}</span>
-                </div>
-              )}
-            </div>
           );
 
         case "number":
           return (
             <input
               type="number"
+              inputMode="numeric"
               value={(value as number) ?? ""}
               onChange={(e) =>
-                setValue(field.id, e.target.value === "" ? "" : Number(e.target.value))
+                setValue(
+                  field.id,
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
               }
               placeholder={field.placeholder}
               min={field.min}
               max={field.max}
-              className="civiq-input"
-              style={{ maxWidth: 200 }}
+              className="civiq-flow-input"
             />
           );
 
@@ -355,10 +523,157 @@ export default function SurveyRenderer({
               onChange={(e) => setValue(field.id, e.target.value)}
               min={field.min !== undefined ? String(field.min) : undefined}
               max={field.max !== undefined ? String(field.max) : undefined}
-              className="civiq-input"
-              style={{ maxWidth: 240 }}
+              className="civiq-flow-input"
             />
           );
+
+        case "select":
+          return (
+            <div className="civiq-flow-options">
+              {field.options?.map((opt, idx) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`civiq-flow-option${
+                    value === opt.value ? " selected" : ""
+                  }`}
+                  onClick={() => setValue(field.id, opt.value)}
+                  style={
+                    value === opt.value
+                      ? {
+                          borderColor: primaryColor,
+                          background: `${primaryColor}10`,
+                        }
+                      : undefined
+                  }
+                >
+                  <span className="civiq-flow-option-key">
+                    {String.fromCharCode(65 + idx)}
+                  </span>
+                  <span className="civiq-flow-option-text">
+                    <strong>{opt.label}</strong>
+                    {opt.sublabel && <span>{opt.sublabel}</span>}
+                  </span>
+                  {value === opt.value && (
+                    <Check size={16} className="civiq-flow-option-tick" />
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+
+        case "radio":
+          return (
+            <div className="civiq-flow-options">
+              {field.options?.map((opt, idx) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`civiq-flow-option${
+                    value === opt.value ? " selected" : ""
+                  }`}
+                  onClick={() => setValue(field.id, opt.value)}
+                  style={
+                    value === opt.value
+                      ? {
+                          borderColor: primaryColor,
+                          background: `${primaryColor}10`,
+                        }
+                      : undefined
+                  }
+                >
+                  <span className="civiq-flow-option-key">
+                    {String.fromCharCode(65 + idx)}
+                  </span>
+                  <span className="civiq-flow-option-text">
+                    <strong>{opt.label}</strong>
+                    {opt.sublabel && <span>{opt.sublabel}</span>}
+                  </span>
+                  {value === opt.value && (
+                    <Check size={16} className="civiq-flow-option-tick" />
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+
+        case "checkbox":
+        case "checkbox_grid": {
+          const arrVal = (value as string[]) || [];
+          return (
+            <div
+              className={`civiq-flow-options${
+                field.columns === 2 ? " civiq-flow-options-grid" : ""
+              }`}
+            >
+              {field.options?.map((opt, idx) => {
+                const checked = arrVal.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`civiq-flow-option${checked ? " selected" : ""}`}
+                    onClick={() => toggleArrayValue(field.id, opt.value)}
+                    style={
+                      checked
+                        ? {
+                            borderColor: primaryColor,
+                            background: `${primaryColor}10`,
+                          }
+                        : undefined
+                    }
+                  >
+                    <span className="civiq-flow-option-key">
+                      {String.fromCharCode(65 + idx)}
+                    </span>
+                    <span className="civiq-flow-option-text">
+                      <strong>{opt.label}</strong>
+                      {opt.sublabel && <span>{opt.sublabel}</span>}
+                    </span>
+                    {checked && (
+                      <Check size={16} className="civiq-flow-option-tick" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        }
+
+        case "scale": {
+          const min = field.min ?? 1;
+          const max = field.max ?? 5;
+          const nums = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+          return (
+            <div className="civiq-flow-scale-wrap">
+              <div className="civiq-flow-scale">
+                {nums.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`civiq-flow-scale-btn${
+                      value === n ? " selected" : ""
+                    }`}
+                    onClick={() => setValue(field.id, n)}
+                    style={
+                      value === n
+                        ? { background: primaryColor, borderColor: primaryColor, color: "#fff" }
+                        : undefined
+                    }
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              {(field.min_label || field.max_label) && (
+                <div className="civiq-flow-scale-labels">
+                  <span>{field.min_label}</span>
+                  <span>{field.max_label}</span>
+                </div>
+              )}
+            </div>
+          );
+        }
 
         default:
           return null;
@@ -367,160 +682,324 @@ export default function SurveyRenderer({
     [formData, setValue, toggleArrayValue, primaryColor]
   );
 
-  // ─── Thank you screen ───
-
+  // ─── Écran de remerciement ───
   if (submitted) {
     return (
-      <div className="civiq-thankyou">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", stiffness: 200 }}
-          className="civiq-thankyou-check"
-          style={{ background: primaryColor }}
-        >
-          <Check size={40} />
-        </motion.div>
-        <h2>Merci pour votre participation !</h2>
-        <p>
-          {thankYouText ||
-            "Vos réponses ont bien été enregistrées. Elles seront analysées pour construire une offre adaptée à vos besoins."}
-        </p>
+      <div className="civiq-flow-wrap">
+        <div className="civiq-flow-thankyou">
+          <div
+            className="civiq-flow-check"
+            style={{ background: primaryColor }}
+          >
+            <Check size={36} />
+          </div>
+          <h2>Merci pour votre participation !</h2>
+          <p>
+            {thankYouText ||
+              "Vos réponses ont bien été enregistrées. Elles seront analysées pour construire une offre adaptée à vos besoins."}
+          </p>
+        </div>
       </div>
     );
   }
 
-  // ─── Main render ───
-
-  const step = steps[currentStep];
-  const isLast = currentStep === totalSteps - 1;
-  const canProceed = validateStep(currentStep);
-
+  // ─── Wrapper principal ───
   return (
-    <div className="civiq-survey">
-      {/* Progress */}
-      <div className="civiq-progress">
-        <div className="civiq-progress-bar">
-          <div
-            className="civiq-progress-fill"
-            style={{
-              width: `${progress}%`,
-              background: `linear-gradient(90deg, ${primaryColor}, ${accentColor})`,
-            }}
-          />
-        </div>
-        <span className="civiq-progress-label">
-          Étape {currentStep + 1} / {totalSteps}
-        </span>
+    <div className="civiq-flow-wrap">
+      {/* Barre de progression sticky en haut */}
+      <div className="civiq-flow-progress-bar">
+        <div
+          className="civiq-flow-progress-fill"
+          style={{
+            width: `${progress}%`,
+            background: `linear-gradient(90deg, ${primaryColor}, ${accentColor})`,
+          }}
+        />
       </div>
 
-      {/* Step content */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step.id}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.25 }}
-          className="civiq-step"
+      <div className="civiq-flow-screen-host">
+        <div
+          key={atConsent ? "__consent" : `q-${cursor}`}
+          ref={screenRef}
+          className={`civiq-flow-screen civiq-flow-enter-${
+            direction > 0 ? "right" : "left"
+          }${shake ? " civiq-flow-shake" : ""}`}
         >
-          <div className="civiq-step-header">
-            <h2>{step.title}</h2>
-            {step.description && <p>{step.description}</p>}
-          </div>
+            {atConsent ? (
+              // ── Écran consentement / récap ──
+              <div className="civiq-flow-question">
+                <div className="civiq-flow-section">
+                  <span className="civiq-flow-section-dot" style={{ background: accentColor }} />
+                  Dernière étape
+                </div>
+                <h2 className="civiq-flow-label">
+                  Confirmation et envoi
+                </h2>
+                <p className="civiq-flow-hint">
+                  Vérifiez les conditions de traitement de vos données avant
+                  d'envoyer vos réponses.
+                </p>
 
-          <div className="civiq-step-body">
-            {step.fields.map((field) => {
-              // Conditional display
-              if (field.conditional) {
-                const depVal = formData[field.conditional.field];
-                const show = Array.isArray(field.conditional.value)
-                  ? field.conditional.value.includes(depVal as string)
-                  : depVal === field.conditional.value;
-                if (!show) return null;
-              }
-
-              const isMissing = showErrors && missing.includes(field.id);
-              return (
-                <div
-                  key={field.id}
-                  data-field-id={field.id}
-                  className={`civiq-field${isMissing ? " civiq-field-error" : ""}`}
-                >
-                  <label className="civiq-field-label">
-                    {field.label}
-                    {field.required && (
-                      <span className="civiq-required">*</span>
-                    )}
-                  </label>
-                  {field.hint && (
-                    <p className="civiq-field-hint">{field.hint}</p>
+                <div className="civiq-flow-consent">
+                  <div className="civiq-flow-consent-header">
+                    <Lock size={14} /> Protection de vos données
+                  </div>
+                  {(rgpdFinalite || rgpdDureeJours) && (
+                    <ul className="civiq-flow-consent-meta">
+                      {rgpdFinalite && (
+                        <li>
+                          <strong>Finalité :</strong> {rgpdFinalite}
+                        </li>
+                      )}
+                      {rgpdDureeJours ? (
+                        <li>
+                          <strong>Conservation :</strong> {rgpdDureeJours} jours
+                        </li>
+                      ) : null}
+                      {rgpdContactEmail && (
+                        <li>
+                          <strong>Vos droits :</strong>{" "}
+                          <a href={`mailto:${rgpdContactEmail}`}>
+                            {rgpdContactEmail}
+                          </a>
+                        </li>
+                      )}
+                    </ul>
                   )}
-                  {renderField(field)}
-                  {isMissing && (
-                    <p className="civiq-field-error-msg">⚠ Cette réponse est obligatoire</p>
+                  <label className="civiq-flow-consent-check">
+                    <input
+                      type="checkbox"
+                      checked={consentGiven}
+                      onChange={(e) => setConsentGiven(e.target.checked)}
+                    />
+                    <span>{consentText}</span>
+                  </label>
+                </div>
+
+                {errorMsg && (
+                  <p className="civiq-flow-error">⚠ {errorMsg}</p>
+                )}
+              </div>
+            ) : currentSlide?.kind === "welcome" ? (
+              // ── Écran d'accueil (1er écran) ──
+              <div className="civiq-flow-welcome">
+                {communeName && (
+                  <div className="civiq-flow-welcome-brand">
+                    {communeLogoUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={communeLogoUrl}
+                        alt={communeName}
+                        className="civiq-flow-welcome-logo"
+                      />
+                    )}
+                    <span
+                      className="civiq-flow-welcome-badge"
+                      style={{
+                        background: `${primaryColor}10`,
+                        color: primaryColor,
+                      }}
+                    >
+                      {communeName}
+                    </span>
+                  </div>
+                )}
+
+                <h2
+                  className="civiq-flow-welcome-title"
+                  style={{ color: primaryColor }}
+                >
+                  {surveyTitle}
+                </h2>
+
+                {surveyDescription && (
+                  <p className="civiq-flow-welcome-desc">
+                    {surveyDescription}
+                  </p>
+                )}
+
+                <div className="civiq-flow-welcome-meta">
+                  {estimatedTime && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <Clock size={14} aria-hidden /> {estimatedTime}
+                    </span>
+                  )}
+                  {allowAnonymous && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <Lock size={14} aria-hidden /> Réponses anonymes
+                    </span>
+                  )}
+                  {endsAt && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <CalendarDays size={14} aria-hidden /> Jusqu'au{" "}
+                      {new Date(endsAt).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </AnimatePresence>
 
-      {/* Consentement RGPD — affiché à la dernière étape */}
-      {isLast && requireConsent && (
-        <div className="civiq-consent">
-          <div className="civiq-consent-header">
-            <Lock size={14} /> Protection de vos données
-          </div>
-          {(rgpdFinalite || rgpdDureeJours) && (
-            <ul className="civiq-consent-meta">
-              {rgpdFinalite && <li><strong>Finalité :</strong> {rgpdFinalite}</li>}
-              {rgpdDureeJours ? <li><strong>Durée de conservation :</strong> {rgpdDureeJours} jours</li> : null}
-              {rgpdContactEmail && <li><strong>Vos droits :</strong> contact à <a href={`mailto:${rgpdContactEmail}`}>{rgpdContactEmail}</a></li>}
-            </ul>
-          )}
-          <label className="civiq-consent-check">
-            <input
-              type="checkbox"
-              checked={consentGiven}
-              onChange={(e) => setConsentGiven(e.target.checked)}
-            />
-            <span>{consentText}</span>
-          </label>
+                <button
+                  type="button"
+                  className="civiq-flow-intro-cta"
+                  onClick={goNext}
+                  style={{ background: primaryColor, color: "#fff" }}
+                >
+                  Commencer le sondage
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            ) : currentSlide?.kind === "intro" ? (
+              // ── Écran intro de section ──
+              <div className="civiq-flow-intro">
+                <div className="civiq-flow-intro-pill">
+                  <span
+                    className="civiq-flow-section-dot"
+                    style={{ background: accentColor }}
+                  />
+                  Étape {currentSlide.stepIndex + 1} sur{" "}
+                  {currentSlide.totalSteps}
+                </div>
+
+                {(() => {
+                  const Icon = getStepLucideIcon(currentSlide.step);
+                  return (
+                    <div
+                      className="civiq-flow-intro-icon"
+                      style={{
+                        background: `${primaryColor}12`,
+                        color: primaryColor,
+                      }}
+                      aria-hidden
+                    >
+                      <Icon size={40} strokeWidth={1.75} />
+                    </div>
+                  );
+                })()}
+
+                <h2 className="civiq-flow-intro-title">
+                  {currentSlide.step.title}
+                </h2>
+
+                {currentSlide.step.description && (
+                  <p className="civiq-flow-intro-desc">
+                    {currentSlide.step.description}
+                  </p>
+                )}
+
+                <div className="civiq-flow-intro-meta">
+                  {currentSlide.questionsCount}{" "}
+                  {currentSlide.questionsCount > 1
+                    ? "questions à suivre"
+                    : "question à suivre"}
+                </div>
+
+                <button
+                  type="button"
+                  className="civiq-flow-intro-cta"
+                  onClick={goNext}
+                  style={{ background: primaryColor, color: "#fff" }}
+                >
+                  Commencer cette section
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            ) : currentQuestion ? (
+              // ── Écran question ──
+              <div className="civiq-flow-question">
+                <div className="civiq-flow-section">
+                  <span className="civiq-flow-section-dot" style={{ background: accentColor }} />
+                  {currentQuestion.stepTitle}
+                </div>
+                <h2 className="civiq-flow-label">
+                  {currentQuestion.field.label}
+                  {currentQuestion.field.required && (
+                    <span className="civiq-flow-required" aria-label="obligatoire">
+                      *
+                    </span>
+                  )}
+                </h2>
+                {currentQuestion.field.hint && (
+                  <p className="civiq-flow-hint">{currentQuestion.field.hint}</p>
+                )}
+
+                <div className="civiq-flow-input-wrap">
+                  {renderField(currentQuestion.field)}
+                </div>
+
+                {errorMsg && (
+                  <p className="civiq-flow-error">⚠ {errorMsg}</p>
+                )}
+              </div>
+            ) : null}
         </div>
-      )}
+      </div>
 
-      {/* Navigation */}
-      <div className="civiq-nav">
-        {currentStep > 0 ? (
-          <button type="button" className="civiq-btn secondary" onClick={goPrev}>
-            <ChevronLeft size={18} /> Retour
-          </button>
-        ) : (
-          <div />
-        )}
+      {/* Footer sticky : compteur + boutons */}
+      <div className="civiq-flow-footer">
+        <div className="civiq-flow-footer-inner">
+          <div className="civiq-flow-counter" aria-live="polite">
+            {currentSlide?.kind === "welcome" ? (
+              <span className="civiq-flow-counter-section">Présentation</span>
+            ) : currentSlide?.kind === "intro" ? (
+              <span className="civiq-flow-counter-section">
+                Section {currentSlide.stepIndex + 1} / {currentSlide.totalSteps}
+              </span>
+            ) : (
+              <>
+                <span className="civiq-flow-counter-num">{stepPos}</span>
+                <span className="civiq-flow-counter-sep">/</span>
+                <span className="civiq-flow-counter-total">{totalVisible}</span>
+              </>
+            )}
+          </div>
 
-        {isLast ? (
-          <button
-            type="button"
-            className="civiq-btn submit"
-            style={{ background: accentColor, color: primaryColor }}
-            disabled={submitting || (requireConsent && !consentGiven)}
-            onClick={handleSubmit}
-          >
-            {submitting ? "Envoi…" : "Envoyer mes réponses"} <Check size={18} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="civiq-btn primary"
-            style={{ background: primaryColor }}
-            onClick={goNext}
-          >
-            Continuer <ChevronRight size={18} />
-          </button>
-        )}
+          <div className="civiq-flow-actions">
+            <button
+              type="button"
+              className="civiq-flow-back"
+              onClick={goPrev}
+              disabled={!atConsent && currentVisiblePos <= 0}
+              aria-label="Question précédente"
+              title="Précédent (Échap)"
+            >
+              <ChevronLeft size={20} />
+            </button>
+
+            {atConsent ? (
+              <button
+                type="button"
+                className="civiq-flow-next civiq-flow-submit"
+                onClick={handleSubmit}
+                disabled={submitting || (requireConsent && !consentGiven)}
+                style={{ background: accentColor, color: primaryColor }}
+              >
+                {submitting ? "Envoi…" : "Envoyer mes réponses"}
+                <Check size={18} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="civiq-flow-next"
+                onClick={goNext}
+                style={{ background: primaryColor }}
+              >
+                <span>OK</span>
+                <CornerDownLeft
+                  size={14}
+                  className="civiq-flow-kbd"
+                  aria-hidden
+                />
+                <ChevronRight size={18} className="civiq-flow-arrow" />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="civiq-flow-hint-kbd" aria-hidden>
+          Appuyez sur <kbd>Entrée</kbd> pour continuer
+        </div>
       </div>
     </div>
   );
