@@ -10,6 +10,28 @@ import {
   Clock,
   CalendarDays,
   CornerDownLeft,
+  // Mapping section icons
+  Home,
+  UtensilsCrossed,
+  TreePalm,
+  BookOpen,
+  HeartHandshake,
+  GraduationCap,
+  MessageSquare,
+  ClipboardList,
+  Users,
+  Briefcase,
+  Megaphone,
+  Vote,
+  Building2,
+  MapPin,
+  Bike,
+  Bus,
+  Trees,
+  Sun,
+  Sparkles,
+  Lightbulb,
+  type LucideIcon,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════
@@ -117,6 +139,75 @@ function hasValue(val: unknown): boolean {
 
 // Types qui s'auto-avancent après sélection
 const AUTO_ADVANCE_TYPES = new Set(["radio", "select", "scale"]);
+
+// Mapping emoji → icône Lucide pour les intros de section.
+// Permet de garder la sémantique des icônes du schema (📅, 🏠…)
+// tout en homogénéisant le rendu avec le reste du design system.
+const EMOJI_LUCIDE: Record<string, LucideIcon> = {
+  "🏠": Home,
+  "🏡": Home,
+  "🏘️": Home,
+  "🍽️": UtensilsCrossed,
+  "🍴": UtensilsCrossed,
+  "🥗": UtensilsCrossed,
+  "📅": CalendarDays,
+  "🗓️": CalendarDays,
+  "🌴": TreePalm,
+  "🏖️": TreePalm,
+  "☀️": Sun,
+  "🌞": Sun,
+  "📚": BookOpen,
+  "📖": BookOpen,
+  "📝": ClipboardList,
+  "🎓": GraduationCap,
+  "🤝": HeartHandshake,
+  "❤️": HeartHandshake,
+  "💬": MessageSquare,
+  "💭": MessageSquare,
+  "🗣️": Megaphone,
+  "👥": Users,
+  "👨‍👩‍👧": Users,
+  "💼": Briefcase,
+  "🗳️": Vote,
+  "🏛️": Building2,
+  "📍": MapPin,
+  "🚴": Bike,
+  "🚌": Bus,
+  "🌳": Trees,
+  "✨": Sparkles,
+  "💡": Lightbulb,
+};
+
+// Mots-clés → icône Lucide, en dernier recours quand l'emoji n'est
+// pas reconnu (ou absent).
+function iconFromKeywords(text: string): LucideIcon | null {
+  const t = text.toLowerCase();
+  if (/(foyer|famille|maison|domicile|enfants?)/.test(t)) return Home;
+  if (/(cantine|repas|restauration|menu)/.test(t)) return UtensilsCrossed;
+  if (/(mercredi|jour|planning|crénea?u|horair)/.test(t)) return CalendarDays;
+  if (/(vacances?|été|estiv|hiver|toussaint|printemps)/.test(t)) return TreePalm;
+  if (/(devoirs?|scolaire|école|étud)/.test(t)) return BookOpen;
+  if (/(college|collège|lycée|adolescent)/.test(t)) return GraduationCap;
+  if (/(bénévol|bénévoles?|engage|solidar|aide)/.test(t)) return HeartHandshake;
+  if (/(commentaire|libre|retour|avis|suggestion|message)/.test(t)) return MessageSquare;
+  if (/(consult|particip|atelier|réunion)/.test(t)) return Users;
+  if (/(travail|emploi|professionnel|métier)/.test(t)) return Briefcase;
+  if (/(vote|élec|scrutin)/.test(t)) return Vote;
+  if (/(commune|mairie|territoir|équipement)/.test(t)) return Building2;
+  if (/(quartier|lieu|adresse|lieu)/.test(t)) return MapPin;
+  if (/(vélo|cycl|mobilit|déplace)/.test(t)) return Bike;
+  if (/(transport|bus|trajet)/.test(t)) return Bus;
+  if (/(nature|environnement|parc|arbres)/.test(t)) return Trees;
+  if (/(idée|innov|projet|propos)/.test(t)) return Lightbulb;
+  return null;
+}
+
+function getStepLucideIcon(step: SurveyStep): LucideIcon {
+  if (step.icon && EMOJI_LUCIDE[step.icon]) return EMOJI_LUCIDE[step.icon];
+  const byKeyword =
+    iconFromKeywords(step.id) || iconFromKeywords(step.title);
+  return byKeyword || ClipboardList;
+}
 
 export default function SurveyRenderer({
   schema,
@@ -819,18 +910,21 @@ export default function SurveyRenderer({
                   {currentSlide.totalSteps}
                 </div>
 
-                {currentSlide.step.icon && (
-                  <div
-                    className="civiq-flow-intro-icon"
-                    style={{
-                      background: `${primaryColor}10`,
-                      color: primaryColor,
-                    }}
-                    aria-hidden
-                  >
-                    {currentSlide.step.icon}
-                  </div>
-                )}
+                {(() => {
+                  const Icon = getStepLucideIcon(currentSlide.step);
+                  return (
+                    <div
+                      className="civiq-flow-intro-icon"
+                      style={{
+                        background: `${primaryColor}12`,
+                        color: primaryColor,
+                      }}
+                      aria-hidden
+                    >
+                      <Icon size={40} strokeWidth={1.75} />
+                    </div>
+                  );
+                })()}
 
                 <h2 className="civiq-flow-intro-title">
                   {currentSlide.step.title}
