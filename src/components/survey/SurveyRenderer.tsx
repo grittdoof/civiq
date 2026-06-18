@@ -7,6 +7,8 @@ import {
   ChevronLeft,
   Check,
   Lock,
+  Clock,
+  CalendarDays,
   CornerDownLeft,
 } from "lucide-react";
 
@@ -25,6 +27,14 @@ interface SurveyRendererProps {
   accentColor?: string;
   headerText?: string;
   thankYouText?: string;
+  // Slide d'accueil (premier écran du flow)
+  surveyTitle?: string;
+  surveyDescription?: string;
+  communeName?: string;
+  communeLogoUrl?: string;
+  estimatedTime?: string;
+  allowAnonymous?: boolean;
+  endsAt?: string;
   requireConsent?: boolean;
   consentText?: string;
   rgpdFinalite?: string;
@@ -43,6 +53,9 @@ interface SurveyRendererProps {
 
 type FlowSlide =
   | {
+      kind: "welcome";
+    }
+  | {
       kind: "intro";
       stepIndex: number;
       step: SurveyStep;
@@ -56,8 +69,14 @@ type FlowSlide =
       stepTitle: string;
     };
 
-function buildSlides(schema: SurveySchema): FlowSlide[] {
+function buildSlides(
+  schema: SurveySchema,
+  options: { hasWelcome: boolean }
+): FlowSlide[] {
   const out: FlowSlide[] = [];
+  if (options.hasWelcome) {
+    out.push({ kind: "welcome" });
+  }
   const totalSteps = schema.steps.length;
   schema.steps.forEach((step, sIdx) => {
     out.push({
@@ -106,6 +125,13 @@ export default function SurveyRenderer({
   primaryColor = "#1a2744",
   accentColor = "#c9a84c",
   thankYouText,
+  surveyTitle,
+  surveyDescription,
+  communeName,
+  communeLogoUrl,
+  estimatedTime,
+  allowAnonymous,
+  endsAt,
   requireConsent = true,
   consentText = "Je consens à ce que mes réponses soient collectées et analysées dans le cadre de cette consultation. Je peux exercer mes droits (accès, rectification, suppression) en contactant la commune.",
   rgpdFinalite,
@@ -125,16 +151,22 @@ export default function SurveyRenderer({
   const [shake, setShake] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const allSlides = useMemo(() => buildSlides(schema), [schema]);
+  // Une slide d'accueil est ajoutée si au moins un élément de contexte
+  // (titre, description, commune) est fourni.
+  const hasWelcome = Boolean(surveyTitle || surveyDescription || communeName);
+  const allSlides = useMemo(
+    () => buildSlides(schema, { hasWelcome }),
+    [schema, hasWelcome]
+  );
 
-  // Indices des slides effectivement visibles (intros toujours visibles,
-  // questions filtrées par leur conditional)
+  // Indices des slides effectivement visibles (welcome + intros toujours
+  // visibles, questions filtrées par leur conditional)
   const visibleIndices = useMemo(
     () =>
       allSlides
         .map((s, i) => ({ s, i }))
         .filter(({ s }) =>
-          s.kind === "intro" ? true : fieldVisible(s.field, formData)
+          s.kind === "question" ? fieldVisible(s.field, formData) : true
         )
         .map(({ i }) => i),
     [allSlides, formData]
@@ -704,6 +736,77 @@ export default function SurveyRenderer({
                   <p className="civiq-flow-error">⚠ {errorMsg}</p>
                 )}
               </div>
+            ) : currentSlide?.kind === "welcome" ? (
+              // ── Écran d'accueil (1er écran) ──
+              <div className="civiq-flow-welcome">
+                {communeName && (
+                  <div className="civiq-flow-welcome-brand">
+                    {communeLogoUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={communeLogoUrl}
+                        alt={communeName}
+                        className="civiq-flow-welcome-logo"
+                      />
+                    )}
+                    <span
+                      className="civiq-flow-welcome-badge"
+                      style={{
+                        background: `${primaryColor}10`,
+                        color: primaryColor,
+                      }}
+                    >
+                      {communeName}
+                    </span>
+                  </div>
+                )}
+
+                <h2
+                  className="civiq-flow-welcome-title"
+                  style={{ color: primaryColor }}
+                >
+                  {surveyTitle}
+                </h2>
+
+                {surveyDescription && (
+                  <p className="civiq-flow-welcome-desc">
+                    {surveyDescription}
+                  </p>
+                )}
+
+                <div className="civiq-flow-welcome-meta">
+                  {estimatedTime && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <Clock size={14} aria-hidden /> {estimatedTime}
+                    </span>
+                  )}
+                  {allowAnonymous && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <Lock size={14} aria-hidden /> Réponses anonymes
+                    </span>
+                  )}
+                  {endsAt && (
+                    <span className="civiq-flow-welcome-meta-item">
+                      <CalendarDays size={14} aria-hidden /> Jusqu'au{" "}
+                      {new Date(endsAt).toLocaleDateString("fr-FR", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="civiq-flow-intro-cta"
+                  onClick={goNext}
+                  style={{ background: primaryColor, color: "#fff" }}
+                >
+                  Commencer le sondage
+                  <ChevronRight size={18} />
+                </button>
+              </div>
             ) : currentSlide?.kind === "intro" ? (
               // ── Écran intro de section ──
               <div className="civiq-flow-intro">
@@ -791,7 +894,9 @@ export default function SurveyRenderer({
       <div className="civiq-flow-footer">
         <div className="civiq-flow-footer-inner">
           <div className="civiq-flow-counter" aria-live="polite">
-            {currentSlide?.kind === "intro" ? (
+            {currentSlide?.kind === "welcome" ? (
+              <span className="civiq-flow-counter-section">Présentation</span>
+            ) : currentSlide?.kind === "intro" ? (
               <span className="civiq-flow-counter-section">
                 Section {currentSlide.stepIndex + 1} / {currentSlide.totalSteps}
               </span>

@@ -85,44 +85,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
   }
 
   return (
-    <main className="civiq-page">
-      {/* Dynamic header with commune branding */}
-      <header
-        className="civiq-header"
-        style={{
-          background: `linear-gradient(135deg, ${commune?.primary_color || "#1a2744"} 0%, ${commune?.primary_color || "#1a2744"}cc 100%)`,
-        }}
-      >
-        <div className="civiq-header-inner">
-          {commune?.logo_url && (
-            <img
-              src={commune.logo_url}
-              alt={commune.name}
-              className="civiq-logo"
-            />
-          )}
-          <div className="civiq-badge">{commune?.name || "Commune"}</div>
-          <h1>{survey.custom_header_text || survey.title}</h1>
-          {survey.description && <p>{survey.description}</p>}
-          <div className="civiq-meta">
-            <span>⏱ {survey.schema?.settings?.estimated_time || "5 min"}</span>
-            {survey.schema?.settings?.allow_anonymous && (
-              <span>🔒 Réponses anonymes</span>
-            )}
-            {survey.ends_at && (
-              <span>
-                📅 Jusqu'au{" "}
-                {new Date(survey.ends_at).toLocaleDateString("fr-FR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-
+    <main className="civiq-page civiq-page-flow">
       <SurveyRenderer
         schema={survey.schema}
         surveyId={survey.id}
@@ -130,6 +93,13 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         primaryColor={commune?.primary_color}
         accentColor={commune?.accent_color}
         thankYouText={survey.custom_thank_you}
+        surveyTitle={survey.custom_header_text || survey.title}
+        surveyDescription={survey.description || undefined}
+        communeName={commune?.name}
+        communeLogoUrl={commune?.logo_url || undefined}
+        estimatedTime={survey.schema?.settings?.estimated_time}
+        allowAnonymous={survey.schema?.settings?.allow_anonymous}
+        endsAt={survey.ends_at || undefined}
         requireConsent={survey.rgpd_require_consent !== false}
         consentText={survey.rgpd_consent_text || undefined}
         rgpdFinalite={survey.rgpd_finalite || undefined}
