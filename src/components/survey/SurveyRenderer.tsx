@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import type { SurveySchema, SurveyField } from "@/types/survey";
+import type { SurveySchema, SurveyField, SurveyStep } from "@/types/survey";
 import {
   ChevronRight,
   ChevronLeft,
@@ -33,22 +33,47 @@ interface SurveyRendererProps {
   onSubmit?: (data: Record<string, unknown>) => Promise<void>;
 }
 
-// ─── Flat question model ───
-// On aplatit toutes les étapes en une liste de questions
-// pour pouvoir naviguer écran-par-écran. Le titre de l'étape
-// est exposé comme libellé de section au-dessus de chaque question.
+// ─── Flow slide model ───
+// On aplatit toutes les étapes en une suite de "slides" navigables
+// écran-par-écran. Chaque étape commence par une slide d'INTRO qui
+// explique la section (icône + titre + description + nb de questions),
+// puis enchaîne avec les slides de QUESTION individuelles. Le titre
+// de l'étape est exposé comme libellé de section au-dessus de chaque
+// question.
 
-interface FlatQuestion {
-  field: SurveyField;
-  stepIndex: number;
-  stepTitle: string;
-}
+type FlowSlide =
+  | {
+      kind: "intro";
+      stepIndex: number;
+      step: SurveyStep;
+      totalSteps: number;
+      questionsCount: number;
+    }
+  | {
+      kind: "question";
+      field: SurveyField;
+      stepIndex: number;
+      stepTitle: string;
+    };
 
-function buildQuestions(schema: SurveySchema): FlatQuestion[] {
-  const out: FlatQuestion[] = [];
+function buildSlides(schema: SurveySchema): FlowSlide[] {
+  const out: FlowSlide[] = [];
+  const totalSteps = schema.steps.length;
   schema.steps.forEach((step, sIdx) => {
+    out.push({
+      kind: "intro",
+      stepIndex: sIdx,
+      step,
+      totalSteps,
+      questionsCount: step.fields.length,
+    });
     step.fields.forEach((field) => {
-      out.push({ field, stepIndex: sIdx, stepTitle: step.title });
+      out.push({
+        kind: "question",
+        field,
+        stepIndex: sIdx,
+        stepTitle: step.title,
+      });
     });
   });
   return out;
@@ -90,7 +115,7 @@ export default function SurveyRenderer({
 }: SurveyRendererProps) {
   void _communeSlug;
   const [formData, setFormData] = useState<Record<string, unknown>>({});
-  const [cursor, setCursor] = useState(0); // index dans allQuestions
+  const [cursor, setCursor] = useState(0); // index dans allSlides
   const [direction, setDirection] = useState<1 | -1>(1);
   const [atConsent, setAtConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -100,25 +125,55 @@ export default function SurveyRenderer({
   const [shake, setShake] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const allQuestions = useMemo(() => buildQuestions(schema), [schema]);
+  const allSlides = useMemo(() => buildSlides(schema), [schema]);
 
-  // Indices des questions effectivement visibles (les conditionnels masqués sont retirés)
+  // Indices des slides effectivement visibles (intros toujours visibles,
+  // questions filtrées par leur conditional)
   const visibleIndices = useMemo(
     () =>
-      allQuestions
-        .map((q, i) => ({ q, i }))
-        .filter(({ q }) => fieldVisible(q.field, formData))
+      allSlides
+        .map((s, i) => ({ s, i }))
+        .filter(({ s }) =>
+          s.kind === "intro" ? true : fieldVisible(s.field, formData)
+        )
         .map(({ i }) => i),
-    [allQuestions, formData]
+    [allSlides, formData]
   );
 
-  const currentQuestion = atConsent ? null : allQuestions[cursor];
+  // Indices des slides de type "question" (pour le compteur X/N qui
+  // n'inclut pas les intros — celles-ci affichent leur propre "Étape X sur N")
+  const visibleQuestionIndices = useMemo(
+    () => visibleIndices.filter((i) => allSlides[i].kind === "question"),
+    [visibleIndices, allSlides]
+  );
+
+  const currentSlide = atConsent ? null : allSlides[cursor];
+  const currentQuestion =
+    currentSlide?.kind === "question" ? currentSlide : null;
   const currentVisiblePos = visibleIndices.indexOf(cursor);
-  const totalVisible = visibleIndices.length + (requireConsent ? 1 : 0);
-  const stepPos = atConsent ? totalVisible : currentVisiblePos + 1;
+
+  const totalQuestions = visibleQuestionIndices.length;
+  const totalVisible = totalQuestions + (requireConsent ? 1 : 0);
+  const questionPos =
+    currentSlide?.kind === "question"
+      ? visibleQuestionIndices.indexOf(cursor) + 1
+      : 0;
+  const stepPos = atConsent ? totalVisible : questionPos;
   const progress = submitted
     ? 100
-    : Math.min(100, Math.round((stepPos / Math.max(totalVisible, 1)) * 100));
+    : Math.min(
+        100,
+        Math.round(
+          ((atConsent
+            ? totalVisible
+            : currentSlide?.kind === "intro"
+            ? // intro avance la barre vers la prochaine question
+              (visibleQuestionIndices.filter((i) => i < cursor).length || 0)
+            : questionPos) /
+            Math.max(totalVisible, 1)) *
+            100
+        )
+      );
 
   // ID du dernier champ pour lequel l'utilisateur vient de saisir une valeur.
   // Sert à éviter de re-déclencher l'auto-advance quand on revient en arrière
@@ -649,6 +704,58 @@ export default function SurveyRenderer({
                   <p className="civiq-flow-error">⚠ {errorMsg}</p>
                 )}
               </div>
+            ) : currentSlide?.kind === "intro" ? (
+              // ── Écran intro de section ──
+              <div className="civiq-flow-intro">
+                <div className="civiq-flow-intro-pill">
+                  <span
+                    className="civiq-flow-section-dot"
+                    style={{ background: accentColor }}
+                  />
+                  Étape {currentSlide.stepIndex + 1} sur{" "}
+                  {currentSlide.totalSteps}
+                </div>
+
+                {currentSlide.step.icon && (
+                  <div
+                    className="civiq-flow-intro-icon"
+                    style={{
+                      background: `${primaryColor}10`,
+                      color: primaryColor,
+                    }}
+                    aria-hidden
+                  >
+                    {currentSlide.step.icon}
+                  </div>
+                )}
+
+                <h2 className="civiq-flow-intro-title">
+                  {currentSlide.step.title}
+                </h2>
+
+                {currentSlide.step.description && (
+                  <p className="civiq-flow-intro-desc">
+                    {currentSlide.step.description}
+                  </p>
+                )}
+
+                <div className="civiq-flow-intro-meta">
+                  {currentSlide.questionsCount}{" "}
+                  {currentSlide.questionsCount > 1
+                    ? "questions à suivre"
+                    : "question à suivre"}
+                </div>
+
+                <button
+                  type="button"
+                  className="civiq-flow-intro-cta"
+                  onClick={goNext}
+                  style={{ background: primaryColor, color: "#fff" }}
+                >
+                  Commencer cette section
+                  <ChevronRight size={18} />
+                </button>
+              </div>
             ) : currentQuestion ? (
               // ── Écran question ──
               <div className="civiq-flow-question">
@@ -684,9 +791,17 @@ export default function SurveyRenderer({
       <div className="civiq-flow-footer">
         <div className="civiq-flow-footer-inner">
           <div className="civiq-flow-counter" aria-live="polite">
-            <span className="civiq-flow-counter-num">{stepPos}</span>
-            <span className="civiq-flow-counter-sep">/</span>
-            <span className="civiq-flow-counter-total">{totalVisible}</span>
+            {currentSlide?.kind === "intro" ? (
+              <span className="civiq-flow-counter-section">
+                Section {currentSlide.stepIndex + 1} / {currentSlide.totalSteps}
+              </span>
+            ) : (
+              <>
+                <span className="civiq-flow-counter-num">{stepPos}</span>
+                <span className="civiq-flow-counter-sep">/</span>
+                <span className="civiq-flow-counter-total">{totalVisible}</span>
+              </>
+            )}
           </div>
 
           <div className="civiq-flow-actions">
