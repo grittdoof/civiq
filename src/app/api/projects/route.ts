@@ -43,6 +43,11 @@ interface CreateBody {
   taux_inflation?: number | null;
   taux_actualisation?: number | null;
   source_ticket_id?: string | null;
+  concerne_tiers?: boolean;
+  tiers_nom?: string | null;
+  tiers_type?: string | null;
+  tiers_contact?: string | null;
+  accompagne_sans_financer?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -84,6 +89,11 @@ export async function POST(req: NextRequest) {
       taux_inflation: body.taux_inflation ?? null,
       taux_actualisation: body.taux_actualisation ?? null,
       source_ticket_id: body.source_ticket_id || null,
+      concerne_tiers: !!body.concerne_tiers,
+      tiers_nom: body.concerne_tiers ? body.tiers_nom?.trim() || null : null,
+      tiers_type: body.concerne_tiers ? body.tiers_type || null : null,
+      tiers_contact: body.concerne_tiers ? body.tiers_contact?.trim() || null : null,
+      accompagne_sans_financer: !!body.accompagne_sans_financer,
       created_by: guard.userId,
     })
     .select("id, titre, phase")

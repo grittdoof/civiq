@@ -43,6 +43,11 @@ interface PatchBody {
   taux_actualisation?: number | null;
   cout_reel?: number | null;
   explication_ecart?: string | null;
+  concerne_tiers?: boolean;
+  tiers_nom?: string | null;
+  tiers_type?: string | null;
+  tiers_contact?: string | null;
+  accompagne_sans_financer?: boolean;
 }
 
 const PATCH_ALLOWED = new Set<keyof PatchBody>([
@@ -58,6 +63,11 @@ const PATCH_ALLOWED = new Set<keyof PatchBody>([
   "taux_actualisation",
   "cout_reel",
   "explication_ecart",
+  "concerne_tiers",
+  "tiers_nom",
+  "tiers_type",
+  "tiers_contact",
+  "accompagne_sans_financer",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
