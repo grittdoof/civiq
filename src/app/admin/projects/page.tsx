@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, BarChart3, Users, CalendarDays, LayoutGrid, List } from "lucide-react";
+import { Plus, BarChart3, Users, CalendarDays, LayoutGrid, List, TrendingUp } from "lucide-react";
 import "./projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -123,6 +123,9 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           </Link>
           <Link href="/admin/projects/revue-mensuelle" className="civiq-btn civiq-btn-outline">
             <CalendarDays size={14} /> <span>Revue mensuelle</span>
+          </Link>
+          <Link href="/admin/projects/ppi" className="civiq-btn civiq-btn-outline">
+            <TrendingUp size={14} /> <span>PPI</span>
           </Link>
           {canCreate && (
             <Link href="/admin/projects/nouveau" className="civiq-btn civiq-btn-default">
