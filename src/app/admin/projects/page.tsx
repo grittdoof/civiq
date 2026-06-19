@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, BarChart3, Users, CalendarDays } from "lucide-react";
+import { Plus, BarChart3, Users, CalendarDays, LayoutGrid, List } from "lucide-react";
 import "./projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -15,6 +15,7 @@ import {
 import { formatEuros } from "@/lib/projects/cost-calc";
 import ProjectCard from "@/components/projects/ProjectCard";
 import PhaseIcon from "@/components/projects/PhaseIcon";
+import ProjectListView from "@/components/projects/ProjectListView";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects — Lanes horizontales par phase.
@@ -28,7 +29,14 @@ import PhaseIcon from "@/components/projects/PhaseIcon";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProjectsPage() {
+interface PageProps {
+  searchParams: Promise<{ view?: string }>;
+}
+
+export default async function ProjectsPage({ searchParams }: PageProps) {
+  const { view } = await searchParams;
+  const viewMode: "lanes" | "list" = view === "list" ? "list" : "lanes";
+
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
     const active = await isModuleActive("projects");
@@ -85,6 +93,28 @@ export default async function ProjectsPage() {
           </p>
         </div>
         <div className="pj-page-header-actions">
+          <div className="pj-view-toggle" role="tablist" aria-label="Affichage">
+            <Link
+              href="/admin/projects"
+              className={`pj-view-toggle-btn${viewMode === "lanes" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={viewMode === "lanes"}
+              prefetch={false}
+              title="Vue par phase (lanes)"
+            >
+              <LayoutGrid size={14} /> <span>Phases</span>
+            </Link>
+            <Link
+              href="/admin/projects?view=list"
+              className={`pj-view-toggle-btn${viewMode === "list" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={viewMode === "list"}
+              prefetch={false}
+              title="Vue liste avec code couleur commission"
+            >
+              <List size={14} /> <span>Liste</span>
+            </Link>
+          </div>
           <Link href="/admin/projects/comparatif" className="civiq-btn civiq-btn-outline">
             <BarChart3 size={14} /> <span>Comparatif coûts</span>
           </Link>
@@ -141,6 +171,8 @@ export default async function ProjectsPage() {
             </Link>
           )}
         </div>
+      ) : viewMode === "list" ? (
+        <ProjectListView projects={projects} />
       ) : (
         <div className="pj-lanes">
           {PROJECT_PHASES.map((phase) => {

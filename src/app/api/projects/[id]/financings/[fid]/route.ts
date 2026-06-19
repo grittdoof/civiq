@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import type { FinancingStatus } from "@/lib/projects/types";
+import type { FinancingStatus, FinancingEligibility } from "@/lib/projects/types";
 
 // PATCH/DELETE une ligne de financement.
 // Sur changement de statut → audit + notification push aux abonnés.
@@ -11,18 +11,30 @@ interface RouteParams { params: Promise<{ id: string; fid: string }>; }
 
 interface PatchBody {
   financeur?: string;
+  dispositif?: string | null;
   montant_demande?: number | null;
   montant_obtenu?: number | null;
   statut?: FinancingStatus;
   date_demande?: string | null;
   date_ar?: string | null;
   date_decision?: string | null;
+  // Suivi détaillé éligibilité
+  definition_commencement?: string | null;
+  date_notification_marche?: string | null;
+  date_ordre_service?: string | null;
+  eligibilite?: FinancingEligibility;
+  eligibilite_note?: string | null;
+  taux?: number | null;
+  plafond?: number | null;
+  deadline_depot?: string | null;
   notes?: string | null;
 }
 
 const ALLOWED = new Set<keyof PatchBody>([
-  "financeur", "montant_demande", "montant_obtenu", "statut",
+  "financeur", "dispositif", "montant_demande", "montant_obtenu", "statut",
   "date_demande", "date_ar", "date_decision", "notes",
+  "definition_commencement", "date_notification_marche", "date_ordre_service",
+  "eligibilite", "eligibilite_note", "taux", "plafond", "deadline_depot",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
