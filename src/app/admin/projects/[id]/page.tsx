@@ -22,6 +22,7 @@ import SubscribersEditor from "@/components/projects/SubscribersEditor";
 import DocumentsEditor from "@/components/projects/DocumentsEditor";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import CommissionIcon from "@/components/projects/CommissionIcon";
+import DeleteProjectButton from "@/components/projects/DeleteProjectButton";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -129,6 +130,9 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             >
               Exporter en PDF
             </a>
+            {ctx.role === "super_admin" && (
+              <DeleteProjectButton projectId={p.id} projectTitle={p.titre} />
+            )}
           </div>
         )}
       </header>

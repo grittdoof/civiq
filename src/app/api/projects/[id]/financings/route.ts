@@ -26,12 +26,20 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
 interface CreateBody {
   financeur?: string;
+  dispositif?: string | null;
   montant_demande?: number | null;
   montant_obtenu?: number | null;
   statut?: FinancingStatus;
   date_demande?: string | null;
   date_ar?: string | null;
   date_decision?: string | null;
+  definition_commencement?: string | null;
+  date_notification_marche?: string | null;
+  date_ordre_service?: string | null;
+  eligibilite_note?: string | null;
+  taux?: number | null;
+  plafond?: number | null;
+  deadline_depot?: string | null;
   notes?: string | null;
 }
 
@@ -52,12 +60,20 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .insert({
       project_id: id,
       financeur,
+      dispositif: body.dispositif?.trim() || null,
       montant_demande: body.montant_demande ?? null,
       montant_obtenu: body.montant_obtenu ?? null,
       statut: body.statut ?? "a_demander",
       date_demande: body.date_demande || null,
       date_ar: body.date_ar || null,
       date_decision: body.date_decision || null,
+      definition_commencement: body.definition_commencement?.trim() || null,
+      date_notification_marche: body.date_notification_marche || null,
+      date_ordre_service: body.date_ordre_service || null,
+      eligibilite_note: body.eligibilite_note?.trim() || null,
+      taux: body.taux ?? null,
+      plafond: body.plafond ?? null,
+      deadline_depot: body.deadline_depot || null,
       notes: body.notes?.trim() || null,
     })
     .select("*")

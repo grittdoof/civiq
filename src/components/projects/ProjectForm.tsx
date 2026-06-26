@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
-import type { ProjectCompetence } from "@/lib/projects/types";
+import { Save, Loader2, ChevronLeft, ChevronRight, Users, HandHelping } from "lucide-react";
+import type { ProjectCompetence, ProjectTiersType } from "@/lib/projects/types";
+import { PROJECT_TIERS_TYPE_LABELS } from "@/lib/projects/types";
 
 interface Profile { id: string; full_name: string | null; job_title: string | null; }
 
@@ -19,6 +20,11 @@ interface InitialValues {
   taux_inflation?: number | null;
   taux_actualisation?: number | null;
   source_ticket_id?: string | null;
+  concerne_tiers?: boolean;
+  tiers_nom?: string | null;
+  tiers_type?: ProjectTiersType | null;
+  tiers_contact?: string | null;
+  accompagne_sans_financer?: boolean;
 }
 
 interface Props {
@@ -72,6 +78,13 @@ export default function ProjectForm({ mode, projectId, initial = {}, profilesDir
   const [tauxInfl, setTauxInfl] = useState(initial.taux_inflation != null ? String(initial.taux_inflation) : "");
   const [tauxAct, setTauxAct] = useState(initial.taux_actualisation != null ? String(initial.taux_actualisation) : "");
 
+  // ── Tiers (progressive disclosure : tout repose sur concerneTiers) ──
+  const [concerneTiers, setConcerneTiers] = useState(initial.concerne_tiers ?? false);
+  const [tiersNom, setTiersNom] = useState(initial.tiers_nom ?? "");
+  const [tiersType, setTiersType] = useState<ProjectTiersType | "">(initial.tiers_type ?? "");
+  const [tiersContact, setTiersContact] = useState(initial.tiers_contact ?? "");
+  const [accompagneSansFinancer, setAccompagneSansFinancer] = useState(initial.accompagne_sans_financer ?? false);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,6 +117,11 @@ export default function ProjectForm({ mode, projectId, initial = {}, profilesDir
       taux_inflation: tauxInfl ? Number(tauxInfl) : null,
       taux_actualisation: tauxAct ? Number(tauxAct) : null,
       source_ticket_id: initial.source_ticket_id ?? null,
+      concerne_tiers: concerneTiers,
+      tiers_nom: concerneTiers ? tiersNom.trim() || null : null,
+      tiers_type: concerneTiers && tiersType ? tiersType : null,
+      tiers_contact: concerneTiers ? tiersContact.trim() || null : null,
+      accompagne_sans_financer: concerneTiers ? accompagneSansFinancer : false,
     };
 
     try {
@@ -413,6 +431,102 @@ export default function ProjectForm({ mode, projectId, initial = {}, profilesDir
           </div>
         </div>
         <p className="pj-section-empty">Les pilotes sélectionnés seront automatiquement abonnés aux notifications.</p>
+      </div>
+
+      {/* ── Tiers : progressive disclosure ── */}
+      <div className={`civiq-card pj-section pj-tiers-card${concerneTiers ? " is-active" : ""}`}>
+        <div className="pj-tiers-head">
+          <div className="pj-tiers-head-text">
+            <h2 className="pj-section-title">
+              <Users size={16} aria-hidden style={{ marginRight: 8, verticalAlign: -3 }} />
+              Porteur de projet
+            </h2>
+            <p className="pj-section-empty" style={{ margin: 0 }}>
+              Par défaut, le projet est porté par la commune. Activez si un tiers
+              (entreprise, association, particulier…) est à l&apos;origine et que vous
+              l&apos;accompagnez.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={concerneTiers}
+            className={`pj-switch${concerneTiers ? " on" : ""}`}
+            onClick={() => setConcerneTiers((v) => !v)}
+          >
+            <span className="pj-switch-thumb" />
+            <span className="sr-only">
+              {concerneTiers ? "Tiers activé" : "Tiers désactivé"}
+            </span>
+          </button>
+        </div>
+
+        <div
+          className="pj-collapse"
+          data-open={concerneTiers}
+          aria-hidden={!concerneTiers}
+        >
+          <div className="pj-form-grid pj-tiers-grid">
+            <div className="pj-form-field">
+              <label className="civiq-field-label" htmlFor="tiers_nom">Nom du tiers</label>
+              <input
+                id="tiers_nom"
+                className="pj-input"
+                value={tiersNom}
+                onChange={(e) => setTiersNom(e.target.value)}
+                placeholder="Ex : Association Sainte-Anne"
+                disabled={!concerneTiers}
+              />
+            </div>
+            <div className="pj-form-field">
+              <label className="civiq-field-label" htmlFor="tiers_type">Type</label>
+              <select
+                id="tiers_type"
+                className="pj-input"
+                value={tiersType}
+                onChange={(e) => setTiersType(e.target.value as ProjectTiersType | "")}
+                disabled={!concerneTiers}
+              >
+                <option value="">— Sélectionner —</option>
+                {(Object.entries(PROJECT_TIERS_TYPE_LABELS) as [ProjectTiersType, string][]).map(
+                  ([k, label]) => (
+                    <option key={k} value={k}>{label}</option>
+                  )
+                )}
+              </select>
+            </div>
+            <div className="pj-form-field pj-form-field-wide">
+              <label className="civiq-field-label" htmlFor="tiers_contact">Contact (téléphone, email, référent)</label>
+              <input
+                id="tiers_contact"
+                className="pj-input"
+                value={tiersContact}
+                onChange={(e) => setTiersContact(e.target.value)}
+                placeholder="Ex : Marie Dupont — 06 12 34 56 78"
+                disabled={!concerneTiers}
+              />
+            </div>
+            <div className="pj-form-field pj-form-field-checkbox pj-form-field-wide">
+              <label className="pj-checkbox">
+                <input
+                  type="checkbox"
+                  checked={accompagneSansFinancer}
+                  onChange={(e) => setAccompagneSansFinancer(e.target.checked)}
+                  disabled={!concerneTiers}
+                />
+                <span>
+                  <HandHelping size={14} aria-hidden style={{ marginRight: 4, verticalAlign: -2 }} />
+                  La commune accompagne sans financer
+                </span>
+              </label>
+              <p className="pj-section-empty">
+                Cochez si la commune apporte conseil, instruction ou mise en relation,
+                mais ne participe pas financièrement. Les sections financement et
+                subventions seront masquées sur la fiche.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="civiq-card pj-section">

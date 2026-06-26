@@ -159,6 +159,21 @@ export interface CommuneSettings {
   updated_at: string;
 }
 
+export type ProjectTiersType =
+  | "entreprise"
+  | "association"
+  | "particulier"
+  | "autre_collectivite"
+  | "autre";
+
+export const PROJECT_TIERS_TYPE_LABELS: Record<ProjectTiersType, string> = {
+  entreprise: "Entreprise",
+  association: "Association",
+  particulier: "Particulier",
+  autre_collectivite: "Autre collectivité",
+  autre: "Autre",
+};
+
 export interface Project {
   id: string;
   commune_id: string;
@@ -179,6 +194,12 @@ export interface Project {
   explication_ecart: string | null;
   photo_url: string | null;
   photo_storage_path: string | null;
+  // Projet « tiers » : la commune accompagne un porteur externe
+  concerne_tiers: boolean;
+  tiers_nom: string | null;
+  tiers_type: ProjectTiersType | null;
+  tiers_contact: string | null;
+  accompagne_sans_financer: boolean;
   date_creation: string;
   date_maj: string;
   created_by: string | null;
@@ -222,16 +243,39 @@ export interface ProjectStakeholder {
   created_at: string;
 }
 
+export type FinancingEligibility =
+  | "a_evaluer"
+  | "preservee"
+  | "vigilance"
+  | "compromise";
+
+export const FINANCING_ELIGIBILITY_LABELS: Record<FinancingEligibility, string> = {
+  a_evaluer: "À évaluer",
+  preservee: "Éligibilité préservée",
+  vigilance: "Point de vigilance",
+  compromise: "Éligibilité compromise",
+};
+
 export interface Financing {
   id: string;
   project_id: string;
   financeur: string;
+  dispositif: string | null;
   montant_demande: number | null;
   montant_obtenu: number | null;
   statut: FinancingStatus;
   date_demande: string | null;
   date_ar: string | null;
   date_decision: string | null;
+  // Suivi détaillé éligibilité
+  definition_commencement: string | null;
+  date_notification_marche: string | null;
+  date_ordre_service: string | null;
+  eligibilite: FinancingEligibility;
+  eligibilite_note: string | null;
+  taux: number | null;
+  plafond: number | null;
+  deadline_depot: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
