@@ -2859,3 +2859,117 @@ button.civiq-card,
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Loading states — skeletons, spinners, pending links
+   Briques partagées : déclenchent un retour visuel < 100ms après
+   chaque clic pour éliminer l'impression de blocage.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Shimmer skeleton */
+.civiq-skel {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--border-light, #f5f3ed) 0%,
+    var(--border, #e8e5de) 50%,
+    var(--border-light, #f5f3ed) 100%
+  );
+  background-size: 200% 100%;
+  animation: civiq-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+@keyframes civiq-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .civiq-skel { animation-duration: 0.001s; }
+}
+
+.civiq-skel-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e8e5de);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.civiq-skel-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.civiq-skel-table {
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e8e5de);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.civiq-skel-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light, #f5f3ed);
+}
+.civiq-skel-table-row:last-child { border-bottom: none; }
+.civiq-skel-table-head { background: var(--bg, #faf9f6); }
+
+/* Spinner */
+.civiq-spin {
+  display: inline-block;
+  vertical-align: middle;
+  animation: civiq-spin 0.8s linear infinite;
+}
+@keyframes civiq-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .civiq-spin { animation-duration: 0.001s; }
+}
+
+/* PendingLink visual state */
+.civiq-pending-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: opacity 0.15s ease;
+}
+.civiq-pending-content.is-pending {
+  opacity: 0.7;
+}
+.civiq-pending-content.is-pending .civiq-pending-label {
+  /* léger fade-in du spinner */
+}
+
+/* Full-page loader overlay (transitions auth/login → admin) */
+.civiq-page-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg, #faf9f6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  animation: civiq-page-loader-in 0.18s ease-out;
+}
+@keyframes civiq-page-loader-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.civiq-page-loader-spinner {
+  color: var(--accent, #1a2744);
+}
+.civiq-page-loader-text {
+  font-size: 14px;
+  color: var(--fg-muted, #888);
+  letter-spacing: 0.01em;
+}

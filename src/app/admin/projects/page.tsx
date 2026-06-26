@@ -67,13 +67,18 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   }
 
   const totalInvest = projects.reduce((sum, p) => sum + (p.budget_estime ?? 0), 0);
-  let totalActualise = 0;
-  for (const p of projects) {
-    const { data: gc } = await service.rpc("project_global_cost", { p_project_id: p.id });
-    type Row = { total_actualise: number };
-    const row = (gc as Row[] | null)?.[0];
-    if (row) totalActualise += Number(row.total_actualise);
-  }
+  // Parallélise les RPC project_global_cost (avant : N appels séquentiels =
+  // ~N×150 ms de blocage avant rendu).
+  type GcRow = { total_actualise: number };
+  const gcResults = await Promise.all(
+    projects.map((p) =>
+      service.rpc("project_global_cost", { p_project_id: p.id }),
+    ),
+  );
+  const totalActualise = gcResults.reduce((sum, { data }) => {
+    const row = (data as GcRow[] | null)?.[0];
+    return sum + (row ? Number(row.total_actualise) : 0);
+  }, 0);
   const resteACharge = totalInvest - totalObtenu;
 
   const byPhase = new Map<ProjectPhase, typeof projects>();

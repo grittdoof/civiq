@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import { usePushNavigationListener } from "@/hooks/usePushNavigationListener";
 import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
+import NavPendingLink from "@/components/ui/NavPendingLink";
 import {
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
@@ -183,15 +184,14 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
       {/* Lien super-admin (uniquement si rôle super_admin) */}
       {isSuperAdmin && (
         <div style={{ padding: "8px 10px 0" }}>
-          <Link
+          <NavPendingLink
             href="/super-admin/dashboard"
             className="civiq-nav-item"
             style={{ color: "var(--accent)", fontWeight: 600 }}
             onClick={() => setMobileOpen(false)}
-          >
-            <Shield size={15} />
-            <span>Espace Super Admin</span>
-          </Link>
+            icon={Shield}
+            label="Espace Super Admin"
+          />
         </div>
       )}
 
@@ -208,20 +208,16 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
                 {group.label}
               </div>
             )}
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href + item.label}
-                  href={item.href}
-                  className={`civiq-nav-item${isActive(item) ? " active" : ""}${item.action ? " civiq-nav-action" : ""}`}
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <Icon size={15} />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+            {group.items.map((item) => (
+              <NavPendingLink
+                key={item.href + item.label}
+                href={item.href}
+                className={`civiq-nav-item${isActive(item) ? " active" : ""}${item.action ? " civiq-nav-action" : ""}`}
+                onClick={() => setMobileOpen(false)}
+                icon={item.icon}
+                label={item.label}
+              />
+            ))}
           </div>
         ))}
       </nav>
