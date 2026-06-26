@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, useTransition, Suspense } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Spinner } from "@/components/ui/Skeleton";
 
 type Phase = "credentials" | "otp-sent";
 
@@ -27,6 +28,12 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  // navigating = on a réussi l'auth Supabase et on attend que la page
+  // cible (dashboard / next) soit rendue par le serveur. Pendant ce
+  // temps on garde le bouton en état "chargement" + un overlay
+  // full-screen pour rassurer l'utilisateur.
+  const [navigating, setNavigating] = useState(false);
+  const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
 
@@ -63,7 +70,13 @@ function LoginPageInner() {
       if (password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push(next && next.startsWith("/") ? next : "/admin/dashboard");
+        // Bascule en état "navigating" et laisse le bouton bloqué
+        // jusqu'à ce que la page suivante remplace cette vue.
+        setNavigating(true);
+        startTransition(() => {
+          router.push(next && next.startsWith("/") ? next : "/admin/dashboard");
+        });
+        return; // ne pas remettre loading=false
       } else {
         await sendOtp();
         setPhase("otp-sent");
@@ -104,7 +117,10 @@ function LoginPageInner() {
       });
       if (!r.ok) throw new Error("Erreur de session");
       const { redirectTo } = await r.json();
-      router.push(redirectTo);
+      setNavigating(true);
+      startTransition(() => {
+        router.push(redirectTo);
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Code invalide ou expiré");
       setLoading(false);
@@ -132,6 +148,7 @@ function LoginPageInner() {
         otp={otp}
         setOtp={setOtp}
         loading={loading}
+        navigating={navigating}
         error={error}
         resendCooldown={resendCooldown}
         onSubmit={handleOtpSubmit}
@@ -186,14 +203,32 @@ function LoginPageInner() {
             />
           </div>
 
-          <button type="submit" disabled={loading || !email} className="auth-btn">
-            {loading
-              ? "Connexion…"
-              : password
-              ? "Se connecter"
-              : "Recevoir un code par email"}
+          <button
+            type="submit"
+            disabled={loading || navigating || !email}
+            className="auth-btn"
+          >
+            {(loading || navigating) && (
+              <Spinner size={14} stroke={2.5} />
+            )}
+            <span>
+              {navigating
+                ? "Ouverture de votre espace…"
+                : loading
+                ? "Connexion…"
+                : password
+                ? "Se connecter"
+                : "Recevoir un code par email"}
+            </span>
           </button>
         </form>
+
+        {navigating && (
+          <div className="auth-overlay" role="status" aria-live="polite">
+            <Spinner size={36} stroke={2.5} />
+            <p>Préparation de votre espace…</p>
+          </div>
+        )}
 
         <p className="auth-footer">
           <Link href="/auth/reset-password" className="auth-forgot">
@@ -215,6 +250,7 @@ function OtpScreen({
   otp,
   setOtp,
   loading,
+  navigating,
   error,
   resendCooldown,
   onSubmit,
@@ -225,6 +261,7 @@ function OtpScreen({
   otp: string;
   setOtp: (v: string) => void;
   loading: boolean;
+  navigating: boolean;
   error: string | null;
   resendCooldown: number;
   onSubmit: (e: React.FormEvent) => void;
@@ -269,10 +306,28 @@ function OtpScreen({
             />
           </div>
 
-          <button type="submit" disabled={loading || otp.length !== 6} className="auth-btn">
-            {loading ? "Vérification…" : "Vérifier le code"}
+          <button
+            type="submit"
+            disabled={loading || navigating || otp.length !== 6}
+            className="auth-btn"
+          >
+            {(loading || navigating) && <Spinner size={14} stroke={2.5} />}
+            <span>
+              {navigating
+                ? "Ouverture de votre espace…"
+                : loading
+                ? "Vérification…"
+                : "Vérifier le code"}
+            </span>
           </button>
         </form>
+
+        {navigating && (
+          <div className="auth-overlay" role="status" aria-live="polite">
+            <Spinner size={36} stroke={2.5} />
+            <p>Préparation de votre espace…</p>
+          </div>
+        )}
 
         <p className="auth-footer">
           <button
@@ -375,9 +430,36 @@ function AuthStyles() {
         border: none;
         cursor: pointer;
         transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
       }
       .auth-btn:hover { opacity: 0.9; }
-      .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .auth-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+      .auth-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(26, 39, 68, 0.92);
+        backdrop-filter: blur(6px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        color: #fff;
+        animation: auth-overlay-in 0.18s ease-out;
+      }
+      .auth-overlay p {
+        font-size: 14px;
+        opacity: 0.9;
+        letter-spacing: 0.01em;
+      }
+      @keyframes auth-overlay-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
       .auth-error {
         background: #fef2f2;
         color: #991b1b;
