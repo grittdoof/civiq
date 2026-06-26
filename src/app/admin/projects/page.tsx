@@ -12,10 +12,9 @@ import {
   PROJECT_PHASE_HINTS,
   type ProjectPhase,
 } from "@/lib/projects/types";
-import { formatEuros } from "@/lib/projects/cost-calc";
 import ProjectCard from "@/components/projects/ProjectCard";
 import PhaseIcon from "@/components/projects/PhaseIcon";
-import ProjectListView from "@/components/projects/ProjectListView";
+import ProjectsListExperience from "@/components/projects/ProjectsListExperience";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects — Lanes horizontales par phase.
@@ -35,7 +34,8 @@ interface PageProps {
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
   const { view } = await searchParams;
-  const viewMode: "lanes" | "list" = view === "list" ? "list" : "lanes";
+  // Vue par défaut : liste. Vue lanes (kanban par phase) en alternative.
+  const viewMode: "lanes" | "list" = view === "lanes" ? "lanes" : "list";
 
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
@@ -66,20 +66,9 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     totalObtenu += Number(f.montant_obtenu ?? 0);
   }
 
-  const totalInvest = projects.reduce((sum, p) => sum + (p.budget_estime ?? 0), 0);
-  // Parallélise les RPC project_global_cost (avant : N appels séquentiels =
-  // ~N×150 ms de blocage avant rendu).
-  type GcRow = { total_actualise: number };
-  const gcResults = await Promise.all(
-    projects.map((p) =>
-      service.rpc("project_global_cost", { p_project_id: p.id }),
-    ),
-  );
-  const totalActualise = gcResults.reduce((sum, { data }) => {
-    const row = (data as GcRow[] | null)?.[0];
-    return sum + (row ? Number(row.total_actualise) : 0);
-  }, 0);
-  const resteACharge = totalInvest - totalObtenu;
+  // Les totaux investissement / actualisation sont désormais affichés
+  // dans le drawer Statistiques (calculés côté client) — on évite ainsi
+  // un N+1 sur project_global_cost à chaque chargement de page.
 
   const byPhase = new Map<ProjectPhase, typeof projects>();
   for (const p of PROJECT_PHASES) byPhase.set(p, []);
@@ -101,6 +90,16 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           <div className="pj-view-toggle" role="tablist" aria-label="Affichage">
             <Link
               href="/admin/projects"
+              className={`pj-view-toggle-btn${viewMode === "list" ? " is-active" : ""}`}
+              role="tab"
+              aria-selected={viewMode === "list"}
+              prefetch={false}
+              title="Vue liste avec filtres et code couleur commission"
+            >
+              <List size={14} /> <span>Liste</span>
+            </Link>
+            <Link
+              href="/admin/projects?view=lanes"
               className={`pj-view-toggle-btn${viewMode === "lanes" ? " is-active" : ""}`}
               role="tab"
               aria-selected={viewMode === "lanes"}
@@ -108,16 +107,6 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
               title="Vue par phase (lanes)"
             >
               <LayoutGrid size={14} /> <span>Phases</span>
-            </Link>
-            <Link
-              href="/admin/projects?view=list"
-              className={`pj-view-toggle-btn${viewMode === "list" ? " is-active" : ""}`}
-              role="tab"
-              aria-selected={viewMode === "list"}
-              prefetch={false}
-              title="Vue liste avec code couleur commission"
-            >
-              <List size={14} /> <span>Liste</span>
             </Link>
           </div>
           <Link href="/admin/projects/comparatif" className="civiq-btn civiq-btn-outline">
@@ -140,33 +129,6 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <section className="pj-summary-bar">
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Projets</div>
-          <div className="pj-summary-value">{projects.length}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Investissement prévu</div>
-          <div className="pj-summary-value">{formatEuros(totalInvest)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Subventions demandées</div>
-          <div className="pj-summary-value">{formatEuros(totalDemande)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Subventions obtenues</div>
-          <div className="pj-summary-value pj-summary-value-success">{formatEuros(totalObtenu)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Reste à charge commune</div>
-          <div className="pj-summary-value pj-summary-value-warn">{formatEuros(resteACharge)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Coût global actualisé cumulé</div>
-          <div className="pj-summary-value">{formatEuros(totalActualise)}</div>
-        </div>
-      </section>
-
       {projects.length === 0 ? (
         <div className="civiq-card pj-empty">
           <p className="pj-empty-title">Aucun projet pour l&apos;instant</p>
@@ -180,7 +142,11 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           )}
         </div>
       ) : viewMode === "list" ? (
-        <ProjectListView projects={projects} />
+        <ProjectsListExperience
+          projects={projects}
+          totalDemande={totalDemande}
+          totalObtenu={totalObtenu}
+        />
       ) : (
         <div className="pj-lanes">
           {PROJECT_PHASES.map((phase) => {

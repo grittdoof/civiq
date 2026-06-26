@@ -200,6 +200,8 @@ export interface Project {
   tiers_type: ProjectTiersType | null;
   tiers_contact: string | null;
   accompagne_sans_financer: boolean;
+  /** Inclus dans le Plan Pluriannuel d'Investissement. Default = true. */
+  in_ppi: boolean;
   date_creation: string;
   date_maj: string;
   created_by: string | null;
