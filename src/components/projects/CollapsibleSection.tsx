@@ -2,25 +2,22 @@
 
 import { useState, type ReactNode, type CSSProperties } from "react";
 import { ChevronDown } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
 // CollapsibleSection — section pliable (progressive disclosure)
 // pour la fiche projet. Animation grid-template-rows 0fr ↔ 1fr
 // (technique sans hauteur fixe) + chevron qui pivote.
 //
-// UX :
-//   - défaut ouvert (defaultOpen) configurable par section
-//   - clic sur le header toggle, le titre reste lisible
-//   - badge count optionnel (ex : nombre de jalons)
-//   - icône optionnelle à gauche du titre pour storytelling
-//   - hover micro-interaction sur le header
+// NB : l'icône est passée en JSX (ReactNode) déjà rendue par le
+// parent, et non en référence de composant. C'est obligatoire car
+// ce composant est un Client Component appelé depuis un Server
+// Component — les fonctions ne sont pas sérialisables au boundary.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   title: string;
-  /** Composant Lucide pour ancrer visuellement la section */
-  icon?: LucideIcon;
+  /** Icône déjà rendue en JSX (ex : <Target size={16} />) */
+  icon?: ReactNode;
   /** Petit compteur affiché à côté du titre (ex : « 5 jalons ») */
   count?: number;
   /** Sous-texte explicatif (storytelling — pourquoi cette section ?) */
@@ -35,7 +32,7 @@ interface Props {
 
 export default function CollapsibleSection({
   title,
-  icon: Icon,
+  icon,
   count,
   hint,
   endSlot,
@@ -59,9 +56,9 @@ export default function CollapsibleSection({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        {Icon && (
+        {icon && (
           <span className="pj-collapsible-icon" aria-hidden>
-            <Icon size={16} strokeWidth={1.9} />
+            {icon}
           </span>
         )}
         <span className="pj-collapsible-title-block">

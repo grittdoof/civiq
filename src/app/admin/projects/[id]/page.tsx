@@ -175,7 +175,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Objectifs (ouvert par défaut — essentiel) ── */}
         <CollapsibleSection
           title="Objectifs"
-          icon={Target}
+          icon={<Target size={16} strokeWidth={1.9} />}
           hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
         >
           {p.description && <p className="pj-section-description">{p.description}</p>}
@@ -191,7 +191,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Synthèse financière (ouvert par défaut — essentiel) ── */}
         <CollapsibleSection
           title="Synthèse financière"
-          icon={Coins}
+          icon={<Coins size={16} strokeWidth={1.9} />}
           hint="Vision rapide : investissement, coût global et actualisation."
         >
           <div className="pj-cost-grid">
@@ -225,7 +225,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Plan de financement (ouvert — essentiel pour pilotage) ── */}
         <CollapsibleSection
           title="Plan de financement"
-          icon={Wallet}
+          icon={<Wallet size={16} strokeWidth={1.9} />}
           count={detail.financings.length}
           hint="Subventions sollicitées, obtenues et reste à charge."
         >
@@ -243,7 +243,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Parties prenantes (plié — progressive disclosure) ── */}
         <CollapsibleSection
           title="Parties prenantes"
-          icon={Users}
+          icon={<Users size={16} strokeWidth={1.9} />}
           count={detail.stakeholders.length}
           hint="Qui décide, qui exécute, qui est informé (matrice RACI)."
           defaultOpen={false}
@@ -262,7 +262,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Coûts 10 ans (plié) ── */}
         <CollapsibleSection
           title="Coûts de fonctionnement & d'entretien sur 10 ans"
-          icon={LineChart}
+          icon={<LineChart size={16} strokeWidth={1.9} />}
           hint="Élément clé d'arbitrage — saisis en euros constants."
           defaultOpen={false}
           className="pj-section-wide"
@@ -287,7 +287,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Étapes clés (plié) ── */}
         <CollapsibleSection
           title="Étapes clés"
-          icon={Flag}
+          icon={<Flag size={16} strokeWidth={1.9} />}
           count={detail.milestones.length}
           hint="Jalons et échéances qui rythment l'avancement du projet."
           defaultOpen={false}
@@ -316,7 +316,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
           <CollapsibleSection
             title="Bilan de réalisation"
-            icon={ClipboardCheck}
+            icon={<ClipboardCheck size={16} strokeWidth={1.9} />}
             hint="Coût réel, écart vs budget initial et explications."
           >
             {canEdit ? (
@@ -335,7 +335,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Commissions (plié) ── */}
         <CollapsibleSection
           title="Commissions qui suivent ce projet"
-          icon={Gavel}
+          icon={<Gavel size={16} strokeWidth={1.9} />}
           count={detail.commissions.length}
           hint="Un projet peut être suivi par plusieurs commissions transversales."
           defaultOpen={false}
@@ -364,7 +364,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Documents (plié) ── */}
         <CollapsibleSection
           title="Documents"
-          icon={Files}
+          icon={<Files size={16} strokeWidth={1.9} />}
           count={detail.documents.length}
           hint="Études, devis, pièces administratives, photos."
           defaultOpen={false}
@@ -379,7 +379,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Abonnés (plié) ── */}
         <CollapsibleSection
           title="Abonnés aux notifications"
-          icon={Bell}
+          icon={<Bell size={16} strokeWidth={1.9} />}
           count={detail.subscribers.length}
           hint="Qui reçoit les alertes lors des changements de phase et jalons."
           defaultOpen={false}
@@ -399,7 +399,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         {/* ── Historique (plié) ── */}
         <CollapsibleSection
           title="Historique des transitions"
-          icon={History}
+          icon={<History size={16} strokeWidth={1.9} />}
           count={detail.phase_log.length}
           hint="Trace des changements de phase, dates et commentaires."
           defaultOpen={false}
