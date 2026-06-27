@@ -83,6 +83,116 @@ export const PROJECT_PHASE_HINTS: Record<ProjectPhase, string> = {
   bilan_cloture: "Bilan financier et clôture administrative",
 };
 
+// ─── Guide narratif par phase ───
+// Donne du sens à chaque étape : objectif principal, livrables types
+// attendus, condition de passage à la phase suivante. Affiché dans
+// le panneau PhaseGuide juste sous le stepper.
+
+export interface PhaseGuideEntry {
+  /** Phrase qui répond à « C'est quoi cette étape ? » */
+  objective: string;
+  /** Livrables-type attendus (puce par puce). */
+  deliverables: string[];
+  /** Critère pour basculer dans la phase suivante (porte). */
+  gate: string;
+  /** Ce qu'on a généralement DÉJÀ fait en arrivant ici (rassurant). */
+  arrivedWith: string;
+}
+
+export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
+  emergence: {
+    arrivedWith: "Une idée, un besoin du terrain, un signalement.",
+    objective:
+      "Caractériser l'opportunité pour décider si elle mérite d'être étudiée. C'est l'étape la moins coûteuse — le rôle ici est de cadrer et trier.",
+    deliverables: [
+      "Fiche d'opportunité (1 page) : enjeu, public visé, ordre de grandeur du budget.",
+      "Désignation d'un pilote élu et d'un pilote agent.",
+      "Avis informel des parties prenantes clés.",
+    ],
+    gate:
+      "Le projet est jugé suffisamment pertinent pour engager une étude de faisabilité.",
+  },
+  faisabilite: {
+    arrivedWith: "Une fiche d'opportunité validée et des pilotes désignés.",
+    objective:
+      "Vérifier que le projet est techniquement faisable, juridiquement compétent et économiquement soutenable. C'est l'étape qui transforme une idée en programme.",
+    deliverables: [
+      "Étude de faisabilité (technique, juridique, financière).",
+      "Plusieurs scénarios chiffrés avec leurs coûts globaux sur 10 ans.",
+      "Pré-identification des financeurs potentiels.",
+      "Compétence confirmée (communale / intercommunale / partagée).",
+    ],
+    gate:
+      "Un scénario est sélectionné par les élus et est prêt à être délibéré.",
+  },
+  decision_budget: {
+    arrivedWith: "Un scénario chiffré et un coût global sur 10 ans documenté.",
+    objective:
+      "Engager la commune politiquement et budgétairement. Une fois le budget voté, le projet est officiel et son périmètre est verrouillé.",
+    deliverables: [
+      "Délibération de principe au Conseil municipal.",
+      "Inscription du projet au PPI (Plan Pluriannuel d'Investissement).",
+      "Autorisation de programme et crédits de paiement votés.",
+      "Information publique du lancement.",
+    ],
+    gate:
+      "Le budget est voté et les crédits sont disponibles pour engager la suite.",
+  },
+  financement: {
+    arrivedWith: "Un budget voté et des financeurs identifiés.",
+    objective:
+      "Sécuriser le tour de table financier AVANT d'engager juridiquement les marchés. Toute notification de marché avant l'AR du dossier compromet l'éligibilité.",
+    deliverables: [
+      "Dépôt des dossiers de subvention (DETR, DSIL, Département, Région, etc.).",
+      "Accusés de réception (AR) des dossiers complets.",
+      "Notifications d'attribution ou de refus.",
+      "Plan de financement consolidé et validé.",
+    ],
+    gate:
+      "Porte de financement : autofinancement assumé OU au moins 1 subvention notifiée. Aucun marché ne doit être notifié tant que l'AR n'est pas reçu.",
+  },
+  conception_marches: {
+    arrivedWith: "Un financement sécurisé et la porte de financement franchie.",
+    objective:
+      "Designer le projet (maîtrise d'œuvre) et passer les marchés de travaux dans le respect de la commande publique.",
+    deliverables: [
+      "Désignation du maître d'œuvre.",
+      "APS, APD, PRO (avant-projet sommaire, définitif, projet).",
+      "Publication des marchés de travaux (BOAMP/JOUE).",
+      "Analyse des offres et attribution.",
+    ],
+    gate:
+      "Les marchés de travaux sont notifiés et l'ordre de service peut être donné.",
+  },
+  realisation: {
+    arrivedWith:
+      "Marchés notifiés. L'éligibilité subventions est ici la plus exposée — vérifier les antériorités.",
+    objective:
+      "Piloter le chantier jusqu'à la réception. L'objectif est de tenir le triptyque coût / délai / qualité tout en gardant trace pour le bilan.",
+    deliverables: [
+      "Ordre de service de démarrage.",
+      "Comptes-rendus de chantier réguliers.",
+      "Avenants éventuels approuvés.",
+      "PV de réception et levée des réserves.",
+    ],
+    gate:
+      "Les travaux sont réceptionnés et la garantie de parfait achèvement court.",
+  },
+  bilan_cloture: {
+    arrivedWith: "Un ouvrage réceptionné et toutes les factures soldées.",
+    objective:
+      "Tirer les enseignements du projet : coût réel vs prévu, retours d'usage, transmission aux futures équipes. C'est l'étape la plus oubliée et la plus utile pour la suite.",
+    deliverables: [
+      "Coût réel saisi et écart vs budget initial expliqué.",
+      "Bilan d'utilisation (premiers mois d'exploitation).",
+      "Archivage des pièces administratives.",
+      "Réintégration des données de coût d'exploitation au PPI futur.",
+    ],
+    gate:
+      "Le bilan est validé et le projet peut être archivé sereinement.",
+  },
+};
+
 /** @deprecated Conservé pour rétrocompatibilité PDF (texte) — préférer
  *  PROJECT_PHASE_LUCIDE pour l'UI React. */
 export const PROJECT_PHASE_ICONS: Record<ProjectPhase, string> = {

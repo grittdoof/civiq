@@ -28,6 +28,7 @@ import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import CommissionIcon from "@/components/projects/CommissionIcon";
 import DeleteProjectButton from "@/components/projects/DeleteProjectButton";
 import ProjectSection from "@/components/projects/ProjectSection";
+import PhaseGuide from "@/components/projects/PhaseGuide";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -163,6 +164,8 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
       <ProjectStepper current={p.phase} />
 
+      <PhaseGuide currentPhase={p.phase} />
+
       {canEdit && (
         <ProjectPhaseAdvanceDialog
           projectId={p.id}
@@ -172,25 +175,66 @@ export default async function ProjectDetailPage({ params }: PageProps) {
       )}
 
       <div className="pj-detail-grid">
-        <div className="pj-detail-group-label">Le projet</div>
+        {/* ─── Rangée 1 : Objectifs (3/4) | Étapes clés + Documents (1/4) ─── */}
+        <div className="pj-detail-row pj-detail-row-3-1">
+          {/* Objectifs — 3/4 */}
+          <ProjectSection
+            title="Objectifs"
+            icon={<Target size={16} strokeWidth={1.9} />}
+            hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
+          >
+            {p.description && <p className="pj-section-description">{p.description}</p>}
+            {p.objectifs ? (
+              <p className="pj-section-content">{p.objectifs}</p>
+            ) : (
+              <p className="pj-section-empty">
+                Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
+              </p>
+            )}
+          </ProjectSection>
 
-        {/* ── Objectifs ── */}
-        <ProjectSection
-          title="Objectifs"
-          icon={<Target size={16} strokeWidth={1.9} />}
-          hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
-        >
-          {p.description && <p className="pj-section-description">{p.description}</p>}
-          {p.objectifs ? (
-            <p className="pj-section-content">{p.objectifs}</p>
-          ) : (
-            <p className="pj-section-empty">
-              Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
-            </p>
-          )}
-        </ProjectSection>
+          {/* Étapes clés + Documents empilés — 1/4 */}
+          <div className="pj-detail-side-stack">
+            <ProjectSection
+              title="Étapes clés"
+              icon={<Flag size={16} strokeWidth={1.9} />}
+              count={detail.milestones.length}
+              hint="Jalons et échéances du projet."
+              endSlot={
+                <span
+                  className="pj-info-tooltip"
+                  tabIndex={0}
+                  title="Un jalon est un événement clé : livraison, dépôt de dossier, fin de chantier… Chacun a une échéance et un responsable."
+                >
+                  <Info size={13} />
+                </span>
+              }
+            >
+              {canEdit ? (
+                <MilestonesEditor
+                  projectId={p.id}
+                  initial={detail.milestones}
+                  currentPhase={p.phase}
+                />
+              ) : (
+                <p className="pj-section-empty">Lecture seule.</p>
+              )}
+            </ProjectSection>
 
-        <div className="pj-detail-group-label">Finances</div>
+            <ProjectSection
+              title="Documents"
+              icon={<Files size={16} strokeWidth={1.9} />}
+              count={detail.documents.length}
+              hint="Études, devis, pièces administratives, photos."
+            >
+              <DocumentsEditor
+                projectId={p.id}
+                initial={detail.documents}
+                canEdit={canEdit}
+              />
+            </ProjectSection>
+          </div>
+        </div>
 
         {/* ── Synthèse financière ── */}
         <ProjectSection
@@ -244,8 +288,6 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           )}
         </ProjectSection>
 
-        <div className="pj-detail-group-label">Pilotage</div>
-
         {/* ── Parties prenantes ── */}
         <ProjectSection
           title="Parties prenantes"
@@ -287,35 +329,6 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             <p className="pj-section-empty">Lecture seule.</p>
           )}
         </ProjectSection>
-
-        {/* ── Étapes clés (plié) ── */}
-        <ProjectSection
-          title="Étapes clés"
-          icon={<Flag size={16} strokeWidth={1.9} />}
-          count={detail.milestones.length}
-          hint="Jalons et échéances qui rythment l'avancement du projet."
-          endSlot={
-            <span
-              className="pj-info-tooltip"
-              tabIndex={0}
-              title="Une étape clé (ou jalon) est un événement important dans la vie du projet : livraison, dépôt de dossier, fin de chantier… Chacune a une date d'échéance et un responsable."
-            >
-              <Info size={13} />
-            </span>
-          }
-        >
-          {canEdit ? (
-            <MilestonesEditor
-              projectId={p.id}
-              initial={detail.milestones}
-              currentPhase={p.phase}
-            />
-          ) : (
-            <p className="pj-section-empty">Lecture seule.</p>
-          )}
-        </ProjectSection>
-
-        <div className="pj-detail-group-label">Suivi & ressources</div>
 
         {/* ── Bilan (à partir de realisation) ── */}
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
@@ -365,21 +378,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           )}
         </ProjectSection>
 
-        {/* ── Documents (plié) ── */}
-        <ProjectSection
-          title="Documents"
-          icon={<Files size={16} strokeWidth={1.9} />}
-          count={detail.documents.length}
-          hint="Études, devis, pièces administratives, photos."
-        >
-          <DocumentsEditor
-            projectId={p.id}
-            initial={detail.documents}
-            canEdit={canEdit}
-          />
-        </ProjectSection>
-
-        {/* ── Abonnés (plié) ── */}
+        {/* ── Abonnés ── */}
         <ProjectSection
           title="Abonnés aux notifications"
           icon={<Bell size={16} strokeWidth={1.9} />}
@@ -397,8 +396,6 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             <p className="pj-section-empty">Lecture seule.</p>
           )}
         </ProjectSection>
-
-        <div className="pj-detail-group-label">Historique</div>
 
         {/* ── Historique ── */}
         <ProjectSection

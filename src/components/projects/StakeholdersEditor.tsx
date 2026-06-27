@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, UserPlus } from "lucide-react";
+import { Plus, Trash2, UserPlus, X, Mail, Phone, Building2 } from "lucide-react";
 import {
   PROJECT_PHASES,
   PROJECT_PHASE_LABELS,
@@ -29,6 +29,7 @@ export default function StakeholdersEditor({ projectId, initial, directory }: Pr
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [dir, setDir] = useState(directory);
+  const [contactOpen, setContactOpen] = useState<Stakeholder | null>(null);
 
   // Onglet : 1 = associer un existant ; 2 = créer un nouveau
   const [adding, setAdding] = useState<"none" | "existing" | "new">("none");
@@ -123,9 +124,20 @@ export default function StakeholdersEditor({ projectId, initial, directory }: Pr
             {rows.map((ps) => (
               <tr key={ps.id}>
                 <td>
-                  <div className="pj-table-strong">{ps.stakeholder?.nom ?? "—"}</div>
-                  {ps.stakeholder?.organisation && (
-                    <div className="pj-table-sub">{ps.stakeholder.organisation}</div>
+                  {ps.stakeholder ? (
+                    <button
+                      type="button"
+                      className="pj-contact-link"
+                      onClick={() => setContactOpen(ps.stakeholder!)}
+                      title="Voir la fiche contact"
+                    >
+                      <span className="pj-table-strong">{ps.stakeholder.nom}</span>
+                      {ps.stakeholder.organisation && (
+                        <span className="pj-table-sub">{ps.stakeholder.organisation}</span>
+                      )}
+                    </button>
+                  ) : (
+                    <span>—</span>
                   )}
                 </td>
                 <td>{ps.stakeholder?.type ? STAKEHOLDER_TYPE_LABELS[ps.stakeholder.type] : "—"}</td>
@@ -276,6 +288,134 @@ export default function StakeholdersEditor({ projectId, initial, directory }: Pr
           </div>
         </div>
       )}
+
+      {contactOpen && (
+        <ContactCard
+          stakeholder={contactOpen}
+          onClose={() => setContactOpen(null)}
+        />
+      )}
     </>
+  );
+}
+
+// ─── Fiche contact (modale) ───
+function ContactCard({
+  stakeholder,
+  onClose,
+}: {
+  stakeholder: Stakeholder;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="pj-contact-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pj-contact-name"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="pj-contact-modal">
+        <button
+          type="button"
+          className="pj-contact-close"
+          onClick={onClose}
+          aria-label="Fermer"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="pj-contact-avatar" aria-hidden>
+          {stakeholder.nom
+            .split(" ")
+            .map((p) => p[0])
+            .filter(Boolean)
+            .slice(0, 2)
+            .join("")
+            .toUpperCase()}
+        </div>
+
+        <h2 id="pj-contact-name" className="pj-contact-name">
+          {stakeholder.nom}
+        </h2>
+        <span className="pj-contact-type">
+          {STAKEHOLDER_TYPE_LABELS[stakeholder.type]}
+        </span>
+
+        {stakeholder.organisation && (
+          <div className="pj-contact-org">
+            <Building2 size={14} aria-hidden />
+            <span>{stakeholder.organisation}</span>
+          </div>
+        )}
+
+        <div className="pj-contact-fields">
+          {stakeholder.email ? (
+            <a
+              href={`mailto:${stakeholder.email}`}
+              className="pj-contact-field is-link"
+            >
+              <span className="pj-contact-field-icon" aria-hidden>
+                <Mail size={14} />
+              </span>
+              <span className="pj-contact-field-text">
+                <span className="pj-contact-field-label">Email</span>
+                <span className="pj-contact-field-value">{stakeholder.email}</span>
+              </span>
+            </a>
+          ) : (
+            <div className="pj-contact-field is-empty">
+              <span className="pj-contact-field-icon" aria-hidden>
+                <Mail size={14} />
+              </span>
+              <span className="pj-contact-field-text">
+                <span className="pj-contact-field-label">Email</span>
+                <span className="pj-contact-field-value">—</span>
+              </span>
+            </div>
+          )}
+
+          {stakeholder.telephone ? (
+            <a
+              href={`tel:${stakeholder.telephone.replace(/\s/g, "")}`}
+              className="pj-contact-field is-link"
+            >
+              <span className="pj-contact-field-icon" aria-hidden>
+                <Phone size={14} />
+              </span>
+              <span className="pj-contact-field-text">
+                <span className="pj-contact-field-label">Téléphone</span>
+                <span className="pj-contact-field-value">{stakeholder.telephone}</span>
+              </span>
+            </a>
+          ) : (
+            <div className="pj-contact-field is-empty">
+              <span className="pj-contact-field-icon" aria-hidden>
+                <Phone size={14} />
+              </span>
+              <span className="pj-contact-field-text">
+                <span className="pj-contact-field-label">Téléphone</span>
+                <span className="pj-contact-field-value">—</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
