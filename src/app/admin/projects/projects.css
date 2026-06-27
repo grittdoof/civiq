@@ -2050,16 +2050,22 @@ a.pj-commission-badge:hover {
   border-bottom: 1px solid var(--civiq-border, #e8e5de);
 }
 
-.pj-detail-grid {
+/* Grille interne du panneau détaillé des financements (rangées
+   expandables). Renommée pj-fin-detail-grid pour éviter la
+   collision avec .pj-detail-grid de la fiche projet. */
+.pj-row-detail-collapse .pj-detail-grid,
+.pj-fin-detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 12px 14px;
 }
 @media (max-width: 980px) {
-  .pj-detail-grid { grid-template-columns: 1fr 1fr; }
+  .pj-row-detail-collapse .pj-detail-grid,
+  .pj-fin-detail-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 600px) {
-  .pj-detail-grid { grid-template-columns: 1fr; }
+  .pj-row-detail-collapse .pj-detail-grid,
+  .pj-fin-detail-grid { grid-template-columns: 1fr; }
 }
 .pj-detail-field { display: flex; flex-direction: column; gap: 4px; }
 .pj-detail-field-wide { grid-column: 1 / -1; }
