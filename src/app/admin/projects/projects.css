@@ -598,17 +598,39 @@
   .pj-stepper-mobile-item-cursor { color: var(--civiq-primary); flex-shrink: 0; }
 }
 
-/* ─── Grille des sections ─── */
+/* ─── Stack des sections (Apple-style : colonne unique, breathing room) ─── */
 .pj-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 920px;
+  margin: 0 auto;
+  width: 100%;
 }
-@media (max-width: 1024px) {
-  .pj-detail-grid { grid-template-columns: 1fr; }
+.pj-section { padding: 22px 26px; }
+.pj-history { /* plus de grid-column */ }
+/* Labels de groupe (Vision / Pilotage / Suivi / Archives) qui
+   structurent la lecture visuellement, comme dans Réglages iOS. */
+.pj-detail-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--civiq-text-light, #888);
+  margin: 18px 6px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.pj-section { padding: 18px 20px; }
-.pj-history { grid-column: 1 / -1; }
+.pj-detail-group-label::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 1.5px;
+  background: var(--civiq-text-light, #b0b0b0);
+  border-radius: 99px;
+}
+.pj-detail-group-label:first-of-type { margin-top: 0; }
 .pj-section-title {
   font-size: 16px;
   font-weight: 700;
@@ -3271,4 +3293,112 @@ a.pj-commission-badge:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Fiche projet à plat (Apple-style)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Cancel grid-template forced widths from earlier rules — la card
+   est full-width et son contenu doit pouvoir shrink. */
+.pj-flat-section {
+  padding: 0;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pj-flat-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--civiq-border, #e8e5de);
+  background: linear-gradient(180deg, oklch(0.99 0.005 250), transparent);
+}
+.pj-flat-section-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--civiq-primary, #1a2744);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.pj-flat-section-title-block {
+  flex: 1;
+  min-width: 0;
+}
+.pj-flat-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: -0.015em;
+  color: var(--civiq-text, #1a2744);
+  line-height: 1.25;
+}
+.pj-flat-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  background: oklch(0.94 0.03 250);
+  color: var(--civiq-primary, #1a2744);
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pj-flat-section-hint {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--civiq-text-light, #888);
+  line-height: 1.55;
+  max-width: 640px;
+}
+.pj-flat-section-end {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pj-flat-section-body {
+  padding: 18px 24px 22px;
+  min-width: 0;
+  /* Permet aux enfants larges (tables, grilles) de gérer leur
+     propre overflow scopé sans déborder de la card. */
+  max-width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Fix scroll horizontal des tables larges
+   Toute table dans une card reçoit son propre wrapper scrollable
+   horizontalement, avec un fade visuel sur le bord droit pour
+   suggérer le scroll.
+   ═══════════════════════════════════════════════════════════════ */
+.pj-flat-section-body > .pj-table,
+.pj-flat-section-body > .pj-financings-wrap > .pj-table,
+.pj-flat-section-body > .pj-lifecycle-table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.pj-flat-section-body table {
+  /* Empêche la table de forcer sa largeur sur la card parent */
+  min-width: 100%;
+}
+@media (max-width: 720px) {
+  .pj-flat-section-head { padding: 16px 18px 12px; gap: 12px; }
+  .pj-flat-section-icon { width: 30px; height: 30px; border-radius: 9px; }
+  .pj-flat-section-title { font-size: 15.5px; }
+  .pj-flat-section-body { padding: 14px 18px 18px; }
 }

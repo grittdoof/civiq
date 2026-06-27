@@ -27,7 +27,7 @@ import DocumentsEditor from "@/components/projects/DocumentsEditor";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import CommissionIcon from "@/components/projects/CommissionIcon";
 import DeleteProjectButton from "@/components/projects/DeleteProjectButton";
-import CollapsibleSection from "@/components/projects/CollapsibleSection";
+import ProjectSection from "@/components/projects/ProjectSection";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -172,8 +172,10 @@ export default async function ProjectDetailPage({ params }: PageProps) {
       )}
 
       <div className="pj-detail-grid">
-        {/* ── Objectifs (ouvert par défaut — essentiel) ── */}
-        <CollapsibleSection
+        <div className="pj-detail-group-label">Le projet</div>
+
+        {/* ── Objectifs ── */}
+        <ProjectSection
           title="Objectifs"
           icon={<Target size={16} strokeWidth={1.9} />}
           hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
@@ -186,10 +188,12 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
             </p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
-        {/* ── Synthèse financière (ouvert par défaut — essentiel) ── */}
-        <CollapsibleSection
+        <div className="pj-detail-group-label">Finances</div>
+
+        {/* ── Synthèse financière ── */}
+        <ProjectSection
           title="Synthèse financière"
           icon={<Coins size={16} strokeWidth={1.9} />}
           hint="Vision rapide : investissement, coût global et actualisation."
@@ -220,10 +224,10 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               </>
             )}
           </div>
-        </CollapsibleSection>
+        </ProjectSection>
 
         {/* ── Plan de financement (ouvert — essentiel pour pilotage) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Plan de financement"
           icon={<Wallet size={16} strokeWidth={1.9} />}
           count={detail.financings.length}
@@ -238,15 +242,16 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
-        {/* ── Parties prenantes (plié — progressive disclosure) ── */}
-        <CollapsibleSection
+        <div className="pj-detail-group-label">Pilotage</div>
+
+        {/* ── Parties prenantes ── */}
+        <ProjectSection
           title="Parties prenantes"
           icon={<Users size={16} strokeWidth={1.9} />}
           count={detail.stakeholders.length}
           hint="Qui décide, qui exécute, qui est informé (matrice RACI)."
-          defaultOpen={false}
         >
           {canEdit ? (
             <StakeholdersEditor
@@ -257,14 +262,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
         {/* ── Coûts 10 ans (plié) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Coûts de fonctionnement & d'entretien sur 10 ans"
           icon={<LineChart size={16} strokeWidth={1.9} />}
           hint="Élément clé d'arbitrage — saisis en euros constants."
-          defaultOpen={false}
           className="pj-section-wide"
         >
           <p className="pj-section-description">
@@ -282,15 +286,14 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
         {/* ── Étapes clés (plié) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Étapes clés"
           icon={<Flag size={16} strokeWidth={1.9} />}
           count={detail.milestones.length}
           hint="Jalons et échéances qui rythment l'avancement du projet."
-          defaultOpen={false}
           endSlot={
             <span
               className="pj-info-tooltip"
@@ -310,11 +313,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
-        {/* ── Bilan (à partir de realisation) — ouvert si on y est ── */}
+        <div className="pj-detail-group-label">Suivi & ressources</div>
+
+        {/* ── Bilan (à partir de realisation) ── */}
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
-          <CollapsibleSection
+          <ProjectSection
             title="Bilan de réalisation"
             icon={<ClipboardCheck size={16} strokeWidth={1.9} />}
             hint="Coût réel, écart vs budget initial et explications."
@@ -329,16 +334,15 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             ) : (
               <p className="pj-section-empty">Lecture seule.</p>
             )}
-          </CollapsibleSection>
+          </ProjectSection>
         )}
 
         {/* ── Commissions (plié) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Commissions qui suivent ce projet"
           icon={<Gavel size={16} strokeWidth={1.9} />}
           count={detail.commissions.length}
           hint="Un projet peut être suivi par plusieurs commissions transversales."
-          defaultOpen={false}
         >
           {detail.commissions.length === 0 ? (
             <p className="pj-section-empty">
@@ -359,30 +363,28 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               ))}
             </ul>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
         {/* ── Documents (plié) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Documents"
           icon={<Files size={16} strokeWidth={1.9} />}
           count={detail.documents.length}
           hint="Études, devis, pièces administratives, photos."
-          defaultOpen={false}
         >
           <DocumentsEditor
             projectId={p.id}
             initial={detail.documents}
             canEdit={canEdit}
           />
-        </CollapsibleSection>
+        </ProjectSection>
 
         {/* ── Abonnés (plié) ── */}
-        <CollapsibleSection
+        <ProjectSection
           title="Abonnés aux notifications"
           icon={<Bell size={16} strokeWidth={1.9} />}
           count={detail.subscribers.length}
           hint="Qui reçoit les alertes lors des changements de phase et jalons."
-          defaultOpen={false}
         >
           {canEdit ? (
             <SubscribersEditor
@@ -394,15 +396,16 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
 
-        {/* ── Historique (plié) ── */}
-        <CollapsibleSection
+        <div className="pj-detail-group-label">Historique</div>
+
+        {/* ── Historique ── */}
+        <ProjectSection
           title="Historique des transitions"
           icon={<History size={16} strokeWidth={1.9} />}
           count={detail.phase_log.length}
           hint="Trace des changements de phase, dates et commentaires."
-          defaultOpen={false}
           className="pj-history"
         >
           {detail.phase_log.length === 0 ? (
@@ -426,7 +429,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               ))}
             </ol>
           )}
-        </CollapsibleSection>
+        </ProjectSection>
       </div>
     </main>
   );
