@@ -312,6 +312,11 @@ export interface Project {
   accompagne_sans_financer: boolean;
   /** Inclus dans le Plan Pluriannuel d'Investissement. Default = true. */
   in_ppi: boolean;
+  /**
+   * Progression des livrables-type par phase.
+   * Format : { phase: { index: { done: bool, note: string|null } } }
+   */
+  phase_progress: Record<string, Record<string, { done: boolean; note: string | null }>>;
   date_creation: string;
   date_maj: string;
   created_by: string | null;

@@ -43,10 +43,15 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
-export default async function ProjectDetailPage({ params }: PageProps) {
+export default async function ProjectDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { tab } = await searchParams;
+  // Onglet par défaut = guidance des phases (zone de travail).
+  // « fiche » = vue consolidée du projet pour relecture/modification.
+  const activeTab: "phases" | "fiche" = tab === "fiche" ? "fiche" : "phases";
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
     const active = await isModuleActive("projects");
@@ -164,8 +169,6 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
       <ProjectStepper current={p.phase} />
 
-      <PhaseGuide currentPhase={p.phase} />
-
       {canEdit && (
         <ProjectPhaseAdvanceDialog
           projectId={p.id}
@@ -174,66 +177,99 @@ export default async function ProjectDetailPage({ params }: PageProps) {
         />
       )}
 
+      {/* ── Onglets : Phases (zone de travail) / Fiche projet (résumé) ── */}
+      <div className="pj-tabs" role="tablist" aria-label="Vue projet">
+        <Link
+          href={`/admin/projects/${p.id}`}
+          className={`pj-tab${activeTab === "phases" ? " is-active" : ""}`}
+          role="tab"
+          aria-selected={activeTab === "phases"}
+          prefetch={false}
+        >
+          <span className="pj-tab-num">1</span>
+          <span>Phases du projet</span>
+          <span className="pj-tab-hint">Zone de travail guidée</span>
+        </Link>
+        <Link
+          href={`/admin/projects/${p.id}?tab=fiche`}
+          className={`pj-tab${activeTab === "fiche" ? " is-active" : ""}`}
+          role="tab"
+          aria-selected={activeTab === "fiche"}
+          prefetch={false}
+        >
+          <span className="pj-tab-num">2</span>
+          <span>Fiche projet</span>
+          <span className="pj-tab-hint">Résumé consolidé</span>
+        </Link>
+      </div>
+
+      {activeTab === "phases" && (
+        <PhaseGuide
+          projectId={p.id}
+          currentPhase={p.phase}
+          initialProgress={p.phase_progress ?? {}}
+          canEdit={canEdit}
+        />
+      )}
+
+      {activeTab === "fiche" && (
       <div className="pj-detail-grid">
-        {/* ─── Rangée 1 : Objectifs (3/4) | Étapes clés + Documents (1/4) ─── */}
-        <div className="pj-detail-row pj-detail-row-3-1">
-          {/* Objectifs — 3/4 */}
+        {/* ─── Rangée 1 : Objectifs en pleine largeur ─── */}
+        <ProjectSection
+          title="Objectifs"
+          icon={<Target size={16} strokeWidth={1.9} />}
+          hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
+        >
+          {p.description && <p className="pj-section-description">{p.description}</p>}
+          {p.objectifs ? (
+            <p className="pj-section-content">{p.objectifs}</p>
+          ) : (
+            <p className="pj-section-empty">
+              Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
+            </p>
+          )}
+        </ProjectSection>
+
+        {/* ─── Rangée 2 : Étapes clés (2/3) + Documents (1/3) ─── */}
+        <div className="pj-detail-row pj-detail-row-2-1">
           <ProjectSection
-            title="Objectifs"
-            icon={<Target size={16} strokeWidth={1.9} />}
-            hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
+            title="Étapes clés"
+            icon={<Flag size={16} strokeWidth={1.9} />}
+            count={detail.milestones.length}
+            hint="Jalons et échéances qui rythment l'avancement du projet."
+            endSlot={
+              <span
+                className="pj-info-tooltip"
+                tabIndex={0}
+                title="Un jalon est un événement clé : livraison, dépôt de dossier, fin de chantier… Chacun a une échéance et un responsable."
+              >
+                <Info size={13} />
+              </span>
+            }
           >
-            {p.description && <p className="pj-section-description">{p.description}</p>}
-            {p.objectifs ? (
-              <p className="pj-section-content">{p.objectifs}</p>
+            {canEdit ? (
+              <MilestonesEditor
+                projectId={p.id}
+                initial={detail.milestones}
+                currentPhase={p.phase}
+              />
             ) : (
-              <p className="pj-section-empty">
-                Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
-              </p>
+              <p className="pj-section-empty">Lecture seule.</p>
             )}
           </ProjectSection>
 
-          {/* Étapes clés + Documents empilés — 1/4 */}
-          <div className="pj-detail-side-stack">
-            <ProjectSection
-              title="Étapes clés"
-              icon={<Flag size={16} strokeWidth={1.9} />}
-              count={detail.milestones.length}
-              hint="Jalons et échéances du projet."
-              endSlot={
-                <span
-                  className="pj-info-tooltip"
-                  tabIndex={0}
-                  title="Un jalon est un événement clé : livraison, dépôt de dossier, fin de chantier… Chacun a une échéance et un responsable."
-                >
-                  <Info size={13} />
-                </span>
-              }
-            >
-              {canEdit ? (
-                <MilestonesEditor
-                  projectId={p.id}
-                  initial={detail.milestones}
-                  currentPhase={p.phase}
-                />
-              ) : (
-                <p className="pj-section-empty">Lecture seule.</p>
-              )}
-            </ProjectSection>
-
-            <ProjectSection
-              title="Documents"
-              icon={<Files size={16} strokeWidth={1.9} />}
-              count={detail.documents.length}
-              hint="Études, devis, pièces administratives, photos."
-            >
-              <DocumentsEditor
-                projectId={p.id}
-                initial={detail.documents}
-                canEdit={canEdit}
-              />
-            </ProjectSection>
-          </div>
+          <ProjectSection
+            title="Documents"
+            icon={<Files size={16} strokeWidth={1.9} />}
+            count={detail.documents.length}
+            hint="Études, devis, pièces administratives, photos."
+          >
+            <DocumentsEditor
+              projectId={p.id}
+              initial={detail.documents}
+              canEdit={canEdit}
+            />
+          </ProjectSection>
         </div>
 
         {/* ── Synthèse financière ── */}
@@ -428,6 +464,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           )}
         </ProjectSection>
       </div>
+      )}
     </main>
   );
 }

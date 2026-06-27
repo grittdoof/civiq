@@ -49,6 +49,7 @@ interface PatchBody {
   tiers_contact?: string | null;
   accompagne_sans_financer?: boolean;
   in_ppi?: boolean;
+  phase_progress?: Record<string, Record<string, { done: boolean; note: string | null }>>;
 }
 
 const PATCH_ALLOWED = new Set<keyof PatchBody>([
@@ -70,6 +71,7 @@ const PATCH_ALLOWED = new Set<keyof PatchBody>([
   "tiers_contact",
   "accompagne_sans_financer",
   "in_ppi",
+  "phase_progress",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {

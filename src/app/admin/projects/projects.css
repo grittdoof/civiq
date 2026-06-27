@@ -3421,8 +3421,15 @@ a.pj-commission-badge:hover {
   gap: 14px;
   align-items: stretch;
 }
+.pj-detail-row-2-1 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
 @media (max-width: 980px) {
-  .pj-detail-row-3-1 { grid-template-columns: 1fr; }
+  .pj-detail-row-3-1,
+  .pj-detail-row-2-1 { grid-template-columns: 1fr; }
 }
 .pj-detail-side-stack {
   display: flex;
@@ -3810,4 +3817,212 @@ a.pj-commission-badge:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Onglets Phases / Fiche projet
+   ═══════════════════════════════════════════════════════════════ */
+.pj-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 18px auto 14px;
+  max-width: 920px;
+  width: 100%;
+}
+.pj-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--civiq-card, #fff);
+  border: 1.5px solid var(--civiq-border, #e8e5de);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--civiq-text-light, #888);
+  font-family: inherit;
+  transition: border-color 0.18s, color 0.18s, background 0.18s, transform 0.1s;
+  cursor: pointer;
+  min-width: 0;
+}
+.pj-tab:hover:not(.is-active) {
+  border-color: var(--civiq-primary, #1a2744);
+  color: var(--civiq-text, #1a2744);
+}
+.pj-tab.is-active {
+  border-color: var(--civiq-primary, #1a2744);
+  background: var(--civiq-primary, #1a2744);
+  color: #fff;
+}
+.pj-tab-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--civiq-border-light, #f5f3ed);
+  color: var(--civiq-text-light, #888);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  transition: background 0.18s, color 0.18s;
+}
+.pj-tab.is-active .pj-tab-num {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.pj-tab > span:nth-child(2) {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pj-tab-hint {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .pj-tab-hint { display: none; }
+  .pj-tab { padding: 12px 14px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Livrables interactifs (checklist par phase)
+   ═══════════════════════════════════════════════════════════════ */
+.pj-phase-guide-pill-progress {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.06);
+}
+.pj-phase-guide-pill.is-selected .pj-phase-guide-pill-progress {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pj-phase-guide-progress {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.pj-phase-guide-progress-num {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--civiq-primary, #1a2744);
+  letter-spacing: -0.01em;
+}
+.pj-phase-guide-progress-bar {
+  width: 80px;
+  height: 5px;
+  background: var(--civiq-border, #e8e5de);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.pj-phase-guide-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--civiq-primary, #1a2744), oklch(0.55 0.13 145));
+  border-radius: 99px;
+  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pj-phase-deliverable {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px 12px 12px;
+  background: var(--civiq-border-light, #f5f3ed);
+  border-radius: 10px;
+  transition: background 0.18s, opacity 0.18s;
+}
+.pj-phase-deliverable:hover { background: var(--civiq-border, #e8e5de); }
+.pj-phase-deliverable.is-done {
+  background: oklch(0.95 0.05 145);
+}
+.pj-phase-deliverable.is-done .pj-phase-deliverable-label {
+  color: var(--civiq-text-light, #888);
+  text-decoration: line-through;
+  text-decoration-color: oklch(0.55 0.13 145);
+  text-decoration-thickness: 1.5px;
+}
+
+.pj-phase-deliverable-check {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: var(--civiq-card, #fff);
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--civiq-text-light, #aaa);
+  transition: color 0.18s, background 0.18s, transform 0.12s;
+  margin-top: 1px;
+}
+.pj-phase-deliverable-check:hover:not(:disabled) {
+  color: var(--civiq-primary, #1a2744);
+  transform: scale(1.05);
+}
+.pj-phase-deliverable-check:active:not(:disabled) { transform: scale(0.92); }
+.pj-phase-deliverable-check:disabled { opacity: 0.5; cursor: not-allowed; }
+.pj-phase-deliverable.is-done .pj-phase-deliverable-check {
+  color: oklch(0.45 0.16 145);
+}
+
+.pj-phase-deliverable-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pj-phase-deliverable-label {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--civiq-text, #1a2744);
+  font-weight: 500;
+}
+.pj-phase-deliverable-input {
+  width: 100%;
+  padding: 7px 10px;
+  background: var(--civiq-card, #fff);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--civiq-text, #1a2744);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pj-phase-deliverable-input::placeholder {
+  color: var(--civiq-text-light, #aaa);
+  font-style: italic;
+}
+.pj-phase-deliverable-input:hover {
+  border-color: var(--civiq-border, #e8e5de);
+}
+.pj-phase-deliverable-input:focus {
+  border-color: var(--civiq-primary, #1a2744);
+  background: #fff;
+}
+.pj-phase-deliverable-note {
+  font-size: 12.5px;
+  color: var(--civiq-text-light, #666);
+  font-style: italic;
 }
