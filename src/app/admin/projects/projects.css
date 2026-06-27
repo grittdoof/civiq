@@ -668,8 +668,20 @@
 .pj-cost-value { font-size: 18px; font-weight: 700; }
 .pj-cost-rates { font-size: 11px; color: var(--civiq-text-soft); margin-top: 4px; }
 
-/* ─── Tables — overflow-x sous mobile pour éviter le débordement ─── */
-.pj-section { overflow-x: auto; }
+/* ─── Sections — pas de scroll horizontal forcé. La card affiche
+   son contenu en entier ; les éditeurs internes (table, grille…)
+   gèrent leur propre wrapping ou leur propre overflow. ─── */
+.pj-section { min-width: 0; }
+.pj-detail-grid { min-width: 0; }
+.pj-detail-grid > * { min-width: 0; }
+/* Si une table reste trop large pour la card, on autorise le
+   scroll mais SCOPÉ à un wrapper interne — la card elle-même
+   garde sa largeur naturelle (pas de débordement parent). */
+.pj-table-wrap, .pj-collapsible-body-inner > .pj-table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
 .pj-table {
   width: 100%;
   border-collapse: collapse;
@@ -3087,4 +3099,176 @@ a.pj-commission-badge:hover {
   font-size: 12px;
   color: var(--civiq-text-light, #888);
   font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CollapsibleSection — progressive disclosure sur la fiche projet
+   ═══════════════════════════════════════════════════════════════ */
+.pj-collapsible {
+  padding: 0;
+  overflow: hidden;
+  /* Anim subtile au survol pour signaler l'interactivité */
+  transition: border-color 0.18s ease, transform 0.18s ease,
+              box-shadow 0.18s ease;
+}
+.pj-collapsible:hover:not(.is-open) {
+  border-color: var(--civiq-text-light, #b0b0b0);
+}
+.pj-collapsible.is-open {
+  border-color: var(--civiq-border, #e8e5de);
+}
+
+.pj-collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--civiq-text, #1a2744);
+  transition: background 0.15s ease;
+}
+.pj-collapsible-header:hover {
+  background: linear-gradient(
+    90deg,
+    var(--civiq-border-light, #f5f3ed) 0%,
+    transparent 80%
+  );
+}
+.pj-collapsible.is-open .pj-collapsible-header {
+  border-bottom: 1px solid var(--civiq-border, #e8e5de);
+}
+
+.pj-collapsible-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--civiq-border-light, #f5f3ed);
+  color: var(--civiq-primary, #1a2744);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.22s ease, transform 0.18s ease;
+}
+.pj-collapsible.is-open .pj-collapsible-icon {
+  background: var(--civiq-primary, #1a2744);
+  color: #fff;
+}
+.pj-collapsible-header:hover .pj-collapsible-icon {
+  transform: scale(1.06);
+}
+
+.pj-collapsible-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pj-collapsible-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+.pj-collapsible-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  background: var(--civiq-border, #e8e5de);
+  color: var(--civiq-text-light, #666);
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.pj-collapsible.is-open .pj-collapsible-count {
+  background: oklch(0.94 0.03 250);
+  color: var(--civiq-primary, #1a2744);
+}
+.pj-collapsible-hint-closed {
+  font-size: 12.5px;
+  color: var(--civiq-text-light, #888);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.pj-collapsible-hint-open {
+  font-size: 13px;
+  color: var(--civiq-text-light, #888);
+  margin: 0 0 14px;
+  line-height: 1.55;
+  font-style: italic;
+  border-left: 2px solid var(--civiq-border, #e8e5de);
+  padding-left: 10px;
+}
+.pj-collapsible-end {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+
+.pj-collapsible-chevron {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--civiq-text-light, #aaa);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.pj-collapsible.is-open .pj-collapsible-chevron {
+  transform: rotate(180deg);
+  color: var(--civiq-primary, #1a2744);
+}
+.pj-collapsible-header:hover .pj-collapsible-chevron {
+  background: var(--civiq-border-light, #f5f3ed);
+}
+
+/* Animation collapse : grid-template-rows 0fr ↔ 1fr permet
+   d'animer une hauteur intrinsèque sans la calculer en JS. */
+.pj-collapsible-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pj-collapsible-body[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.pj-collapsible-body > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.pj-collapsible-body-inner {
+  padding: 18px 20px 20px;
+  min-width: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pj-collapsible-body { transition-duration: 0.001s; }
+  .pj-collapsible-icon, .pj-collapsible-chevron { transition-duration: 0.001s; }
+}
+
+/* Le wrapping section déjà existant qui causait l'overflow-x est
+   neutralisé pour les sections passées en collapsible. */
+.pj-collapsible.pj-section { overflow: hidden; }
+
+/* Cost grid (synthèse financière) : wrap propre sans débordement */
+.pj-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }

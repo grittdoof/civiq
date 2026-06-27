@@ -1,6 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Edit, Ticket, Gavel, Info } from "lucide-react";
+import {
+  ArrowLeft, Edit, Ticket, Gavel, Info,
+  Target, Coins, Users, Wallet, LineChart, Flag,
+  ClipboardCheck, Files, Bell, History,
+} from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -23,6 +27,7 @@ import DocumentsEditor from "@/components/projects/DocumentsEditor";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import CommissionIcon from "@/components/projects/CommissionIcon";
 import DeleteProjectButton from "@/components/projects/DeleteProjectButton";
+import CollapsibleSection from "@/components/projects/CollapsibleSection";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/:id — Fiche projet
@@ -167,9 +172,12 @@ export default async function ProjectDetailPage({ params }: PageProps) {
       )}
 
       <div className="pj-detail-grid">
-        {/* ── Objectifs ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">Objectifs</h2>
+        {/* ── Objectifs (ouvert par défaut — essentiel) ── */}
+        <CollapsibleSection
+          title="Objectifs"
+          icon={Target}
+          hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
+        >
           {p.description && <p className="pj-section-description">{p.description}</p>}
           {p.objectifs ? (
             <p className="pj-section-content">{p.objectifs}</p>
@@ -178,11 +186,14 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               Pas d&apos;objectifs renseignés. {canEdit && <Link href={`/admin/projects/${p.id}/edit`}>Modifier</Link>}
             </p>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Synthèse financière (lecture, calcul en BDD) ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">Synthèse financière</h2>
+        {/* ── Synthèse financière (ouvert par défaut — essentiel) ── */}
+        <CollapsibleSection
+          title="Synthèse financière"
+          icon={Coins}
+          hint="Vision rapide : investissement, coût global et actualisation."
+        >
           <div className="pj-cost-grid">
             <div className="pj-cost-cell">
               <div className="pj-cost-label">Coût d&apos;investissement</div>
@@ -209,29 +220,15 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               </>
             )}
           </div>
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Parties prenantes (RACI) — éditeur ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Parties prenantes <span className="pj-section-count">({detail.stakeholders.length})</span>
-          </h2>
-          {canEdit ? (
-            <StakeholdersEditor
-              projectId={p.id}
-              initial={detail.stakeholders}
-              directory={stakeholdersDir}
-            />
-          ) : (
-            <p className="pj-section-empty">Lecture seule.</p>
-          )}
-        </section>
-
-        {/* ── Plan de financement — éditeur ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Plan de financement <span className="pj-section-count">({detail.financings.length})</span>
-          </h2>
+        {/* ── Plan de financement (ouvert — essentiel pour pilotage) ── */}
+        <CollapsibleSection
+          title="Plan de financement"
+          icon={Wallet}
+          count={detail.financings.length}
+          hint="Subventions sollicitées, obtenues et reste à charge."
+        >
           {canEdit ? (
             <FinancingsEditor
               projectId={p.id}
@@ -241,17 +238,38 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Coûts 10 ans — éditeur grille ── */}
-        <section className="civiq-card pj-section pj-section-wide">
-          <h2 className="pj-section-title">
-            Coûts de fonctionnement &amp; d&apos;entretien sur 10 ans
-          </h2>
+        {/* ── Parties prenantes (plié — progressive disclosure) ── */}
+        <CollapsibleSection
+          title="Parties prenantes"
+          icon={Users}
+          count={detail.stakeholders.length}
+          hint="Qui décide, qui exécute, qui est informé (matrice RACI)."
+          defaultOpen={false}
+        >
+          {canEdit ? (
+            <StakeholdersEditor
+              projectId={p.id}
+              initial={detail.stakeholders}
+              directory={stakeholdersDir}
+            />
+          ) : (
+            <p className="pj-section-empty">Lecture seule.</p>
+          )}
+        </CollapsibleSection>
+
+        {/* ── Coûts 10 ans (plié) ── */}
+        <CollapsibleSection
+          title="Coûts de fonctionnement & d'entretien sur 10 ans"
+          icon={LineChart}
+          hint="Élément clé d'arbitrage — saisis en euros constants."
+          defaultOpen={false}
+          className="pj-section-wide"
+        >
           <p className="pj-section-description">
             Saisis en euros constants (valeur d&apos;aujourd&apos;hui). Le coût global
             actualisé prend en compte l&apos;inflation et le taux d&apos;actualisation.
-            <em> C&apos;est souvent l&apos;élément clé d&apos;arbitrage.</em>
           </p>
           {canEdit ? (
             <LifecycleCostsEditor
@@ -264,12 +282,16 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Étapes clés (jalons) — éditeur ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Étapes clés
+        {/* ── Étapes clés (plié) ── */}
+        <CollapsibleSection
+          title="Étapes clés"
+          icon={Flag}
+          count={detail.milestones.length}
+          hint="Jalons et échéances qui rythment l'avancement du projet."
+          defaultOpen={false}
+          endSlot={
             <span
               className="pj-info-tooltip"
               tabIndex={0}
@@ -277,8 +299,8 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             >
               <Info size={13} />
             </span>
-            <span className="pj-section-count">({detail.milestones.length})</span>
-          </h2>
+          }
+        >
           {canEdit ? (
             <MilestonesEditor
               projectId={p.id}
@@ -288,12 +310,15 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Bilan (à partir de realisation) — éditeur ── */}
+        {/* ── Bilan (à partir de realisation) — ouvert si on y est ── */}
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
-          <section className="civiq-card pj-section">
-            <h2 className="pj-section-title">Bilan de réalisation</h2>
+          <CollapsibleSection
+            title="Bilan de réalisation"
+            icon={ClipboardCheck}
+            hint="Coût réel, écart vs budget initial et explications."
+          >
             {canEdit ? (
               <BilanEditor
                 projectId={p.id}
@@ -304,20 +329,21 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             ) : (
               <p className="pj-section-empty">Lecture seule.</p>
             )}
-          </section>
+          </CollapsibleSection>
         )}
 
-        {/* ── Commissions rattachées (transversales possibles) ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            <Gavel size={16} /> Commissions qui suivent ce projet
-            <span className="pj-section-count">({detail.commissions.length})</span>
-          </h2>
+        {/* ── Commissions (plié) ── */}
+        <CollapsibleSection
+          title="Commissions qui suivent ce projet"
+          icon={Gavel}
+          count={detail.commissions.length}
+          hint="Un projet peut être suivi par plusieurs commissions transversales."
+          defaultOpen={false}
+        >
           {detail.commissions.length === 0 ? (
             <p className="pj-section-empty">
-              Aucune commission ne suit ce projet pour le moment. Un projet
-              peut être suivi par plusieurs commissions (transversales) — la
-              gestion se fait depuis la fiche commission.
+              Aucune commission ne suit ce projet pour le moment. La gestion
+              se fait depuis la fiche commission.
             </p>
           ) : (
             <ul className="pj-subs">
@@ -333,25 +359,31 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               ))}
             </ul>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Documents (avec upload) ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Documents <span className="pj-section-count">({detail.documents.length})</span>
-          </h2>
+        {/* ── Documents (plié) ── */}
+        <CollapsibleSection
+          title="Documents"
+          icon={Files}
+          count={detail.documents.length}
+          hint="Études, devis, pièces administratives, photos."
+          defaultOpen={false}
+        >
           <DocumentsEditor
             projectId={p.id}
             initial={detail.documents}
             canEdit={canEdit}
           />
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Abonnés — éditeur ── */}
-        <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Abonnés aux notifications <span className="pj-section-count">({detail.subscribers.length})</span>
-          </h2>
+        {/* ── Abonnés (plié) ── */}
+        <CollapsibleSection
+          title="Abonnés aux notifications"
+          icon={Bell}
+          count={detail.subscribers.length}
+          hint="Qui reçoit les alertes lors des changements de phase et jalons."
+          defaultOpen={false}
+        >
           {canEdit ? (
             <SubscribersEditor
               projectId={p.id}
@@ -362,11 +394,17 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           ) : (
             <p className="pj-section-empty">Lecture seule.</p>
           )}
-        </section>
+        </CollapsibleSection>
 
-        {/* ── Historique des transitions ── */}
-        <section className="civiq-card pj-section pj-history">
-          <h2 className="pj-section-title">Historique des transitions</h2>
+        {/* ── Historique (plié) ── */}
+        <CollapsibleSection
+          title="Historique des transitions"
+          icon={History}
+          count={detail.phase_log.length}
+          hint="Trace des changements de phase, dates et commentaires."
+          defaultOpen={false}
+          className="pj-history"
+        >
           {detail.phase_log.length === 0 ? (
             <p className="pj-section-empty">Aucune transition enregistrée.</p>
           ) : (
@@ -388,7 +426,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               ))}
             </ol>
           )}
-        </section>
+        </CollapsibleSection>
       </div>
     </main>
   );
