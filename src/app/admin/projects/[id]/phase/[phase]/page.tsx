@@ -11,7 +11,7 @@ import {
   type ProjectPhase,
   type DeliverableKind,
 } from "@/lib/projects/types";
-import PhaseRail from "@/components/projects/PhaseRail";
+import ProjectStepper from "@/components/projects/ProjectStepper";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import "../../../projects.css";
 import "../../../flow.css";
@@ -130,13 +130,11 @@ export default async function ProjectPhasePage({ params }: Props) {
         )}
       </div>
 
-      {/* PhaseRail unifié */}
-      <PhaseRail
+      {/* Stepper horizontal cliquable */}
+      <ProjectStepper
+        current={p.phase}
+        focused={phase}
         projectId={p.id}
-        currentPhase={p.phase}
-        focusedPhase={phase}
-        progress={progress}
-        resourceCounts={resourceCounts}
       />
 
       {/* Hero phase compact */}

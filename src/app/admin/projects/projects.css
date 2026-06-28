@@ -486,6 +486,35 @@
 }
 .pj-stepper-step.is-active .pj-stepper-label { color: var(--civiq-primary); }
 
+/* Wrapper Link cliquable : hérite du layout du step parent
+   (icon + dot + label en colonne) sans changer le rendu. */
+.pj-stepper-link,
+.pj-stepper-mobile-item-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+  width: 100%;
+  transition: transform 0.12s ease;
+}
+.pj-stepper-mobile-item-link {
+  flex-direction: row;
+  align-items: center;
+  text-align: left;
+  gap: 8px;
+}
+.pj-stepper-link:hover,
+.pj-stepper-mobile-item-link:hover {
+  transform: scale(1.02);
+}
+.pj-stepper-step:not(.is-active):not(.is-done) .pj-stepper-link:hover .pj-stepper-icon,
+.pj-stepper-step:not(.is-active):not(.is-done) .pj-stepper-link:hover .pj-stepper-label {
+  color: var(--civiq-text);
+}
+
 /* Mobile : caché par défaut, visible sous 900px */
 .pj-stepper-mobile { display: none; }
 
