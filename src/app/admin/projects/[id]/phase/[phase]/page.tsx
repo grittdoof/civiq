@@ -86,6 +86,9 @@ export default async function ProjectPhasePage({ params }: Props) {
   const total = guide.deliverables.length;
   const pctDone = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   const allDone = doneCount === total && total > 0;
+  const firstTodoIdx = guide.deliverables.findIndex((d, i) => !isDone(i, d.kind));
+  const firstTodo = firstTodoIdx >= 0 ? guide.deliverables[firstTodoIdx] : null;
+  const remaining = Math.max(total - doneCount, 0);
 
   const phaseIdx = PROJECT_PHASES.indexOf(phase);
   const nextPhase = phaseIdx < PROJECT_PHASES.length - 1
@@ -162,6 +165,26 @@ export default async function ProjectPhasePage({ params }: Props) {
         </div>
       </header>
 
+      {firstTodo && (
+        <section className="pj-flow-focus-card" aria-label="Prochain livrable à compléter">
+          <div className="pj-flow-focus-copy">
+            <span className="pj-flow-focus-kicker">À faire maintenant</span>
+            <h3>{firstTodo.label}</h3>
+            <p>
+              Complétez ce livrable pour faire avancer la phase{" "}
+              {PROJECT_PHASE_LABELS[phase]}.
+            </p>
+          </div>
+          <Link
+            href={`/admin/projects/${p.id}/phase/${phase}/${firstTodoIdx}`}
+            className="pj-flow-focus-action"
+            prefetch={false}
+          >
+            Compléter <ArrowRight size={15} />
+          </Link>
+        </section>
+      )}
+
       {/* Liste verticale des livrables */}
       <ul className="pj-flow-deliverables">
         {guide.deliverables.map((spec, idx) => {
@@ -172,6 +195,7 @@ export default async function ProjectPhasePage({ params }: Props) {
               <Link
                 href={`/admin/projects/${p.id}/phase/${phase}/${idx}`}
                 className={`pj-flow-deliverable-card${done ? " is-done" : ""}`}
+                style={{ ["--pj-item-index" as string]: idx }}
                 prefetch={false}
               >
                 <span className="pj-flow-deliverable-check" aria-hidden>
@@ -197,8 +221,8 @@ export default async function ProjectPhasePage({ params }: Props) {
       </ul>
 
       {/* Sticky bottom : CTA phase suivante si tout est fait */}
-      {allDone && nextPhase && (
-        <div className="pj-flow-bottom-cta">
+      <div className="pj-flow-bottom-cta">
+        {allDone && nextPhase ? (
           <Link
             href={`/admin/projects/${p.id}/phase/${nextPhase}`}
             className="pj-flow-next-phase"
@@ -210,8 +234,15 @@ export default async function ProjectPhasePage({ params }: Props) {
             <strong>{PROJECT_PHASE_LABELS[nextPhase]}</strong>
             <ArrowRight size={16} />
           </Link>
-        </div>
-      )}
+        ) : (
+          <div className="pj-flow-next-phase is-muted" aria-live="polite">
+            <span className="pj-flow-next-phase-label">
+              {remaining} livrable{remaining > 1 ? "s" : ""} restant{remaining > 1 ? "s" : ""}
+            </span>
+            <strong>{firstTodo ? "Continuez la phase" : "Phase en cours"}</strong>
+          </div>
+        )}
+      </div>
 
       {/* Gate de passage (informatif) */}
       <div className="pj-flow-gate">
