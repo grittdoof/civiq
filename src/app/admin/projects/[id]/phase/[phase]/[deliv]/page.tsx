@@ -1,21 +1,24 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
+import { getProject } from "@/lib/projects/queries";
 import {
   PROJECT_PHASES,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_GUIDE,
   type ProjectPhase,
 } from "@/lib/projects/types";
+import DeliverablePage from "@/components/projects/DeliverablePage";
 import "../../../../projects.css";
 import "../../../../flow.css";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/[id]/phase/[phase]/[deliv]
-// Page dédiée à un livrable (stub Phase A, sera remplie Phase B+).
+// Page focalisée pour un livrable. Dispatch selon le kind via
+// DeliverablePage (Client Component).
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -24,7 +27,7 @@ interface Props {
   params: Promise<{ id: string; phase: string; deliv: string }>;
 }
 
-export default async function DeliverableStub({ params }: Props) {
+export default async function DeliverableFocusPage({ params }: Props) {
   const { id, phase: phaseParam, deliv } = await params;
   const phase = phaseParam as ProjectPhase;
   if (!PROJECT_PHASES.includes(phase)) notFound();
@@ -38,18 +41,33 @@ export default async function DeliverableStub({ params }: Props) {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const service = await createServiceClient();
-  const { data: project } = await service
-    .from("projects")
-    .select("id, titre")
-    .eq("id", id)
-    .eq("commune_id", ctx.communeId)
-    .maybeSingle();
-  if (!project) notFound();
+  const detail = await getProject(ctx.communeId, id);
+  if (!detail.project) notFound();
+  const p = detail.project;
+  const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
   const guide = PROJECT_PHASE_GUIDE[phase];
   const spec = guide.deliverables[idx];
   if (!spec) notFound();
+
+  // Annuaire commune pour les pickers (parties prenantes, profils)
+  const service = await createServiceClient();
+  const { data: profilesDir } = await service
+    .from("profiles")
+    .select("id, full_name, job_title")
+    .eq("commune_id", ctx.communeId);
+
+  const phaseIdx = PROJECT_PHASES.indexOf(phase);
+  const nextDelivIdx = idx + 1 < guide.deliverables.length ? idx + 1 : null;
+  const nextPhase = phaseIdx < PROJECT_PHASES.length - 1
+    ? PROJECT_PHASES[phaseIdx + 1]
+    : null;
+
+  const progress = (p.phase_progress ?? {}) as Record<
+    string,
+    Record<string, { done: boolean; note: string | null }>
+  >;
+  const manual = progress[phase]?.[String(idx)] ?? { done: false, note: null };
 
   return (
     <main className="civiq-main pj-flow-page">
@@ -58,34 +76,46 @@ export default async function DeliverableStub({ params }: Props) {
           <Link
             href={`/admin/projects/${id}/phase/${phase}`}
             className="pj-flow-back-pill"
+            title="Retour à la phase"
+            prefetch={false}
           >
             <ArrowLeft size={14} />
           </Link>
           <h1 className="pj-flow-project-title">
-            {PROJECT_PHASE_LABELS[phase]} · Livrable {idx + 1}/{guide.deliverables.length}
+            {PROJECT_PHASE_LABELS[phase]} ·{" "}
+            <span style={{ fontWeight: 500, opacity: 0.7 }}>
+              Livrable {idx + 1}/{guide.deliverables.length}
+            </span>
           </h1>
         </div>
       </div>
 
-      <div className="civiq-card" style={{ padding: 28, maxWidth: 720, margin: "24px auto" }}>
-        <Info size={20} style={{ opacity: 0.5 }} />
-        <h2 style={{ margin: "10px 0 8px", fontSize: 22 }}>{spec.label}</h2>
-        <p style={{ color: "var(--civiq-text-light, #888)", marginBottom: 16 }}>
-          Type : {spec.kind}
-        </p>
-        <p style={{ color: "var(--civiq-text, #1a2744)", lineHeight: 1.6, marginBottom: 18 }}>
-          Le formulaire focalisé pour ce type de livrable arrive dans
-          la prochaine livraison. Vous pourrez ici renseigner les
-          informations sans quitter la phase, et l&apos;avancement se
-          mettra à jour automatiquement.
-        </p>
-        <Link
-          href={`/admin/projects/${id}/phase/${phase}`}
-          className="civiq-btn civiq-btn-default"
-        >
-          Retour à la phase
-        </Link>
-      </div>
+      <DeliverablePage
+        projectId={p.id}
+        phase={phase}
+        deliverableIdx={idx}
+        spec={spec}
+        manual={manual}
+        currentProject={{
+          titre: p.titre,
+          description: p.description,
+          objectifs: p.objectifs,
+          competence: p.competence,
+          pilote_elu: p.pilote_elu,
+          pilote_agent: p.pilote_agent,
+          photo_url: p.photo_url ?? null,
+        }}
+        profilesDirectory={
+          (profilesDir ?? []) as Array<{
+            id: string;
+            full_name: string | null;
+            job_title: string | null;
+          }>
+        }
+        nextDeliverableIdx={nextDelivIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit}
+      />
     </main>
   );
 }

@@ -100,7 +100,8 @@ export type DeliverableKind =
   | "stakeholder"   // auto-coche si ≥ 1 partie prenante
   | "financing"     // auto-coche si ≥ 1 ligne de financement
   | "milestone"     // auto-coche si ≥ 1 jalon
-  | "field";        // champ de la fiche projet à remplir
+  | "field"         // champ(s) à remplir sur le projet (cf. fields)
+  | "identity";     // titre + description + objectifs + photo (Émergence)
 
 export type DeliverableLink =
   | "documents"
@@ -138,6 +139,7 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Caractériser l'opportunité pour décider si elle mérite d'être étudiée. C'est l'étape la moins coûteuse — le rôle ici est de cadrer et trier.",
     deliverables: [
+      { label: "Identité du projet : titre, description, objectifs, photo.", kind: "identity" },
       { label: "Fiche d'opportunité (1 page) : enjeu, public visé, ordre de grandeur du budget.", kind: "document", link: "documents" },
       { label: "Désignation d'un pilote élu et d'un pilote agent.", kind: "field", link: "objectifs" },
       { label: "Avis informel des parties prenantes clés.", kind: "stakeholder", link: "stakeholders" },

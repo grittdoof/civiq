@@ -37,6 +37,7 @@ const KIND_LABEL: Record<DeliverableKind, string> = {
   financing: "Financement",
   milestone: "Jalon",
   field: "À remplir",
+  identity: "Identité",
 };
 
 export default async function ProjectPhasePage({ params }: Props) {

@@ -104,6 +104,7 @@ const KIND_ICON: Record<DeliverableKind, typeof FileText> = {
   financing: Wallet,
   milestone: Flag,
   field: PencilLine,
+  identity: FileText,
 };
 
 // Libellé en clair par type, pour le badge
@@ -114,6 +115,7 @@ const KIND_LABEL: Record<DeliverableKind, string> = {
   financing: "Financement",
   milestone: "Jalon",
   field: "À remplir",
+  identity: "Identité",
 };
 
 export default function PhaseGuide({
