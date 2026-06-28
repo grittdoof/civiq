@@ -68,10 +68,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const titre = body.titre?.trim();
-  if (!titre) {
-    return NextResponse.json({ error: "Le titre est obligatoire" }, { status: 400 });
-  }
+  // Création silencieuse autorisée : si pas de titre, on tombe sur
+  // le default DB « Sans titre » et l'utilisateur le remplit dans
+  // le 1er livrable de la phase Émergence (kind=identity).
+  const titre = body.titre?.trim() || "Sans titre";
 
   const service = await createServiceClient();
   const { data, error } = await service

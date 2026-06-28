@@ -1,11 +1,20 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import ProjectForm from "@/components/projects/ProjectForm";
+
+// ═══════════════════════════════════════════════════════════════
+// /admin/projects/nouveau — création silencieuse
+//
+// Plus de formulaire à remplir avant que le projet existe. La page
+// crée un projet vide (titre = « Sans titre ») et redirige
+// instantanément vers le 1er livrable de la phase Émergence,
+// où l'utilisateur saisira l'identité du projet (titre, description,
+// objectifs, photo).
+//
+// Si on vient d'un ticket : on prend le titre + description du
+// ticket comme amorce et on lie source_ticket_id.
+// ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +36,11 @@ export default async function NewProjectPage({ searchParams }: Props) {
   const { from_ticket } = await searchParams;
 
   const service = await createServiceClient();
-  const { data: profilesDir } = await service
-    .from("profiles")
-    .select("id, full_name, job_title")
-    .eq("commune_id", ctx.communeId);
 
-  // Si on vient d'un ticket : préremplir titre + description + source_ticket_id
-  let initial = {};
+  // Amorce depuis un ticket si fourni
+  let titre = "Sans titre";
+  let description: string | null = null;
+  let sourceTicketId: string | null = null;
   if (from_ticket) {
     const { data: ticket } = await service
       .from("tickets")
@@ -42,32 +49,30 @@ export default async function NewProjectPage({ searchParams }: Props) {
       .eq("commune_id", ctx.communeId)
       .maybeSingle();
     if (ticket) {
-      initial = {
-        titre: ticket.titre,
-        description: ticket.description,
-        source_ticket_id: ticket.id,
-      };
+      titre = ticket.titre;
+      description = ticket.description;
+      sourceTicketId = ticket.id;
     }
   }
 
-  return (
-    <main className="civiq-main pj-detail-page">
-      <div className="pj-detail-back">
-        <Link href="/admin/projects" className="civiq-btn civiq-btn-ghost civiq-btn-sm">
-          <ArrowLeft size={14} /> Tous les projets
-        </Link>
-      </div>
-      <h1 className="civiq-page-title">Nouveau projet</h1>
-      <p className="pj-page-subtitle">
-        Démarre en étape « Émergence ». Vous pourrez compléter les autres
-        sections après création.
-      </p>
+  // Création silencieuse
+  const { data, error } = await service
+    .from("projects")
+    .insert({
+      commune_id: ctx.communeId,
+      titre,
+      description,
+      source_ticket_id: sourceTicketId,
+      created_by: ctx.userId,
+    })
+    .select("id")
+    .single();
 
-      <ProjectForm
-        mode="create"
-        initial={initial}
-        profilesDirectory={(profilesDir ?? []) as { id: string; full_name: string | null; job_title: string | null }[]}
-      />
-    </main>
-  );
+  if (error || !data) {
+    // En cas d'échec on retombe sur la liste avec un état d'erreur
+    redirect("/admin/projects?error=create_failed");
+  }
+
+  // Redirige sur le 1er livrable de la phase Émergence
+  redirect(`/admin/projects/${data.id}/phase/emergence/0`);
 }
