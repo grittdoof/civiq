@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -17,11 +17,21 @@ import {
   Info,
   Save,
 } from "lucide-react";
+import {
+  FINANCING_STATUS_LABELS,
+  PROJECT_PHASE_LABELS,
+  STAKEHOLDER_ROLE_LABELS,
+  STAKEHOLDER_TYPE_LABELS,
+} from "@/lib/projects/types";
 import type {
   DeliverableKind,
   DeliverableSpec,
   ProjectPhase,
   ProjectCompetence,
+  FinancingStatus,
+  Stakeholder,
+  StakeholderRole,
+  StakeholderType,
 } from "@/lib/projects/types";
 import DocumentsEditor from "./DocumentsEditor";
 import ProjectPhotoUpload from "./ProjectPhotoUpload";
@@ -70,8 +80,17 @@ interface CurrentProject {
   competence: ProjectCompetence;
   pilote_elu: string | null;
   pilote_agent: string | null;
+  budget_estime: number;
+  taux_inflation: number | null;
+  taux_actualisation: number | null;
+  cout_reel: number | null;
+  explication_ecart: string | null;
   photo_url: string | null;
 }
+
+const STAKEHOLDER_ROLES: StakeholderRole[] = ["decide", "finance", "execute", "consulte", "informe"];
+const STAKEHOLDER_TYPES: StakeholderType[] = ["interne", "institutionnelle", "financeur", "technique", "citoyenne"];
+const FINANCING_STATUSES: FinancingStatus[] = ["a_demander", "demandee", "ar_recu", "accordee", "refusee", "soldee"];
 
 interface Props {
   projectId: string;
@@ -154,10 +173,11 @@ export default function DeliverablePage({
         )}
 
         {spec.kind === "field" && (
-          <PilotesField
+          <FieldSection
             projectId={projectId}
             phase={phase}
             deliverableIdx={deliverableIdx}
+            spec={spec}
             current={currentProject}
             manual={manual}
             profilesDirectory={profilesDirectory}
@@ -167,10 +187,38 @@ export default function DeliverablePage({
           />
         )}
 
-        {(spec.kind === "stakeholder" ||
-          spec.kind === "financing" ||
-          spec.kind === "milestone") && (
-          <ComingSoon kind={spec.kind} />
+        {spec.kind === "stakeholder" && (
+          <StakeholderSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
+
+        {spec.kind === "financing" && (
+          <FinancingSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
+
+        {spec.kind === "milestone" && (
+          <MilestoneSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            profilesDirectory={profilesDirectory}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
         )}
       </div>
     </article>
@@ -532,6 +580,77 @@ function TaskForm({
   );
 }
 
+// ─── Field : dispatcher selon la section de fiche concernée ───
+function FieldSection({
+  projectId,
+  phase,
+  deliverableIdx,
+  spec,
+  current,
+  manual,
+  profilesDirectory,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  spec: DeliverableSpec;
+  current: CurrentProject;
+  manual: { done: boolean; note: string | null };
+  profilesDirectory: Array<{
+    id: string;
+    full_name: string | null;
+    job_title: string | null;
+  }>;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  if (spec.link === "lifecycle") {
+    return (
+      <LifecycleField
+        projectId={projectId}
+        phase={phase}
+        deliverableIdx={deliverableIdx}
+        current={current}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit}
+      />
+    );
+  }
+
+  if (spec.link === "bilan") {
+    return (
+      <BilanField
+        projectId={projectId}
+        phase={phase}
+        deliverableIdx={deliverableIdx}
+        current={current}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit}
+      />
+    );
+  }
+
+  return (
+    <PilotesField
+      projectId={projectId}
+      phase={phase}
+      deliverableIdx={deliverableIdx}
+      current={current}
+      manual={manual}
+      profilesDirectory={profilesDirectory}
+      nextDeliverableIdx={nextDeliverableIdx}
+      nextPhase={nextPhase}
+      canEdit={canEdit}
+    />
+  );
+}
+
 // ─── Field : pilotes (élu + agent) — link=objectifs ───
 function PilotesField({
   projectId,
@@ -650,17 +769,612 @@ function PilotesField({
   );
 }
 
-// ─── Placeholder pour kinds Phase C ───
-function ComingSoon({ kind }: { kind: DeliverableKind }) {
+// ─── Field : cadrage financier simplifié — link=lifecycle ───
+function LifecycleField({
+  projectId,
+  phase,
+  deliverableIdx,
+  current,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  current: CurrentProject;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [budget, setBudget] = useState(String(current.budget_estime || ""));
+  const [inflation, setInflation] = useState(current.taux_inflation?.toString() ?? "");
+  const [actualisation, setActualisation] = useState(current.taux_actualisation?.toString() ?? "");
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  async function save() {
+    setSaving(true);
+    await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        budget_estime: budget ? Number(budget) : 0,
+        taux_inflation: inflation ? Number(inflation) : null,
+        taux_actualisation: actualisation ? Number(actualisation) : null,
+      }),
+    });
+    await markDeliverableDone(projectId, phase, deliverableIdx);
+    const next = nextHref(projectId, phase, nextDeliverableIdx, nextPhase);
+    startTransition(() => router.push(next));
+  }
+
   return (
-    <div className="pj-deliv-info">
-      <Info size={14} />
-      <span>
-        Le formulaire pour le type « {KIND_LABEL[kind]} » arrive dans la
-        prochaine livraison. En attendant, vous pouvez ajouter les ressources
-        via la fiche projet, ce livrable sera auto-coché.
-      </span>
-    </div>
+    <>
+      <div className="pj-deliv-grid">
+        <div className="pj-deliv-field">
+          <label htmlFor="d-budget">Budget estimé HT</label>
+          <input
+            id="d-budget"
+            type="number"
+            min="0"
+            step="100"
+            className="pj-deliv-input"
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            placeholder="Ex : 85000"
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-inflation">Inflation annuelle (%)</label>
+          <input
+            id="d-inflation"
+            type="number"
+            step="0.1"
+            className="pj-deliv-input"
+            value={inflation}
+            onChange={(e) => setInflation(e.target.value)}
+            placeholder="Valeur commune par défaut"
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-actualisation">Actualisation annuelle (%)</label>
+          <input
+            id="d-actualisation"
+            type="number"
+            step="0.1"
+            className="pj-deliv-input"
+            value={actualisation}
+            onChange={(e) => setActualisation(e.target.value)}
+            placeholder="Valeur commune par défaut"
+            disabled={!canEdit}
+          />
+        </div>
+      </div>
+
+      <div className="pj-deliv-info">
+        <Info size={13} />
+        <span>
+          Ce cadrage nourrit le coût global et la comparaison PPI. Les coûts
+          détaillés restent disponibles dans la fiche projet avancée.
+        </span>
+      </div>
+
+      <ActionFooter
+        primaryLabel="Enregistrer et continuer"
+        onPrimary={save}
+        saving={saving}
+        projectId={projectId}
+        phase={phase}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit}
+      />
+    </>
+  );
+}
+
+// ─── Field : bilan financier — link=bilan ───
+function BilanField({
+  projectId,
+  phase,
+  deliverableIdx,
+  current,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  current: CurrentProject;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [coutReel, setCoutReel] = useState(current.cout_reel?.toString() ?? "");
+  const [note, setNote] = useState(current.explication_ecart ?? "");
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  async function save() {
+    setSaving(true);
+    await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cout_reel: coutReel ? Number(coutReel) : null,
+        explication_ecart: note.trim() || null,
+      }),
+    });
+    if (coutReel || note.trim()) {
+      await markDeliverableDone(projectId, phase, deliverableIdx);
+    }
+    const next = nextHref(projectId, phase, nextDeliverableIdx, nextPhase);
+    startTransition(() => router.push(next));
+  }
+
+  return (
+    <>
+      <div className="pj-deliv-field">
+        <label htmlFor="d-cout-reel">Coût réel constaté</label>
+        <input
+          id="d-cout-reel"
+          type="number"
+          min="0"
+          step="100"
+          className="pj-deliv-input"
+          value={coutReel}
+          onChange={(e) => setCoutReel(e.target.value)}
+          placeholder="Ex : 91200"
+          disabled={!canEdit}
+        />
+      </div>
+      <div className="pj-deliv-field">
+        <label htmlFor="d-ecart">Explication de l'écart</label>
+        <textarea
+          id="d-ecart"
+          rows={4}
+          className="pj-deliv-input pj-deliv-textarea"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Expliquez les principaux écarts avec le budget initial."
+          disabled={!canEdit}
+        />
+      </div>
+
+      <ActionFooter
+        primaryLabel="Enregistrer et continuer"
+        onPrimary={save}
+        saving={saving}
+        projectId={projectId}
+        phase={phase}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit}
+      />
+    </>
+  );
+}
+
+// ─── Stakeholder : annuaire + création rapide + RACI ───
+function StakeholderSection({
+  projectId,
+  phase,
+  deliverableIdx,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [directory, setDirectory] = useState<Stakeholder[]>([]);
+  const [stakeholderId, setStakeholderId] = useState("");
+  const [role, setRole] = useState<StakeholderRole>("consulte");
+  const [type, setType] = useState<StakeholderType>("institutionnelle");
+  const [nom, setNom] = useState("");
+  const [organisation, setOrganisation] = useState("");
+  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    fetch("/api/stakeholders")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { stakeholders?: Stakeholder[] } | null) => {
+        if (data?.stakeholders) setDirectory(data.stakeholders);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    let id = stakeholderId;
+    if (mode === "new") {
+      const create = await fetch("/api/stakeholders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom: nom.trim(),
+          organisation: organisation.trim() || null,
+          email: email.trim() || null,
+          telephone: telephone.trim() || null,
+          type,
+        }),
+      });
+      if (!create.ok) {
+        setSaving(false);
+        return;
+      }
+      const data = (await create.json()) as { stakeholder: Stakeholder };
+      id = data.stakeholder.id;
+    }
+
+    if (!id) {
+      setSaving(false);
+      return;
+    }
+
+    const attach = await fetch(`/api/projects/${projectId}/stakeholders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stakeholder_id: id, role, phase }),
+    });
+    if (!attach.ok) {
+      setSaving(false);
+      return;
+    }
+
+    await markDeliverableDone(projectId, phase, deliverableIdx);
+    const next = nextHref(projectId, phase, nextDeliverableIdx, nextPhase);
+    startTransition(() => router.push(next));
+  }
+
+  const canSave = mode === "existing" ? Boolean(stakeholderId) : Boolean(nom.trim());
+
+  return (
+    <>
+      <div className="pj-deliv-segment" role="tablist" aria-label="Type de partie prenante">
+        <button
+          type="button"
+          className={mode === "existing" ? "is-active" : ""}
+          onClick={() => setMode("existing")}
+          disabled={!canEdit}
+        >
+          Annuaire
+        </button>
+        <button
+          type="button"
+          className={mode === "new" ? "is-active" : ""}
+          onClick={() => setMode("new")}
+          disabled={!canEdit}
+        >
+          Nouveau contact
+        </button>
+      </div>
+
+      {mode === "existing" ? (
+        <div className="pj-deliv-field">
+          <label htmlFor="d-stakeholder">Partie prenante</label>
+          <select
+            id="d-stakeholder"
+            className="pj-deliv-input"
+            value={stakeholderId}
+            onChange={(e) => setStakeholderId(e.target.value)}
+            disabled={!canEdit}
+          >
+            <option value="">Sélectionner dans l'annuaire</option>
+            {directory.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nom}{s.organisation ? ` (${s.organisation})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="pj-deliv-grid">
+          <div className="pj-deliv-field">
+            <label htmlFor="d-st-name">Nom</label>
+            <input id="d-st-name" className="pj-deliv-input" value={nom} onChange={(e) => setNom(e.target.value)} disabled={!canEdit} />
+          </div>
+          <div className="pj-deliv-field">
+            <label htmlFor="d-st-org">Organisation</label>
+            <input id="d-st-org" className="pj-deliv-input" value={organisation} onChange={(e) => setOrganisation(e.target.value)} disabled={!canEdit} />
+          </div>
+          <div className="pj-deliv-field">
+            <label htmlFor="d-st-email">Email</label>
+            <input id="d-st-email" type="email" className="pj-deliv-input" value={email} onChange={(e) => setEmail(e.target.value)} disabled={!canEdit} />
+          </div>
+          <div className="pj-deliv-field">
+            <label htmlFor="d-st-phone">Téléphone</label>
+            <input id="d-st-phone" type="tel" className="pj-deliv-input" value={telephone} onChange={(e) => setTelephone(e.target.value)} disabled={!canEdit} />
+          </div>
+          <div className="pj-deliv-field">
+            <label htmlFor="d-st-type">Type</label>
+            <select id="d-st-type" className="pj-deliv-input" value={type} onChange={(e) => setType(e.target.value as StakeholderType)} disabled={!canEdit}>
+              {STAKEHOLDER_TYPES.map((t) => (
+                <option key={t} value={t}>{STAKEHOLDER_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="pj-deliv-field">
+        <label htmlFor="d-st-role">Rôle dans le projet</label>
+        <select
+          id="d-st-role"
+          className="pj-deliv-input"
+          value={role}
+          onChange={(e) => setRole(e.target.value as StakeholderRole)}
+          disabled={!canEdit}
+        >
+          {STAKEHOLDER_ROLES.map((r) => (
+            <option key={r} value={r}>{STAKEHOLDER_ROLE_LABELS[r]}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="pj-deliv-info">
+        <Info size={13} />
+        <span>Cette association sera rattachée à la phase {PROJECT_PHASE_LABELS[phase]}.</span>
+      </div>
+
+      <ActionFooter
+        primaryLabel={canSave ? "Associer et continuer" : "Choisir une partie prenante"}
+        onPrimary={save}
+        saving={saving}
+        projectId={projectId}
+        phase={phase}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit && canSave}
+      />
+    </>
+  );
+}
+
+// ─── Financing : une ligne de plan de financement ───
+function FinancingSection({
+  projectId,
+  phase,
+  deliverableIdx,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [financeur, setFinanceur] = useState("");
+  const [dispositif, setDispositif] = useState("");
+  const [montant, setMontant] = useState("");
+  const [statut, setStatut] = useState<FinancingStatus>("a_demander");
+  const [dateDemande, setDateDemande] = useState("");
+  const [dateAr, setDateAr] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`/api/projects/${projectId}/financings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        financeur: financeur.trim(),
+        dispositif: dispositif.trim() || null,
+        montant_demande: montant ? Number(montant) : null,
+        statut,
+        date_demande: dateDemande || null,
+        date_ar: dateAr || null,
+      }),
+    });
+    if (!res.ok) {
+      setSaving(false);
+      return;
+    }
+    await markDeliverableDone(projectId, phase, deliverableIdx);
+    const next = nextHref(projectId, phase, nextDeliverableIdx, nextPhase);
+    startTransition(() => router.push(next));
+  }
+
+  const canSave = financeur.trim().length > 0;
+
+  return (
+    <>
+      <div className="pj-deliv-grid">
+        <div className="pj-deliv-field">
+          <label htmlFor="d-financeur">Financeur</label>
+          <input
+            id="d-financeur"
+            className="pj-deliv-input"
+            value={financeur}
+            onChange={(e) => setFinanceur(e.target.value)}
+            placeholder="Ex : Département, État — DETR"
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-dispositif">Dispositif</label>
+          <input
+            id="d-dispositif"
+            className="pj-deliv-input"
+            value={dispositif}
+            onChange={(e) => setDispositif(e.target.value)}
+            placeholder="Ex : Appel à projets 2026"
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-montant">Montant demandé</label>
+          <input
+            id="d-montant"
+            type="number"
+            min="0"
+            step="100"
+            className="pj-deliv-input"
+            value={montant}
+            onChange={(e) => setMontant(e.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-statut">Statut</label>
+          <select id="d-statut" className="pj-deliv-input" value={statut} onChange={(e) => setStatut(e.target.value as FinancingStatus)} disabled={!canEdit}>
+            {FINANCING_STATUSES.map((s) => (
+              <option key={s} value={s}>{FINANCING_STATUS_LABELS[s]}</option>
+            ))}
+          </select>
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-date-demande">Date de demande</label>
+          <input id="d-date-demande" type="date" className="pj-deliv-input" value={dateDemande} onChange={(e) => setDateDemande(e.target.value)} disabled={!canEdit} />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-date-ar">Date AR</label>
+          <input id="d-date-ar" type="date" className="pj-deliv-input" value={dateAr} onChange={(e) => setDateAr(e.target.value)} disabled={!canEdit} />
+        </div>
+      </div>
+
+      <ActionFooter
+        primaryLabel={canSave ? "Ajouter et continuer" : "Renseigner le financeur"}
+        onPrimary={save}
+        saving={saving}
+        projectId={projectId}
+        phase={phase}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit && canSave}
+      />
+    </>
+  );
+}
+
+// ─── Milestone : une étape clé ───
+function MilestoneSection({
+  projectId,
+  phase,
+  deliverableIdx,
+  profilesDirectory,
+  nextDeliverableIdx,
+  nextPhase,
+  canEdit,
+}: {
+  projectId: string;
+  phase: ProjectPhase;
+  deliverableIdx: number;
+  profilesDirectory: Array<{
+    id: string;
+    full_name: string | null;
+    job_title: string | null;
+  }>;
+  nextDeliverableIdx: number | null;
+  nextPhase: ProjectPhase | null;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [libelle, setLibelle] = useState("");
+  const [echeance, setEcheance] = useState("");
+  const [responsable, setResponsable] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`/api/projects/${projectId}/milestones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        libelle: libelle.trim(),
+        phase,
+        echeance: echeance || null,
+        responsable_user_id: responsable || null,
+      }),
+    });
+    if (!res.ok) {
+      setSaving(false);
+      return;
+    }
+    await markDeliverableDone(projectId, phase, deliverableIdx);
+    const next = nextHref(projectId, phase, nextDeliverableIdx, nextPhase);
+    startTransition(() => router.push(next));
+  }
+
+  const canSave = libelle.trim().length > 0;
+
+  return (
+    <>
+      <div className="pj-deliv-field">
+        <label htmlFor="d-ms-label">Libellé du jalon</label>
+        <input
+          id="d-ms-label"
+          className="pj-deliv-input"
+          value={libelle}
+          onChange={(e) => setLibelle(e.target.value)}
+          placeholder="Ex : Vote des crédits, publication du marché, OS de démarrage"
+          disabled={!canEdit}
+        />
+      </div>
+
+      <div className="pj-deliv-grid">
+        <div className="pj-deliv-field">
+          <label htmlFor="d-ms-date">Échéance</label>
+          <input
+            id="d-ms-date"
+            type="date"
+            className="pj-deliv-input"
+            value={echeance}
+            onChange={(e) => setEcheance(e.target.value)}
+            disabled={!canEdit}
+          />
+        </div>
+        <div className="pj-deliv-field">
+          <label htmlFor="d-ms-owner">Responsable</label>
+          <select
+            id="d-ms-owner"
+            className="pj-deliv-input"
+            value={responsable}
+            onChange={(e) => setResponsable(e.target.value)}
+            disabled={!canEdit}
+          >
+            <option value="">Non assigné</option>
+            {profilesDirectory.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name ?? p.id}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <ActionFooter
+        primaryLabel={canSave ? "Créer et continuer" : "Renseigner le jalon"}
+        onPrimary={save}
+        saving={saving}
+        projectId={projectId}
+        phase={phase}
+        nextDeliverableIdx={nextDeliverableIdx}
+        nextPhase={nextPhase}
+        canEdit={canEdit && canSave}
+      />
+    </>
   );
 }
 

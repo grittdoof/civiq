@@ -103,6 +103,11 @@ export default async function DeliverableFocusPage({ params }: Props) {
           competence: p.competence,
           pilote_elu: p.pilote_elu,
           pilote_agent: p.pilote_agent,
+          budget_estime: p.budget_estime,
+          taux_inflation: p.taux_inflation,
+          taux_actualisation: p.taux_actualisation,
+          cout_reel: p.cout_reel,
+          explication_ecart: p.explication_ecart,
           photo_url: p.photo_url ?? null,
         }}
         profilesDirectory={

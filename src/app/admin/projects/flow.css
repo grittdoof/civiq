@@ -664,6 +664,19 @@
   flex-direction: column;
   gap: 6px;
 }
+
+.pj-deliv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .pj-deliv-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pj-deliv-field label {
   font-size: 12.5px;
   font-weight: 600;
@@ -695,6 +708,39 @@
   resize: vertical;
   min-height: 56px;
   line-height: 1.5;
+}
+
+.pj-deliv-segment {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 420px);
+  padding: 4px;
+  border: 1px solid var(--civiq-border, #e8e5de);
+  border-radius: 12px;
+  background: var(--civiq-bg-soft, #f7f5f0);
+}
+
+.pj-deliv-segment button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--civiq-text-soft, #6f6a60);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pj-deliv-segment button.is-active {
+  background: #fff;
+  color: var(--civiq-primary, #1a2744);
+  box-shadow: 0 8px 20px rgba(18, 23, 33, 0.08);
+}
+
+.pj-deliv-segment button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .pj-deliv-info {
