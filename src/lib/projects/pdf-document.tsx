@@ -97,6 +97,16 @@ export interface ProjectPdfData {
   ecart_pct: number | null;
   explication_ecart: string | null;
   show_bilan: boolean;
+
+  /** Progression de l'avancement des livrables par phase (résumé). */
+  phase_progress_summary: Array<{
+    phase: ProjectPhase;
+    label: string;
+    objective: string;
+    deliverables: Array<{ label: string; kind: string; done: boolean; note: string | null }>;
+    pctDone: number;
+    status: "done" | "current" | "future";
+  }>;
 }
 
 export function ProjectPDF(props: ProjectPdfData) {
@@ -138,6 +148,36 @@ export function ProjectPDF(props: ProjectPdfData) {
             {props.objectifs && <Text style={s.para}>{props.objectifs}</Text>}
           </View>
         )}
+
+        {/* 2.bis Avancement par phase (toujours inclus dans le document
+            public — Faisabilité et phases en cours / franchies). */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Avancement par phase</Text>
+          {props.phase_progress_summary
+            .filter((p) => p.status !== "future" || p.deliverables.some((d) => d.done))
+            .map((p, pi) => (
+              <View key={pi} style={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 2 }}>
+                  <Text style={{ fontSize: 10, fontWeight: 700, color: "#111827", flex: 1 }}>
+                    {pi + 1}. {p.label}
+                    {p.status === "current" ? " (en cours)" : p.status === "done" ? " ✓" : ""}
+                  </Text>
+                  <Text style={{ fontSize: 9, color: "#6b7280", fontWeight: 700 }}>
+                    {p.pctDone}%
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 8.5, color: "#6b7280", marginBottom: 4, lineHeight: 1.3 }}>
+                  {p.objective}
+                </Text>
+                {p.deliverables.map((d, di) => (
+                  <Text key={di} style={{ fontSize: 8.5, marginLeft: 8, marginBottom: 1, color: d.done ? "#111827" : "#9ca3af" }}>
+                    {d.done ? "☑" : "☐"} {d.label}
+                    {d.note ? ` — ${d.note}` : ""}
+                  </Text>
+                ))}
+              </View>
+            ))}
+        </View>
 
         {/* 3. Coût d'investissement */}
         <View style={s.section}>

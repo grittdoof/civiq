@@ -10,25 +10,45 @@ import {
   Target,
   Lock,
   Loader2,
+  FileText,
+  Users,
+  Wallet,
+  Flag,
+  PencilLine,
+  ListChecks,
 } from "lucide-react";
 import {
   PROJECT_PHASES,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_GUIDE,
   type ProjectPhase,
+  type DeliverableKind,
+  type DeliverableSpec,
 } from "@/lib/projects/types";
 import PhaseIcon from "./PhaseIcon";
 
 // ═══════════════════════════════════════════════════════════════
-// PhaseGuide — panneau de contexte + check-list ACTIONNABLE par
-// phase. Affiché sous le stepper.
+// PhaseGuide — point d'entrée principal pour configurer le projet.
 //
-// Chaque livrable-type de PROJECT_PHASE_GUIDE devient une case à
-// cocher persistée dans projects.phase_progress (jsonb). L'utilisateur
-// peut aussi joindre une note libre (référence à un document,
-// décision, échéance…). Le pourcentage d'avancement de la phase est
-// calculé en direct et sert d'aide visuelle pour décider du passage
-// à la phase suivante.
+// Chaque livrable d'une phase est lié à une ressource concrète de
+// la fiche projet :
+//   - kind="document"    → auto-coché dès qu'au moins 1 document
+//                          est attaché ; bouton « Ajouter un
+//                          document » qui ouvre la section
+//                          documents de la fiche.
+//   - kind="stakeholder" → auto-coché dès qu'au moins 1 partie
+//                          prenante est rattachée ; bouton ouvre
+//                          la section parties prenantes.
+//   - kind="financing"   → auto-coché dès qu'au moins 1 ligne de
+//                          financement existe.
+//   - kind="milestone"   → auto-coché dès qu'au moins 1 jalon.
+//   - kind="task"        → coche manuelle + note libre, stockée
+//                          dans projects.phase_progress.
+//   - kind="field"       → renvoie vers le champ de la fiche
+//                          projet à remplir.
+//
+// L'utilisateur configure le projet en cochant ses livrables phase
+// après phase. La fiche projet se remplit automatiquement.
 // ═══════════════════════════════════════════════════════════════
 
 type ProgressMap = Record<
@@ -36,17 +56,71 @@ type ProgressMap = Record<
   Record<string, { done: boolean; note: string | null }>
 >;
 
+interface ResourceCounts {
+  documents: number;
+  stakeholders: number;
+  financings: number;
+  milestones: number;
+}
+
 interface Props {
   projectId: string;
   currentPhase: ProjectPhase;
   initialProgress: ProgressMap;
+  /** Compteurs des ressources de la fiche projet, pour l'auto-détection. */
+  resourceCounts: ResourceCounts;
   canEdit: boolean;
 }
+
+// Mapping link → URL fragment de la fiche projet
+const LINK_ANCHOR: Record<string, string> = {
+  documents: "documents",
+  stakeholders: "parties-prenantes",
+  financings: "plan-financement",
+  milestones: "etapes-cles",
+  objectifs: "objectifs",
+  lifecycle: "couts-10-ans",
+  bilan: "bilan",
+  commissions: "commissions",
+};
+
+// Mapping link → libellé du CTA
+const LINK_CTA_LABEL: Record<string, string> = {
+  documents: "Ajouter un document",
+  stakeholders: "Associer une partie prenante",
+  financings: "Ajouter un financement",
+  milestones: "Ajouter un jalon",
+  objectifs: "Renseigner les objectifs",
+  lifecycle: "Compléter les coûts 10 ans",
+  bilan: "Compléter le bilan",
+  commissions: "Voir les commissions",
+};
+
+// Icône Lucide par type de livrable
+const KIND_ICON: Record<DeliverableKind, typeof FileText> = {
+  task: ListChecks,
+  document: FileText,
+  stakeholder: Users,
+  financing: Wallet,
+  milestone: Flag,
+  field: PencilLine,
+};
+
+// Libellé en clair par type, pour le badge
+const KIND_LABEL: Record<DeliverableKind, string> = {
+  task: "Tâche",
+  document: "Document",
+  stakeholder: "Partie prenante",
+  financing: "Financement",
+  milestone: "Jalon",
+  field: "À remplir",
+};
 
 export default function PhaseGuide({
   projectId,
   currentPhase,
   initialProgress,
+  resourceCounts,
   canEdit,
 }: Props) {
   const router = useRouter();
@@ -60,12 +134,31 @@ export default function PhaseGuide({
   const guide = PROJECT_PHASE_GUIDE[selected];
 
   const status: "done" | "current" | "future" =
-    selectedIdx < currentIdx ? "done" : selectedIdx === currentIdx ? "current" : "future";
+    selectedIdx < currentIdx
+      ? "done"
+      : selectedIdx === currentIdx
+      ? "current"
+      : "future";
+
+  /** Détecte si un livrable est « rempli » :
+   *  - auto via ressourceCounts pour les types liés
+   *  - via phase_progress pour task/field
+   */
+  function isDeliverableDone(phase: ProjectPhase, idx: number, spec: DeliverableSpec): boolean {
+    if (spec.kind === "document") return resourceCounts.documents > 0 || hasManualDone(phase, idx);
+    if (spec.kind === "stakeholder") return resourceCounts.stakeholders > 0 || hasManualDone(phase, idx);
+    if (spec.kind === "financing") return resourceCounts.financings > 0 || hasManualDone(phase, idx);
+    if (spec.kind === "milestone") return resourceCounts.milestones > 0 || hasManualDone(phase, idx);
+    return hasManualDone(phase, idx);
+  }
+  function hasManualDone(phase: ProjectPhase, idx: number): boolean {
+    return progress[phase]?.[String(idx)]?.done === true;
+  }
 
   const phaseData = progress[selected] ?? {};
   const total = guide.deliverables.length;
   const checkedCount = guide.deliverables.reduce(
-    (n, _, i) => (phaseData[String(i)]?.done ? n + 1 : n),
+    (n, spec, i) => (isDeliverableDone(selected, i, spec) ? n + 1 : n),
     0,
   );
   const pctDone = total > 0 ? Math.round((checkedCount / total) * 100) : 0;
@@ -113,10 +206,9 @@ export default function PhaseGuide({
           const isSelected = phase === selected;
           const isDone = i < currentIdx;
           const isCurrent = i === currentIdx;
-          const ph = progress[phase] ?? {};
           const ptotal = PROJECT_PHASE_GUIDE[phase].deliverables.length;
           const pchecked = PROJECT_PHASE_GUIDE[phase].deliverables.reduce(
-            (n, _, ii) => (ph[String(ii)]?.done ? n + 1 : n),
+            (n, spec, ii) => (isDeliverableDone(phase, ii, spec) ? n + 1 : n),
             0,
           );
           return (
@@ -153,7 +245,7 @@ export default function PhaseGuide({
         })}
       </div>
 
-      {/* Panneau narration + checklist */}
+      {/* Panneau narration + livrables */}
       <div className="pj-phase-guide-panel">
         <header className="pj-phase-guide-head">
           <div className="pj-phase-guide-icon" aria-hidden>
@@ -198,7 +290,7 @@ export default function PhaseGuide({
           </div>
         </div>
 
-        {/* Check-list actionnable */}
+        {/* Livrables actionnables */}
         <div className="pj-phase-guide-block">
           <div className="pj-phase-guide-block-label">
             <CheckCircle2 size={12} aria-hidden />
@@ -207,42 +299,77 @@ export default function PhaseGuide({
             </span>
           </div>
           <ul className="pj-phase-guide-deliverables">
-            {guide.deliverables.map((label, idx) => {
-              const item = phaseData[String(idx)] ?? { done: false, note: null };
+            {guide.deliverables.map((spec, idx) => {
+              const manual = phaseData[String(idx)] ?? { done: false, note: null };
+              const auto = spec.kind !== "task" && spec.kind !== "field" &&
+                (
+                  (spec.kind === "document" && resourceCounts.documents > 0) ||
+                  (spec.kind === "stakeholder" && resourceCounts.stakeholders > 0) ||
+                  (spec.kind === "financing" && resourceCounts.financings > 0) ||
+                  (spec.kind === "milestone" && resourceCounts.milestones > 0)
+                );
+              const done = auto || manual.done;
+              const isManualKind = spec.kind === "task" || spec.kind === "field";
               const key = `${selected}:${idx}`;
               const isSaving = savingKey === key;
+              const Icon = KIND_ICON[spec.kind];
+
               return (
                 <li
                   key={idx}
-                  className={`pj-phase-deliverable${item.done ? " is-done" : ""}`}
+                  className={`pj-phase-deliverable${done ? " is-done" : ""}`}
                 >
                   <button
                     type="button"
                     className="pj-phase-deliverable-check"
-                    onClick={() => toggleDeliverable(selected, idx)}
-                    disabled={!canEdit || isSaving}
-                    aria-label={item.done ? "Marquer comme à faire" : "Marquer comme fait"}
+                    onClick={() => isManualKind && toggleDeliverable(selected, idx)}
+                    disabled={!canEdit || isSaving || (auto && !isManualKind)}
+                    aria-label={
+                      done
+                        ? "Marquer comme à faire"
+                        : "Marquer comme fait"
+                    }
+                    title={
+                      auto && !isManualKind
+                        ? "Auto-coché : ressource présente dans la fiche projet"
+                        : undefined
+                    }
                   >
                     {isSaving ? (
                       <Loader2 size={14} className="spin" />
-                    ) : item.done ? (
+                    ) : done ? (
                       <CheckCircle2 size={16} />
                     ) : (
                       <Circle size={16} />
                     )}
                   </button>
                   <div className="pj-phase-deliverable-body">
-                    <span className="pj-phase-deliverable-label">{label}</span>
-                    {canEdit ? (
+                    <div className="pj-phase-deliverable-line">
+                      <span className="pj-phase-deliverable-kind" aria-hidden>
+                        <Icon size={10} />
+                        {KIND_LABEL[spec.kind]}
+                      </span>
+                      <span className="pj-phase-deliverable-label">{spec.label}</span>
+                    </div>
+                    {/* Note libre pour les types manuels */}
+                    {isManualKind && canEdit ? (
                       <NoteInput
-                        defaultValue={item.note ?? ""}
+                        defaultValue={manual.note ?? ""}
                         onSave={(v) => saveNote(selected, idx, v)}
-                        placeholder="Note, référence document, n° de délibération…"
+                        placeholder="Note, référence, n° de délibération…"
                       />
-                    ) : (
-                      item.note && (
-                        <span className="pj-phase-deliverable-note">{item.note}</span>
-                      )
+                    ) : manual.note ? (
+                      <span className="pj-phase-deliverable-note">{manual.note}</span>
+                    ) : null}
+                    {/* CTA vers la fiche projet pour les types liés */}
+                    {spec.link && (
+                      <a
+                        href={`?tab=fiche#${LINK_ANCHOR[spec.link]}`}
+                        className="pj-phase-deliverable-cta"
+                      >
+                        {done && !isManualKind ? "Voir / compléter" : LINK_CTA_LABEL[spec.link]}
+                        <ArrowRight size={11} aria-hidden />
+                      </a>
                     )}
                   </div>
                 </li>
@@ -277,7 +404,6 @@ export default function PhaseGuide({
   );
 }
 
-// ─── Petit input note avec save sur blur ───
 function NoteInput({
   defaultValue,
   onSave,

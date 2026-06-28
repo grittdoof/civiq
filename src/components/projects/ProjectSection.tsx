@@ -21,6 +21,8 @@ interface Props {
   hint?: string;
   /** Slot pour un badge / petit élément à droite du titre. */
   endSlot?: ReactNode;
+  /** id HTML pour les anchors de navigation depuis PhaseGuide. */
+  id?: string;
   className?: string;
   children: ReactNode;
 }
@@ -31,11 +33,13 @@ export default function ProjectSection({
   count,
   hint,
   endSlot,
+  id,
   className,
   children,
 }: Props) {
   return (
     <section
+      id={id}
       className={`civiq-card pj-flat-section${
         className ? " " + className : ""
       }`}

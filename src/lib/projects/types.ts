@@ -88,11 +88,44 @@ export const PROJECT_PHASE_HINTS: Record<ProjectPhase, string> = {
 // attendus, condition de passage à la phase suivante. Affiché dans
 // le panneau PhaseGuide juste sous le stepper.
 
+// ─── Livrables actionnables typés ───
+// Chaque livrable d'une phase est lié à une ressource concrète de
+// la fiche projet. Certains types s'auto-cochent dès qu'au moins
+// une ressource correspondante existe (ex : ≥ 1 document attaché).
+// Les types « task » et « field » restent gérés via phase_progress.
+
+export type DeliverableKind =
+  | "task"          // tâche libre — coche manuelle + note
+  | "document"      // auto-coche si ≥ 1 document attaché au projet
+  | "stakeholder"   // auto-coche si ≥ 1 partie prenante
+  | "financing"     // auto-coche si ≥ 1 ligne de financement
+  | "milestone"     // auto-coche si ≥ 1 jalon
+  | "field";        // champ de la fiche projet à remplir
+
+export type DeliverableLink =
+  | "documents"
+  | "stakeholders"
+  | "financings"
+  | "milestones"
+  | "objectifs"
+  | "lifecycle"
+  | "bilan"
+  | "commissions";
+
+export interface DeliverableSpec {
+  /** Libellé court visible à l'utilisateur. */
+  label: string;
+  /** Type → détermine l'UI et l'auto-détection. */
+  kind: DeliverableKind;
+  /** Section cible vers laquelle pointe le bouton « Compléter ». */
+  link?: DeliverableLink;
+}
+
 export interface PhaseGuideEntry {
   /** Phrase qui répond à « C'est quoi cette étape ? » */
   objective: string;
-  /** Livrables-type attendus (puce par puce). */
-  deliverables: string[];
+  /** Livrables-type attendus (chacun typé). */
+  deliverables: DeliverableSpec[];
   /** Critère pour basculer dans la phase suivante (porte). */
   gate: string;
   /** Ce qu'on a généralement DÉJÀ fait en arrivant ici (rassurant). */
@@ -105,9 +138,9 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Caractériser l'opportunité pour décider si elle mérite d'être étudiée. C'est l'étape la moins coûteuse — le rôle ici est de cadrer et trier.",
     deliverables: [
-      "Fiche d'opportunité (1 page) : enjeu, public visé, ordre de grandeur du budget.",
-      "Désignation d'un pilote élu et d'un pilote agent.",
-      "Avis informel des parties prenantes clés.",
+      { label: "Fiche d'opportunité (1 page) : enjeu, public visé, ordre de grandeur du budget.", kind: "document", link: "documents" },
+      { label: "Désignation d'un pilote élu et d'un pilote agent.", kind: "field", link: "objectifs" },
+      { label: "Avis informel des parties prenantes clés.", kind: "stakeholder", link: "stakeholders" },
     ],
     gate:
       "Le projet est jugé suffisamment pertinent pour engager une étude de faisabilité.",
@@ -117,10 +150,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Vérifier que le projet est techniquement faisable, juridiquement compétent et économiquement soutenable. C'est l'étape qui transforme une idée en programme.",
     deliverables: [
-      "Étude de faisabilité (technique, juridique, financière).",
-      "Plusieurs scénarios chiffrés avec leurs coûts globaux sur 10 ans.",
-      "Pré-identification des financeurs potentiels.",
-      "Compétence confirmée (communale / intercommunale / partagée).",
+      { label: "Étude de faisabilité (technique, juridique, financière).", kind: "document", link: "documents" },
+      { label: "Plusieurs scénarios chiffrés avec leurs coûts globaux sur 10 ans.", kind: "field", link: "lifecycle" },
+      { label: "Pré-identification des financeurs potentiels.", kind: "financing", link: "financings" },
+      { label: "Compétence confirmée (communale / intercommunale / partagée).", kind: "task" },
     ],
     gate:
       "Un scénario est sélectionné par les élus et est prêt à être délibéré.",
@@ -130,10 +163,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Engager la commune politiquement et budgétairement. Une fois le budget voté, le projet est officiel et son périmètre est verrouillé.",
     deliverables: [
-      "Délibération de principe au Conseil municipal.",
-      "Inscription du projet au PPI (Plan Pluriannuel d'Investissement).",
-      "Autorisation de programme et crédits de paiement votés.",
-      "Information publique du lancement.",
+      { label: "Délibération de principe au Conseil municipal.", kind: "document", link: "documents" },
+      { label: "Inscription du projet au PPI (Plan Pluriannuel d'Investissement).", kind: "task" },
+      { label: "Autorisation de programme et crédits de paiement votés.", kind: "milestone", link: "milestones" },
+      { label: "Information publique du lancement.", kind: "task" },
     ],
     gate:
       "Le budget est voté et les crédits sont disponibles pour engager la suite.",
@@ -143,10 +176,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Sécuriser le tour de table financier AVANT d'engager juridiquement les marchés. Toute notification de marché avant l'AR du dossier compromet l'éligibilité.",
     deliverables: [
-      "Dépôt des dossiers de subvention (DETR, DSIL, Département, Région, etc.).",
-      "Accusés de réception (AR) des dossiers complets.",
-      "Notifications d'attribution ou de refus.",
-      "Plan de financement consolidé et validé.",
+      { label: "Dépôt des dossiers de subvention (DETR, DSIL, Département, Région…).", kind: "financing", link: "financings" },
+      { label: "Accusés de réception (AR) des dossiers complets.", kind: "task" },
+      { label: "Notifications d'attribution ou de refus.", kind: "task" },
+      { label: "Plan de financement consolidé et validé.", kind: "financing", link: "financings" },
     ],
     gate:
       "Porte de financement : autofinancement assumé OU au moins 1 subvention notifiée. Aucun marché ne doit être notifié tant que l'AR n'est pas reçu.",
@@ -156,10 +189,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Designer le projet (maîtrise d'œuvre) et passer les marchés de travaux dans le respect de la commande publique.",
     deliverables: [
-      "Désignation du maître d'œuvre.",
-      "APS, APD, PRO (avant-projet sommaire, définitif, projet).",
-      "Publication des marchés de travaux (BOAMP/JOUE).",
-      "Analyse des offres et attribution.",
+      { label: "Désignation du maître d'œuvre.", kind: "stakeholder", link: "stakeholders" },
+      { label: "APS, APD, PRO (avant-projet sommaire, définitif, projet).", kind: "document", link: "documents" },
+      { label: "Publication des marchés de travaux (BOAMP/JOUE).", kind: "milestone", link: "milestones" },
+      { label: "Analyse des offres et attribution.", kind: "document", link: "documents" },
     ],
     gate:
       "Les marchés de travaux sont notifiés et l'ordre de service peut être donné.",
@@ -170,10 +203,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Piloter le chantier jusqu'à la réception. L'objectif est de tenir le triptyque coût / délai / qualité tout en gardant trace pour le bilan.",
     deliverables: [
-      "Ordre de service de démarrage.",
-      "Comptes-rendus de chantier réguliers.",
-      "Avenants éventuels approuvés.",
-      "PV de réception et levée des réserves.",
+      { label: "Ordre de service de démarrage.", kind: "milestone", link: "milestones" },
+      { label: "Comptes-rendus de chantier réguliers.", kind: "document", link: "documents" },
+      { label: "Avenants éventuels approuvés.", kind: "document", link: "documents" },
+      { label: "PV de réception et levée des réserves.", kind: "document", link: "documents" },
     ],
     gate:
       "Les travaux sont réceptionnés et la garantie de parfait achèvement court.",
@@ -183,10 +216,10 @@ export const PROJECT_PHASE_GUIDE: Record<ProjectPhase, PhaseGuideEntry> = {
     objective:
       "Tirer les enseignements du projet : coût réel vs prévu, retours d'usage, transmission aux futures équipes. C'est l'étape la plus oubliée et la plus utile pour la suite.",
     deliverables: [
-      "Coût réel saisi et écart vs budget initial expliqué.",
-      "Bilan d'utilisation (premiers mois d'exploitation).",
-      "Archivage des pièces administratives.",
-      "Réintégration des données de coût d'exploitation au PPI futur.",
+      { label: "Coût réel saisi et écart vs budget initial expliqué.", kind: "field", link: "bilan" },
+      { label: "Bilan d'utilisation (premiers mois d'exploitation).", kind: "document", link: "documents" },
+      { label: "Archivage des pièces administratives.", kind: "document", link: "documents" },
+      { label: "Réintégration des données de coût d'exploitation au PPI futur.", kind: "task" },
     ],
     gate:
       "Le bilan est validé et le projet peut être archivé sereinement.",

@@ -3,7 +3,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Edit, Ticket, Gavel, Info,
   Target, Coins, Users, Wallet, LineChart, Flag,
-  ClipboardCheck, Files, Bell, History,
+  ClipboardCheck, Files, Bell, History, FolderOpen,
 } from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -133,6 +133,15 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
             <Link href={`/admin/projects/${p.id}/edit`} className="civiq-btn civiq-btn-outline">
               <Edit size={14} /> Modifier
             </Link>
+            {activeTab === "phases" && (
+              <Link
+                href={`/admin/projects/${p.id}?tab=fiche`}
+                className="civiq-btn civiq-btn-outline"
+                prefetch={false}
+              >
+                <FolderOpen size={14} /> Voir la fiche projet
+              </Link>
+            )}
             <a
               href={`/projects-pdf?kind=project&id=${p.id}`}
               className="civiq-btn civiq-btn-outline"
@@ -177,45 +186,37 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
         />
       )}
 
-      {/* ── Onglets : Phases (zone de travail) / Fiche projet (résumé) ── */}
-      <div className="pj-tabs" role="tablist" aria-label="Vue projet">
-        <Link
-          href={`/admin/projects/${p.id}`}
-          className={`pj-tab${activeTab === "phases" ? " is-active" : ""}`}
-          role="tab"
-          aria-selected={activeTab === "phases"}
-          prefetch={false}
-        >
-          <span className="pj-tab-num">1</span>
-          <span>Phases du projet</span>
-          <span className="pj-tab-hint">Zone de travail guidée</span>
-        </Link>
-        <Link
-          href={`/admin/projects/${p.id}?tab=fiche`}
-          className={`pj-tab${activeTab === "fiche" ? " is-active" : ""}`}
-          role="tab"
-          aria-selected={activeTab === "fiche"}
-          prefetch={false}
-        >
-          <span className="pj-tab-num">2</span>
-          <span>Fiche projet</span>
-          <span className="pj-tab-hint">Résumé consolidé</span>
-        </Link>
-      </div>
-
       {activeTab === "phases" && (
         <PhaseGuide
           projectId={p.id}
           currentPhase={p.phase}
           initialProgress={p.phase_progress ?? {}}
+          resourceCounts={{
+            documents: detail.documents.length,
+            stakeholders: detail.stakeholders.length,
+            financings: detail.financings.length,
+            milestones: detail.milestones.length,
+          }}
           canEdit={canEdit}
         />
+      )}
+
+      {activeTab === "fiche" && (
+        <div className="pj-fiche-back">
+          <Link
+            href={`/admin/projects/${p.id}`}
+            className="civiq-btn civiq-btn-ghost civiq-btn-sm"
+          >
+            <ArrowLeft size={13} /> Retour aux phases
+          </Link>
+        </div>
       )}
 
       {activeTab === "fiche" && (
       <div className="pj-detail-grid">
         {/* ─── Rangée 1 : Objectifs en pleine largeur ─── */}
         <ProjectSection
+          id="objectifs"
           title="Objectifs"
           icon={<Target size={16} strokeWidth={1.9} />}
           hint="Pourquoi ce projet existe et ce qu'il doit accomplir."
@@ -233,6 +234,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
         {/* ─── Rangée 2 : Étapes clés (2/3) + Documents (1/3) ─── */}
         <div className="pj-detail-row pj-detail-row-2-1">
           <ProjectSection
+            id="etapes-cles"
             title="Étapes clés"
             icon={<Flag size={16} strokeWidth={1.9} />}
             count={detail.milestones.length}
@@ -259,6 +261,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
           </ProjectSection>
 
           <ProjectSection
+            id="documents"
             title="Documents"
             icon={<Files size={16} strokeWidth={1.9} />}
             count={detail.documents.length}
@@ -308,6 +311,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
 
         {/* ── Plan de financement (ouvert — essentiel pour pilotage) ── */}
         <ProjectSection
+          id="plan-financement"
           title="Plan de financement"
           icon={<Wallet size={16} strokeWidth={1.9} />}
           count={detail.financings.length}
@@ -326,6 +330,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
 
         {/* ── Parties prenantes ── */}
         <ProjectSection
+          id="parties-prenantes"
           title="Parties prenantes"
           icon={<Users size={16} strokeWidth={1.9} />}
           count={detail.stakeholders.length}
@@ -342,8 +347,9 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
           )}
         </ProjectSection>
 
-        {/* ── Coûts 10 ans (plié) ── */}
+        {/* ── Coûts 10 ans ── */}
         <ProjectSection
+          id="couts-10-ans"
           title="Coûts de fonctionnement & d'entretien sur 10 ans"
           icon={<LineChart size={16} strokeWidth={1.9} />}
           hint="Élément clé d'arbitrage — saisis en euros constants."
@@ -369,6 +375,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
         {/* ── Bilan (à partir de realisation) ── */}
         {(p.phase === "realisation" || p.phase === "bilan_cloture") && (
           <ProjectSection
+            id="bilan"
             title="Bilan de réalisation"
             icon={<ClipboardCheck size={16} strokeWidth={1.9} />}
             hint="Coût réel, écart vs budget initial et explications."
@@ -388,6 +395,7 @@ export default async function ProjectDetailPage({ params, searchParams }: PagePr
 
         {/* ── Commissions (plié) ── */}
         <ProjectSection
+          id="commissions"
           title="Commissions qui suivent ce projet"
           icon={<Gavel size={16} strokeWidth={1.9} />}
           count={detail.commissions.length}

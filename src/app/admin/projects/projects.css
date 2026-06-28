@@ -4026,3 +4026,66 @@ a.pj-commission-badge:hover {
   color: var(--civiq-text-light, #666);
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Livrables typés — badge kind + CTA vers la fiche projet
+   ═══════════════════════════════════════════════════════════════ */
+.pj-phase-deliverable-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pj-phase-deliverable-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: var(--civiq-card, #fff);
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--civiq-text-light, #888);
+  flex-shrink: 0;
+  border: 1px solid var(--civiq-border, #e8e5de);
+}
+.pj-phase-deliverable.is-done .pj-phase-deliverable-kind {
+  background: oklch(0.94 0.06 145);
+  border-color: oklch(0.85 0.10 145);
+  color: oklch(0.42 0.16 145);
+}
+.pj-phase-deliverable-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--civiq-primary, #1a2744);
+  text-decoration: none;
+  transition: gap 0.18s ease, color 0.15s;
+  align-self: flex-start;
+}
+.pj-phase-deliverable-cta:hover {
+  gap: 7px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pj-phase-deliverable.is-done .pj-phase-deliverable-cta {
+  color: oklch(0.42 0.16 145);
+}
+
+/* Scroll margin pour que l'anchor scroll laisse de la place
+   sous le header sticky de l'admin shell. */
+.pj-flat-section[id] {
+  scroll-margin-top: 80px;
+}
+
+/* Header du retour aux phases */
+.pj-fiche-back {
+  max-width: 920px;
+  margin: 12px auto 0;
+  width: 100%;
+}
