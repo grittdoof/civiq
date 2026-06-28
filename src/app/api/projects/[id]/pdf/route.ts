@@ -156,9 +156,6 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const slug = p.titre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   const fileName = `projet-${slug || "fiche"}.pdf`;
 
-  // pdfData not used directly here but kept to ensure types — ensure phaseLabel used
-  void PROJECT_PHASE_LABELS;
-
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
     headers: {
