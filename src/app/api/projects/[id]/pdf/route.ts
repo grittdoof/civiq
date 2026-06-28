@@ -60,6 +60,10 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     const deliverables = guide.deliverables.map((spec, di) => {
       const manual = phaseData[String(di)] ?? { done: false, note: null };
       let done = manual.done;
+      if (spec.kind === "identity" && p.titre && p.titre !== "Sans titre") done = true;
+      if (spec.kind === "field" && spec.link === "objectifs" && (p.pilote_elu || p.pilote_agent)) done = true;
+      if (spec.kind === "field" && spec.link === "lifecycle" && p.budget_estime > 0) done = true;
+      if (spec.kind === "field" && spec.link === "bilan" && (p.cout_reel !== null || p.explication_ecart)) done = true;
       if (spec.kind === "document" && resourceCounts.documents > 0) done = true;
       if (spec.kind === "stakeholder" && resourceCounts.stakeholders > 0) done = true;
       if (spec.kind === "financing" && resourceCounts.financings > 0) done = true;
@@ -125,6 +129,11 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         role: ps.role,
         phase: ps.phase,
       })),
+    documents: detail.documents.map((d) => ({
+      nom: d.nom,
+      type: d.type,
+      uploaded_at: d.uploaded_at,
+    })),
     cout_reel: p.cout_reel,
     ecart_value: ecart?.value ?? null,
     ecart_pct: ecart?.pct ?? null,

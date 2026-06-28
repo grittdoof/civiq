@@ -1955,32 +1955,6 @@ a.pj-commission-badge:hover {
   animation: pj-spin 0.8s linear infinite;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   FinancingsEditor — éligibilité + rangées expandables
-   ═══════════════════════════════════════════════════════════════ */
-.pj-financings-wrap { display: flex; flex-direction: column; gap: 12px; }
-
-.pj-financings-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 14px;
-  background: oklch(0.97 0.04 25);
-  border: 1px solid oklch(0.85 0.12 25);
-  border-radius: 10px;
-  color: oklch(0.42 0.16 25);
-  font-size: 13px;
-  line-height: 1.5;
-  animation: pj-alert-slide 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-}
-@keyframes pj-alert-slide {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.pj-financings-alert > svg { flex-shrink: 0; margin-top: 1px; }
-.pj-financings-alert strong { font-weight: 700; }
-
-.pj-financings-table .pj-row-toggle-cell { width: 32px; padding: 0 4px; }
 .pj-row-toggle {
   width: 26px; height: 26px;
   border: none;
@@ -3817,81 +3791,6 @@ a.pj-commission-badge:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Onglets Phases / Fiche projet
-   ═══════════════════════════════════════════════════════════════ */
-.pj-tabs {
-  display: flex;
-  gap: 10px;
-  margin: 18px auto 14px;
-  max-width: 920px;
-  width: 100%;
-}
-.pj-tab {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  background: var(--civiq-card, #fff);
-  border: 1.5px solid var(--civiq-border, #e8e5de);
-  border-radius: 12px;
-  text-decoration: none;
-  color: var(--civiq-text-light, #888);
-  font-family: inherit;
-  transition: border-color 0.18s, color 0.18s, background 0.18s, transform 0.1s;
-  cursor: pointer;
-  min-width: 0;
-}
-.pj-tab:hover:not(.is-active) {
-  border-color: var(--civiq-primary, #1a2744);
-  color: var(--civiq-text, #1a2744);
-}
-.pj-tab.is-active {
-  border-color: var(--civiq-primary, #1a2744);
-  background: var(--civiq-primary, #1a2744);
-  color: #fff;
-}
-.pj-tab-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: var(--civiq-border-light, #f5f3ed);
-  color: var(--civiq-text-light, #888);
-  font-size: 13px;
-  font-weight: 700;
-  flex-shrink: 0;
-  transition: background 0.18s, color 0.18s;
-}
-.pj-tab.is-active .pj-tab-num {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
-.pj-tab > span:nth-child(2) {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: -0.005em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pj-tab-hint {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-@media (max-width: 720px) {
-  .pj-tab-hint { display: none; }
-  .pj-tab { padding: 12px 14px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

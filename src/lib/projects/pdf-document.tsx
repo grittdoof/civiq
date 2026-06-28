@@ -10,6 +10,7 @@ import {
   STAKEHOLDER_TYPE_LABELS,
   FINANCING_STATUS_LABELS,
   type FinancingStatus,
+  type ProjectDocumentType,
   type ProjectPhase,
   type StakeholderRole,
   type StakeholderType,
@@ -91,6 +92,7 @@ export interface ProjectPdfData {
   milestones: Array<{ phase: ProjectPhase; libelle: string; echeance: string | null; fait: boolean }>;
   lifecycle: Array<{ annee: number; cout_fonctionnement: number; cout_entretien: number }>;
   stakeholders: Array<{ nom: string; type: StakeholderType; role: StakeholderRole; phase: ProjectPhase | null }>;
+  documents: Array<{ nom: string; type: ProjectDocumentType; uploaded_at: string }>;
 
   cout_reel: number | null;
   ecart_value: number | null;
@@ -318,7 +320,30 @@ export function ProjectPDF(props: ProjectPdfData) {
           )}
         </View>
 
-        {/* 8. Bilan (si applicable) */}
+        {/* 8. Documents */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Documents attachés</Text>
+          {props.documents.length === 0 ? (
+            <Text style={s.para}>Aucun document attaché.</Text>
+          ) : (
+            <>
+              <View style={s.trHead}>
+                <Text style={[s.th, { flex: 3 }]}>Document</Text>
+                <Text style={[s.th, { flex: 2 }]}>Type</Text>
+                <Text style={[s.th, { flex: 2 }]}>Ajouté le</Text>
+              </View>
+              {props.documents.map((d, i) => (
+                <View key={i} style={s.tr}>
+                  <Text style={[s.td, { flex: 3 }]}>{d.nom}</Text>
+                  <Text style={[s.td, { flex: 2 }]}>{labelDocumentType(d.type)}</Text>
+                  <Text style={[s.td, { flex: 2 }]}>{formatDate(d.uploaded_at)}</Text>
+                </View>
+              ))}
+            </>
+          )}
+        </View>
+
+        {/* 9. Bilan (si applicable) */}
         {props.show_bilan && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>Bilan après réalisation</Text>
@@ -345,4 +370,19 @@ export function ProjectPDF(props: ProjectPdfData) {
       </Page>
     </Document>
   );
+}
+
+function labelDocumentType(type: ProjectDocumentType): string {
+  switch (type) {
+    case "fiche_projet": return "Fiche projet";
+    case "deliberation": return "Délibération";
+    case "devis": return "Devis";
+    case "plan_financement": return "Plan de financement";
+    case "autre": return "Autre";
+    default: return type;
+  }
+}
+
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("fr-FR");
 }
