@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight, ArrowRight, CheckCircle2, Circle, FolderOpen, FileText, FileDown } from "lucide-react";
+import { ChevronRight, ArrowRight, CheckCircle2, Circle, MinusCircle, FolderOpen, FileText, FileDown } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { getProject } from "@/lib/projects/queries";
@@ -11,6 +11,11 @@ import {
   type ProjectPhase,
   type DeliverableKind,
 } from "@/lib/projects/types";
+import {
+  computeDeliverableState,
+  computePhaseProgress,
+  type PhaseProgress,
+} from "@/lib/projects/progress";
 import ProjectStepper from "@/components/projects/ProjectStepper";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import "../../../projects.css";
@@ -64,10 +69,7 @@ export default async function ProjectPhasePage({ params }: Props) {
   if (!phasesForType.includes(phase)) notFound();
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
-  const progress = (p.phase_progress ?? {}) as Record<
-    string,
-    Record<string, { done: boolean; note: string | null }>
-  >;
+  const progress = (p.phase_progress ?? {}) as PhaseProgress;
   const resourceCounts = {
     documents: detail.documents.length,
     stakeholders: detail.stakeholders.length,
@@ -75,25 +77,22 @@ export default async function ProjectPhasePage({ params }: Props) {
     milestones: detail.milestones.length,
   };
 
-  function isDone(idx: number, kind: DeliverableKind): boolean {
-    const manual = progress[phase]?.[String(idx)]?.done === true;
-    if (manual) return true;
-    if (kind === "document" && resourceCounts.documents > 0) return true;
-    if (kind === "stakeholder" && resourceCounts.stakeholders > 0) return true;
-    if (kind === "financing" && resourceCounts.financings > 0) return true;
-    if (kind === "milestone" && resourceCounts.milestones > 0) return true;
-    return false;
-  }
-
   const guide = PROJECT_PHASE_GUIDE[phase];
-  const doneCount = guide.deliverables.reduce(
-    (n, d, i) => (isDone(i, d.kind) ? n + 1 : n),
-    0,
+
+  // États individuels (done + applicable + note) par index de livrable
+  const deliverableStates = guide.deliverables.map((spec, idx) =>
+    computeDeliverableState(progress, phase, idx, spec, p, resourceCounts),
   );
-  const total = guide.deliverables.length;
-  const pctDone = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-  const allDone = doneCount === total && total > 0;
-  const firstTodoIdx = guide.deliverables.findIndex((d, i) => !isDone(i, d.kind));
+
+  // Résumé obligatoire applicable uniquement
+  const summary = computePhaseProgress(
+    progress, phase, guide.deliverables, p, resourceCounts,
+  );
+  const doneCount = summary.done;
+  const total = summary.total;
+  const pctDone = summary.pct;
+  const allDone = total === 0 || doneCount === total;
+  const firstTodoIdx = summary.firstTodoIdx;
   const firstTodo = firstTodoIdx >= 0 ? guide.deliverables[firstTodoIdx] : null;
   const remaining = Math.max(total - doneCount, 0);
 
@@ -193,23 +192,43 @@ export default async function ProjectPhasePage({ params }: Props) {
       {/* Liste verticale des livrables */}
       <ul className="pj-flow-deliverables">
         {guide.deliverables.map((spec, idx) => {
-          const done = isDone(idx, spec.kind);
-          const note = progress[phase]?.[String(idx)]?.note;
+          const state = deliverableStates[idx];
+          const { done, applicable, note } = state;
+          const cardClasses = [
+            "pj-flow-deliverable-card",
+            done && applicable ? "is-done" : "",
+            !applicable ? "is-na" : "",
+            spec.optional ? "is-optional" : "",
+          ].filter(Boolean).join(" ");
           return (
             <li key={idx} className="pj-flow-deliverable-item">
               <Link
                 href={`/admin/projects/${p.id}/phase/${phase}/${idx}`}
-                className={`pj-flow-deliverable-card${done ? " is-done" : ""}`}
+                className={cardClasses}
                 style={{ ["--pj-item-index" as string]: idx }}
                 prefetch={false}
               >
                 <span className="pj-flow-deliverable-check" aria-hidden>
-                  {done ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                  {!applicable ? (
+                    <MinusCircle size={20} />
+                  ) : done ? (
+                    <CheckCircle2 size={20} />
+                  ) : (
+                    <Circle size={20} />
+                  )}
                 </span>
                 <span className="pj-flow-deliverable-body">
                   <span className="pj-flow-deliverable-kind">
                     <FileText size={10} aria-hidden />
                     {KIND_LABEL[spec.kind]}
+                    {spec.optional && (
+                      <span className="pj-flow-deliverable-badge"> · optionnel</span>
+                    )}
+                    {!applicable && (
+                      <span className="pj-flow-deliverable-badge pj-flow-deliverable-badge-na">
+                        {" "}· non applicable
+                      </span>
+                    )}
                   </span>
                   <span className="pj-flow-deliverable-label">{spec.label}</span>
                   {note && (

@@ -17,6 +17,8 @@ import {
   PiggyBank,
   Loader2,
   CheckCircle2,
+  MinusCircle,
+  RotateCcw,
   ArrowRight,
   Info,
   Save,
@@ -109,7 +111,7 @@ interface Props {
   phase: ProjectPhase;
   deliverableIdx: number;
   spec: DeliverableSpec;
-  manual: { done: boolean; note: string | null };
+  manual: { done: boolean; note: string | null; applicable: boolean };
   currentProject: CurrentProject;
   profilesDirectory: Array<{
     id: string;
@@ -133,10 +135,30 @@ export default function DeliverablePage({
   nextPhase,
   canEdit,
 }: Props) {
+  const router = useRouter();
   const Icon = KIND_ICON[spec.kind];
+  const [applicable, setApplicable] = useState(manual.applicable);
+  const [togglingNa, setTogglingNa] = useState(false);
+
+  async function toggleApplicable() {
+    if (togglingNa) return;
+    const next = !applicable;
+    setTogglingNa(true);
+    setApplicable(next);
+    try {
+      await persistProgress(projectId, phase, deliverableIdx, {
+        done: manual.done,
+        note: manual.note,
+        applicable: next,
+      });
+      router.refresh();
+    } finally {
+      setTogglingNa(false);
+    }
+  }
 
   return (
-    <article className="pj-deliv-page">
+    <article className={`pj-deliv-page${!applicable ? " is-na" : ""}`}>
       <header className="pj-deliv-head">
         <span className="pj-deliv-kind-badge">
           <Icon size={12} />
@@ -144,6 +166,37 @@ export default function DeliverablePage({
         </span>
         <h2 className="pj-deliv-title">{spec.label}</h2>
         <p className="pj-deliv-help">{contextHelp(spec.kind)}</p>
+        {canEdit && (
+          <button
+            type="button"
+            className="pj-deliv-na-toggle"
+            onClick={toggleApplicable}
+            disabled={togglingNa}
+            title={
+              applicable
+                ? "Marquer ce livrable comme non applicable à votre projet"
+                : "Rétablir ce livrable comme applicable"
+            }
+          >
+            {togglingNa ? (
+              <Loader2 size={12} className="spin" />
+            ) : applicable ? (
+              <MinusCircle size={12} />
+            ) : (
+              <RotateCcw size={12} />
+            )}
+            <span>{applicable ? "Marquer non applicable" : "Rétablir comme applicable"}</span>
+          </button>
+        )}
+        {!applicable && (
+          <div className="pj-deliv-na-banner" role="status">
+            <MinusCircle size={14} aria-hidden />
+            <span>
+              Livrable marqué <strong>non applicable</strong>. Il ne compte plus
+              dans la progression obligatoire de la phase.
+            </span>
+          </div>
+        )}
       </header>
 
       <div className="pj-deliv-body">
@@ -1420,7 +1473,7 @@ async function persistProgress(
   projectId: string,
   phase: ProjectPhase,
   idx: number,
-  entry: { done: boolean; note: string | null },
+  entry: { done: boolean; note: string | null; applicable?: boolean },
 ) {
   const r = await fetch(`/api/projects/${projectId}`);
   if (!r.ok) return;
@@ -1429,7 +1482,7 @@ async function persistProgress(
   };
   const progress = (data.project?.phase_progress ?? {}) as Record<
     string,
-    Record<string, { done: boolean; note: string | null }>
+    Record<string, { done: boolean; note: string | null; applicable?: boolean }>
   >;
   const phaseObj = { ...(progress[phase] ?? {}) };
   phaseObj[String(idx)] = entry;

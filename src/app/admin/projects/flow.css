@@ -625,6 +625,67 @@
   line-height: 1.55;
 }
 
+/* ── Toggle « non applicable » + bandeau (livrable) ── */
+.pj-deliv-na-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--civiq-text-light, #888);
+  border: 1px dashed var(--civiq-border, #e2dfd6);
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.pj-deliv-na-toggle:hover:not(:disabled) {
+  color: var(--civiq-text, #1a2744);
+  border-color: var(--civiq-text-light, #888);
+  background: var(--civiq-border-light, #f5f3ed);
+}
+.pj-deliv-na-toggle:disabled { opacity: 0.5; cursor: wait; }
+
+.pj-deliv-na-banner {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--civiq-border-light, #f5f3ed);
+  border-left: 3px solid var(--civiq-text-light, #888);
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--civiq-text, #1a2744);
+}
+.pj-deliv-na-banner strong { font-weight: 700; }
+
+.pj-deliv-page.is-na .pj-deliv-body {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+
+/* ── Carte livrable : variants optionnel & non applicable ── */
+.pj-flow-deliverable-card.is-na {
+  opacity: 0.55;
+  background: var(--civiq-border-light, #f5f3ed);
+}
+.pj-flow-deliverable-card.is-na .pj-flow-deliverable-label {
+  text-decoration: line-through;
+  text-decoration-color: var(--civiq-text-light, #aaa);
+}
+.pj-flow-deliverable-badge {
+  font-weight: 500;
+  opacity: 0.75;
+  font-size: 9.5px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pj-flow-deliverable-badge-na { color: var(--civiq-text-light, #888); }
+
 .pj-deliv-body {
   display: flex;
   flex-direction: column;

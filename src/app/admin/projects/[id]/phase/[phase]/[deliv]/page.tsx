@@ -6,11 +6,12 @@ import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getProject } from "@/lib/projects/queries";
 import {
-  PROJECT_PHASES,
+  PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_GUIDE,
   type ProjectPhase,
 } from "@/lib/projects/types";
+import type { PhaseProgress } from "@/lib/projects/progress";
 import DeliverablePage from "@/components/projects/DeliverablePage";
 import "../../../../projects.css";
 import "../../../../flow.css";
@@ -30,7 +31,7 @@ interface Props {
 export default async function DeliverableFocusPage({ params }: Props) {
   const { id, phase: phaseParam, deliv } = await params;
   const phase = phaseParam as ProjectPhase;
-  if (!PROJECT_PHASES.includes(phase)) notFound();
+  if (!(phase in PROJECT_PHASE_LABELS)) notFound();
   const idx = Number.parseInt(deliv, 10);
   if (Number.isNaN(idx)) notFound();
 
@@ -44,6 +45,8 @@ export default async function DeliverableFocusPage({ params }: Props) {
   const detail = await getProject(ctx.communeId, id);
   if (!detail.project) notFound();
   const p = detail.project;
+  const phasesForType = PROJECT_PHASES_BY_TYPE[p.type];
+  if (!phasesForType.includes(phase)) notFound();
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
   const guide = PROJECT_PHASE_GUIDE[phase];
@@ -57,17 +60,19 @@ export default async function DeliverableFocusPage({ params }: Props) {
     .select("id, full_name, job_title")
     .eq("commune_id", ctx.communeId);
 
-  const phaseIdx = PROJECT_PHASES.indexOf(phase);
+  const phaseIdx = phasesForType.indexOf(phase);
   const nextDelivIdx = idx + 1 < guide.deliverables.length ? idx + 1 : null;
-  const nextPhase = phaseIdx < PROJECT_PHASES.length - 1
-    ? PROJECT_PHASES[phaseIdx + 1]
+  const nextPhase = phaseIdx < phasesForType.length - 1
+    ? phasesForType[phaseIdx + 1]
     : null;
 
-  const progress = (p.phase_progress ?? {}) as Record<
-    string,
-    Record<string, { done: boolean; note: string | null }>
-  >;
-  const manual = progress[phase]?.[String(idx)] ?? { done: false, note: null };
+  const progress = (p.phase_progress ?? {}) as PhaseProgress;
+  const rawManual = progress[phase]?.[String(idx)] ?? { done: false, note: null };
+  const manual = {
+    done: rawManual.done,
+    note: rawManual.note,
+    applicable: rawManual.applicable !== false,
+  };
 
   return (
     <main className="civiq-main pj-flow-page">
