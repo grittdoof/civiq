@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Info } from "lucide-react";
+import { ArrowLeft, Info, Archive } from "lucide-react";
 import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -13,6 +13,7 @@ import {
 import { formatEuros } from "@/lib/projects/cost-calc";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import ExportPpiButton from "@/components/projects/ExportPpiButton";
+import PpiInclusionToggle from "@/components/projects/PpiInclusionToggle";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/ppi — Plan Pluriannuel d'Investissement
@@ -55,8 +56,13 @@ export default async function PpiPage() {
   const communeName = communeRow?.name ?? "Commune";
 
   // Filtre : on exclut les projets « accompagnement sans financement »
-  // car ils n'entrent pas dans le PPI au sens financier.
-  const ppiProjects = projects.filter((p) => !p.accompagne_sans_financer);
+  // (ils n'entrent pas dans le PPI au sens financier) PUIS ceux que
+  // l'utilisateur a manuellement exclus (in_ppi = false).
+  const eligibleProjects = projects.filter((p) => !p.accompagne_sans_financer);
+  const ppiProjects = eligibleProjects.filter((p) => p.in_ppi !== false);
+  // Projets éligibles mais explicitement retirés par l'utilisateur :
+  // affichés en bas avec un bouton « Réintégrer ».
+  const excludedProjects = eligibleProjects.filter((p) => p.in_ppi === false);
 
   // Groupement par année de programmation
   const byYear = new Map<number, typeof ppiProjects>();
@@ -197,6 +203,7 @@ export default async function PpiPage() {
                       <th className="pj-num">Subv. sollicitées</th>
                       <th className="pj-num">Subv. obtenues</th>
                       <th className="pj-num">Reste à charge</th>
+                      <th aria-label="Actions" />
                     </tr>
                   </thead>
                   <tbody>
@@ -238,6 +245,12 @@ export default async function PpiPage() {
                           <td className="pj-num">{formatEuros(demande)}</td>
                           <td className="pj-num pj-text-success">{formatEuros(obtenu)}</td>
                           <td className="pj-num pj-text-warn">{formatEuros(reste)}</td>
+                          <td className="pj-ppi-action-cell">
+                            <PpiInclusionToggle
+                              projectId={p.id}
+                              variant="remove"
+                            />
+                          </td>
                         </tr>
                       );
                     })}
@@ -246,6 +259,43 @@ export default async function PpiPage() {
               </section>
             );
           })}
+
+          {excludedProjects.length > 0 && (
+            <section className="pj-ppi-excluded">
+              <header className="pj-ppi-excluded-header">
+                <div className="pj-ppi-excluded-icon" aria-hidden>
+                  <Archive size={16} />
+                </div>
+                <div>
+                  <h2 className="pj-ppi-excluded-title">
+                    Projets exclus du PPI ({excludedProjects.length})
+                  </h2>
+                  <p className="pj-ppi-excluded-hint">
+                    Ces opérations existent dans votre portefeuille mais sont
+                    retirées du Plan Pluriannuel. Réintégrez-les si elles
+                    redeviennent éligibles à la programmation.
+                  </p>
+                </div>
+              </header>
+              <ul className="pj-ppi-excluded-list">
+                {excludedProjects.map((p) => (
+                  <li key={p.id} className="pj-ppi-excluded-item">
+                    <Link
+                      href={`/admin/projects/${p.id}`}
+                      className="pj-ppi-excluded-link"
+                    >
+                      <strong>{p.titre}</strong>
+                      <span className="pj-ppi-excluded-meta">
+                        {PROJECT_PHASE_LABELS[p.phase as ProjectPhase]} ·{" "}
+                        {formatEuros(Number(p.budget_estime ?? 0))}
+                      </span>
+                    </Link>
+                    <PpiInclusionToggle projectId={p.id} variant="restore" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       )}
     </main>

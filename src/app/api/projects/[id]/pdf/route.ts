@@ -5,7 +5,11 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { getProject } from "@/lib/projects/queries";
 import { ProjectPDF, type ProjectPdfData } from "@/lib/projects/pdf-document";
 import { computeEcart } from "@/lib/projects/cost-calc";
-import { PROJECT_PHASE_LABELS } from "@/lib/projects/types";
+import {
+  PROJECT_PHASE_LABELS,
+  PROJECT_PHASES,
+  PROJECT_PHASE_GUIDE,
+} from "@/lib/projects/types";
 
 // ═══════════════════════════════════════════════════════════════
 // GET /api/projects/:id/pdf — export PDF de la fiche projet.
@@ -36,6 +40,49 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const ecart = computeEcart(p.budget_estime, p.cout_reel);
   const phaseIdx = ["emergence","faisabilite","decision_budget","financement","conception_marches","realisation","bilan_cloture"].indexOf(p.phase);
   const showBilan = phaseIdx >= 5; // à partir de realisation
+
+  // Construit le résumé d'avancement par phase pour le PDF public.
+  const progress = (p.phase_progress ?? {}) as Record<
+    string,
+    Record<string, { done: boolean; note: string | null }>
+  >;
+  const resourceCounts = {
+    documents: detail.documents.length,
+    stakeholders: detail.stakeholders.length,
+    financings: detail.financings.length,
+    milestones: detail.milestones.length,
+  };
+  const phase_progress_summary = PROJECT_PHASES.map((phase, idx) => {
+    const guide = PROJECT_PHASE_GUIDE[phase];
+    const phaseData = progress[phase] ?? {};
+    const status: "done" | "current" | "future" =
+      idx < phaseIdx ? "done" : idx === phaseIdx ? "current" : "future";
+    const deliverables = guide.deliverables.map((spec, di) => {
+      const manual = phaseData[String(di)] ?? { done: false, note: null };
+      let done = manual.done;
+      if (spec.kind === "identity" && p.titre && p.titre !== "Sans titre") done = true;
+      if (spec.kind === "field" && spec.link === "objectifs" && (p.pilote_elu || p.pilote_agent)) done = true;
+      if (spec.kind === "field" && spec.link === "lifecycle" && p.budget_estime > 0) done = true;
+      if (spec.kind === "field" && spec.link === "bilan" && (p.cout_reel !== null || p.explication_ecart)) done = true;
+      if (spec.kind === "document" && resourceCounts.documents > 0) done = true;
+      if (spec.kind === "stakeholder" && resourceCounts.stakeholders > 0) done = true;
+      if (spec.kind === "financing" && resourceCounts.financings > 0) done = true;
+      if (spec.kind === "milestone" && resourceCounts.milestones > 0) done = true;
+      return { label: spec.label, kind: spec.kind, done, note: manual.note };
+    });
+    const doneCount = deliverables.filter((d) => d.done).length;
+    const pctDone = deliverables.length > 0
+      ? Math.round((doneCount / deliverables.length) * 100)
+      : 0;
+    return {
+      phase,
+      label: PROJECT_PHASE_LABELS[phase],
+      objective: guide.objective,
+      deliverables,
+      pctDone,
+      status,
+    };
+  });
 
   const pdfData: ProjectPdfData = {
     communeName: commune?.name ?? "Commune",
@@ -82,11 +129,17 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
         role: ps.role,
         phase: ps.phase,
       })),
+    documents: detail.documents.map((d) => ({
+      nom: d.nom,
+      type: d.type,
+      uploaded_at: d.uploaded_at,
+    })),
     cout_reel: p.cout_reel,
     ecart_value: ecart?.value ?? null,
     ecart_pct: ecart?.pct ?? null,
     explication_ecart: p.explication_ecart,
     show_bilan: showBilan,
+    phase_progress_summary,
   };
 
   let buffer: Buffer;
@@ -102,9 +155,6 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 
   const slug = p.titre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   const fileName = `projet-${slug || "fiche"}.pdf`;
-
-  // pdfData not used directly here but kept to ensure types — ensure phaseLabel used
-  void PROJECT_PHASE_LABELS;
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,

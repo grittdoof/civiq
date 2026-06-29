@@ -23,7 +23,9 @@ export async function GET(_req: NextRequest) {
   if (!guard.communeId) return new NextResponse("Aucune commune", { status: 403 });
 
   const projects = await listProjects(guard.communeId);
-  const ppiProjects = projects.filter((p) => !p.accompagne_sans_financer);
+  const ppiProjects = projects.filter(
+    (p) => !p.accompagne_sans_financer && p.in_ppi !== false,
+  );
 
   // Récupère le nom + logo commune pour l'en-tête
   const service = await createServiceClient();
