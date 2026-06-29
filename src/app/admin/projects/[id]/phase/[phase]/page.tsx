@@ -18,6 +18,8 @@ import {
 } from "@/lib/projects/progress";
 import ProjectStepper from "@/components/projects/ProjectStepper";
 import PhaseIcon from "@/components/projects/PhaseIcon";
+import PhaseFreeAdditions from "@/components/projects/PhaseFreeAdditions";
+import PhaseNaKebab from "@/components/projects/PhaseNaKebab";
 import "../../../projects.css";
 import "../../../flow.css";
 
@@ -144,17 +146,29 @@ export default async function ProjectPhasePage({ params }: Props) {
       />
 
       {/* Hero phase compact */}
-      <header className="pj-flow-hero">
+      <header className={`pj-flow-hero${p.phase_not_applicable?.[phase] ? " is-na" : ""}`}>
         <div className="pj-flow-hero-icon" aria-hidden>
           <PhaseIcon phase={phase} size={22} strokeWidth={1.8} />
         </div>
         <div className="pj-flow-hero-text">
           <div className="pj-flow-hero-eyebrow">
             Étape {phaseIdx + 1} sur {phasesForType.length}
+            {p.phase_not_applicable?.[phase] && (
+              <span className="pj-flow-hero-na-tag"> · non applicable</span>
+            )}
           </div>
           <h2 className="pj-flow-hero-title">{PROJECT_PHASE_LABELS[phase]}</h2>
-          <p className="pj-flow-hero-objective">{guide.objective}</p>
+          <p className="pj-flow-hero-objective">
+            {p.phase_not_applicable?.[phase] ?? guide.objective}
+          </p>
         </div>
+        <PhaseNaKebab
+          projectId={p.id}
+          phase={phase}
+          currentMotif={p.phase_not_applicable?.[phase] ?? null}
+          canEdit={canEdit}
+          isCurrentPhase={p.phase === phase}
+        />
         <div className="pj-flow-hero-progress">
           <span className="pj-flow-hero-progress-num">{pctDone}%</span>
           <div className="pj-flow-hero-progress-bar" aria-hidden>
@@ -188,6 +202,9 @@ export default async function ProjectPhasePage({ params }: Props) {
           </Link>
         </section>
       )}
+
+      {/* Boutons libres : ajouter un document ou une étape clé, indépendamment du gabarit */}
+      <PhaseFreeAdditions projectId={p.id} phase={phase} canEdit={canEdit} />
 
       {/* Liste verticale des livrables */}
       <ul className="pj-flow-deliverables">

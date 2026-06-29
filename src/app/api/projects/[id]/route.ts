@@ -3,7 +3,8 @@ import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
-import type { ProjectCompetence } from "@/lib/projects/types";
+import type { ProjectCompetence, ProjectType, ProjectPhase } from "@/lib/projects/types";
+import { PROJECT_PHASES_BY_TYPE } from "@/lib/projects/types";
 
 // ═══════════════════════════════════════════════════════════════
 // GET    /api/projects/:id   — fiche projet complète
@@ -49,7 +50,13 @@ interface PatchBody {
   tiers_contact?: string | null;
   accompagne_sans_financer?: boolean;
   in_ppi?: boolean;
-  phase_progress?: Record<string, Record<string, { done: boolean; note: string | null }>>;
+  // Migration 028
+  type?: ProjectType;
+  phase_not_applicable?: Record<string, string>;
+  phase_progress?: Record<
+    string,
+    Record<string, { done: boolean; note: string | null; applicable?: boolean }>
+  >;
 }
 
 const PATCH_ALLOWED = new Set<keyof PatchBody>([
@@ -71,6 +78,8 @@ const PATCH_ALLOWED = new Set<keyof PatchBody>([
   "tiers_contact",
   "accompagne_sans_financer",
   "in_ppi",
+  "type",
+  "phase_not_applicable",
   "phase_progress",
 ]);
 
@@ -103,6 +112,24 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const t = body.titre.trim();
     if (!t) return NextResponse.json({ error: "Le titre ne peut pas être vide" }, { status: 400 });
     updates.titre = t;
+  }
+
+  // Changement de type → rebase la phase courante sur la 1ère phase du nouveau gabarit
+  // si la phase actuelle n'appartient plus au gabarit choisi.
+  if (body.type) {
+    const newPhases = PROJECT_PHASES_BY_TYPE[body.type];
+    if (newPhases) {
+      const service2 = await createServiceClient();
+      const { data: current } = await service2
+        .from("projects")
+        .select("phase")
+        .eq("id", id)
+        .maybeSingle();
+      const currentPhase = current?.phase as ProjectPhase | undefined;
+      if (currentPhase && !newPhases.includes(currentPhase)) {
+        updates.phase = newPhases[0];
+      }
+    }
   }
 
   const service = await createServiceClient();

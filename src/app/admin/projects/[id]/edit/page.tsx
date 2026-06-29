@@ -7,6 +7,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getProject } from "@/lib/projects/queries";
 import ProjectForm from "@/components/projects/ProjectForm";
+import ProjectTypeChanger from "@/components/projects/ProjectTypeChanger";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,14 @@ export default async function EditProjectPage({ params }: PageProps) {
           <ArrowLeft size={14} /> Retour à la fiche
         </Link>
       </div>
-      <h1 className="civiq-page-title">Modifier le projet</h1>
+      <div className="pj-edit-head">
+        <h1 className="civiq-page-title">Modifier le projet</h1>
+        <ProjectTypeChanger
+          projectId={id}
+          currentType={p.type}
+          canEdit={["admin", "editor", "super_admin"].includes(ctx.role ?? "")}
+        />
+      </div>
 
       <ProjectForm
         mode="edit"
