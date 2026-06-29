@@ -3,6 +3,7 @@ import {
   decideTransition,
   nextPhase,
   previousPhase,
+  findPhaseType,
   type ProjectSnapshot,
   type UserContext,
 } from "@/lib/projects/state-machine";
@@ -11,15 +12,19 @@ import type { ProjectPhase } from "@/lib/projects/types";
 // ═══════════════════════════════════════════════════════════════
 // Tests de la machine à états — couvre les règles non négociables
 // de la fiche fonctionnelle :
-//   • avance étape par étape
+//   • avance étape par étape (gabarits investment / event / tracking)
 //   • saut bloqué sans force ; saut avec force OK pour admin
 //   • recul OK avec commentaire, refus sans commentaire
-//   • porte de financement (refus → ar_recu OK → sans_subvention OK)
-//   • bilan obligatoire avant clôture
+//   • Migration 028 : porte de financement et bilan obligatoire
+//     deviennent des WARNINGS NON BLOQUANTS (briefing
+//     « portes indicatives, jamais bloquantes »).
+//   • Phases marquées « non applicable » : leur traversée n'est plus
+//     considérée comme un saut.
 // ═══════════════════════════════════════════════════════════════
 
 function baseProject(overrides: Partial<ProjectSnapshot> = {}): ProjectSnapshot {
   return {
+    type: "investment",
     phase: "emergence",
     sans_subvention: false,
     cout_reel: null,
@@ -60,6 +65,13 @@ describe("decideTransition — avancement nominal", () => {
     expect(d.ok).toBe(false);
     expect(d.reason).toMatch(/déjà à cette étape/);
   });
+
+  it("refuse une phase qui n'appartient pas au gabarit", () => {
+    const p = baseProject({ type: "tracking", phase: "tracking_framing" });
+    const d = decideTransition(p, "realisation", editor);
+    expect(d.ok).toBe(false);
+    expect(d.reason).toMatch(/n'appartient pas au gabarit/i);
+  });
 });
 
 describe("decideTransition — saut d'étape", () => {
@@ -94,6 +106,17 @@ describe("decideTransition — saut d'étape", () => {
     expect(d.ok).toBe(false);
     expect(d.reason).toMatch(/commentaire/i);
   });
+
+  it("traverser une phase NA n'est pas considéré comme un saut", () => {
+    const p = baseProject({
+      phase: "emergence",
+      phase_not_applicable: { faisabilite: "Compétence claire, pas d'étude" },
+    });
+    // emergence → decision_budget en sautant faisabilite (NA) : effStep = 1
+    const d = decideTransition(p, "decision_budget", editor);
+    expect(d.ok).toBe(true);
+    expect(d.direction).toBe("forward");
+  });
 });
 
 describe("decideTransition — recul", () => {
@@ -119,96 +142,79 @@ describe("decideTransition — recul", () => {
   });
 });
 
-describe("decideTransition — PORTE DE FINANCEMENT", () => {
+describe("decideTransition — PORTE DE FINANCEMENT (warning non bloquant)", () => {
   // Le projet est en conception_marches et veut passer en realisation
   const ready = () => baseProject({ phase: "conception_marches" });
 
-  it("REFUSE le passage en realisation sans subvention sécurisée et sans sans_subvention", () => {
+  it("AUTORISE le passage mais émet un warning si pas de subvention sécurisée", () => {
     const d = decideTransition(ready(), "realisation", editor);
-    expect(d.ok).toBe(false);
-    expect(d.reason).toMatch(/accusé de réception/i);
-    expect(d.reason).toMatch(/sans subvention/i);
+    expect(d.ok).toBe(true);
+    expect(d.warnings.length).toBe(1);
+    expect(d.warnings[0]).toMatch(/subvention/i);
   });
 
-  it("REFUSE si subvention seulement « demandee » (pas d'AR)", () => {
+  it("AUTORISE avec warning si subvention seulement « demandee »", () => {
     const p = baseProject({
       phase: "conception_marches",
       financings: [{ statut: "demandee" }],
     });
     const d = decideTransition(p, "realisation", editor);
-    expect(d.ok).toBe(false);
-    expect(d.reason).toMatch(/accusé de réception/i);
+    expect(d.ok).toBe(true);
+    expect(d.warnings.length).toBe(1);
   });
 
-  it("ACCEPTE si au moins une subvention ar_recu", () => {
+  it("ACCEPTE sans warning si au moins une subvention ar_recu", () => {
     const p = baseProject({
       phase: "conception_marches",
       financings: [{ statut: "ar_recu" }],
     });
     const d = decideTransition(p, "realisation", editor);
     expect(d.ok).toBe(true);
+    expect(d.warnings).toEqual([]);
   });
 
-  it("ACCEPTE si subvention accordée", () => {
+  it("ACCEPTE sans warning si subvention accordée", () => {
     const p = baseProject({
       phase: "conception_marches",
       financings: [{ statut: "accordee" }],
     });
     const d = decideTransition(p, "realisation", editor);
     expect(d.ok).toBe(true);
+    expect(d.warnings).toEqual([]);
   });
 
-  it("ACCEPTE si sans_subvention=true", () => {
+  it("ACCEPTE sans warning si sans_subvention=true", () => {
     const p = baseProject({ phase: "conception_marches", sans_subvention: true });
     const d = decideTransition(p, "realisation", editor);
     expect(d.ok).toBe(true);
-  });
-
-  it("la règle n'est pas contournée par force admin", () => {
-    const p = baseProject({ phase: "decision_budget" });
-    // saut decision_budget → realisation, admin force
-    const d = decideTransition(p, "realisation", admin, {
-      force: true,
-      comment: "urgence",
-    });
-    expect(d.ok).toBe(false);
-    expect(d.reason).toMatch(/accusé de réception/i);
+    expect(d.warnings).toEqual([]);
   });
 });
 
-describe("decideTransition — BILAN OBLIGATOIRE", () => {
-  it("REFUSE l'entrée dans bilan_cloture sans cout_reel", () => {
+describe("decideTransition — BILAN (warning non bloquant)", () => {
+  it("AUTORISE l'entrée dans bilan_cloture sans cout_reel mais émet un warning", () => {
     const p = baseProject({
       phase: "realisation",
       cout_reel: null,
       explication_ecart: "tout bon",
     });
     const d = decideTransition(p, "bilan_cloture", editor);
-    expect(d.ok).toBe(false);
-    expect(d.reason).toMatch(/bilan obligatoire/i);
+    expect(d.ok).toBe(true);
+    expect(d.warnings.some((w) => /bilan incomplet/i.test(w))).toBe(true);
   });
 
-  it("REFUSE l'entrée dans bilan_cloture sans explication", () => {
+  it("AUTORISE avec warning si explication vide", () => {
     const p = baseProject({
       phase: "realisation",
       cout_reel: 120000,
       explication_ecart: null,
     });
     const d = decideTransition(p, "bilan_cloture", editor);
-    expect(d.ok).toBe(false);
+    expect(d.ok).toBe(true);
+    expect(d.warnings.length).toBe(1);
   });
 
-  it("REFUSE si explication vide après trim", () => {
-    const p = baseProject({
-      phase: "realisation",
-      cout_reel: 120000,
-      explication_ecart: "   ",
-    });
-    const d = decideTransition(p, "bilan_cloture", editor);
-    expect(d.ok).toBe(false);
-  });
-
-  it("ACCEPTE si cout_reel et explication renseignés", () => {
+  it("ACCEPTE sans warning si cout_reel et explication renseignés", () => {
     const p = baseProject({
       phase: "realisation",
       cout_reel: 120000,
@@ -216,26 +222,16 @@ describe("decideTransition — BILAN OBLIGATOIRE", () => {
     });
     const d = decideTransition(p, "bilan_cloture", editor);
     expect(d.ok).toBe(true);
-  });
-
-  it("n'est pas contournée par force admin", () => {
-    const p = baseProject({ phase: "conception_marches" });
-    const d = decideTransition(p, "bilan_cloture", admin, {
-      force: true,
-      comment: "raison",
-    });
-    expect(d.ok).toBe(false);
-    expect(d.reason).toMatch(/bilan obligatoire/i);
+    expect(d.warnings).toEqual([]);
   });
 });
 
-describe("decideTransition — warnings non bloquants", () => {
+describe("decideTransition — warnings non bloquants stakeholders", () => {
   it("warning à l'entrée de decision_budget si aucun rôle « decide »", () => {
     const p = baseProject({ phase: "faisabilite", stakeholders: [] });
     const d = decideTransition(p, "decision_budget", editor);
     expect(d.ok).toBe(true);
-    expect(d.warnings.length).toBe(1);
-    expect(d.warnings[0]).toMatch(/décide/i);
+    expect(d.warnings.some((w) => /décide/i.test(w))).toBe(true);
   });
 
   it("pas de warning si un « decide » est associé", () => {
@@ -265,16 +261,29 @@ describe("decideTransition — warnings non bloquants", () => {
     const d = decideTransition(p, "financement", editor);
     expect(d.warnings.length).toBe(0);
   });
+
+  it("aucun warning métier sur les gabarits event / tracking", () => {
+    const p = baseProject({
+      type: "event",
+      phase: "event_framing",
+      stakeholders: [],
+    });
+    const d = decideTransition(p, "event_authorizations", editor);
+    expect(d.ok).toBe(true);
+    expect(d.warnings).toEqual([]);
+  });
 });
 
 describe("nextPhase / previousPhase", () => {
-  it("nextPhase passe à l'étape suivante", () => {
+  it("nextPhase passe à l'étape suivante (investment)", () => {
     expect(nextPhase("emergence")).toBe<ProjectPhase>("faisabilite");
     expect(nextPhase("realisation")).toBe<ProjectPhase>("bilan_cloture");
   });
 
   it("nextPhase renvoie null en bout de cycle", () => {
     expect(nextPhase("bilan_cloture")).toBeNull();
+    expect(nextPhase("event_review")).toBeNull();
+    expect(nextPhase("tracking_review")).toBeNull();
   });
 
   it("previousPhase recule d'une étape", () => {
@@ -283,5 +292,30 @@ describe("nextPhase / previousPhase", () => {
 
   it("previousPhase renvoie null en début de cycle", () => {
     expect(previousPhase("emergence")).toBeNull();
+    expect(previousPhase("event_framing")).toBeNull();
+    expect(previousPhase("tracking_framing")).toBeNull();
+  });
+
+  it("nextPhase/previousPhase fonctionnent pour event et tracking", () => {
+    expect(nextPhase("event_framing")).toBe<ProjectPhase>("event_authorizations");
+    expect(previousPhase("event_dday")).toBe<ProjectPhase>("event_logistics");
+    expect(nextPhase("tracking_framing")).toBe<ProjectPhase>("tracking_execution");
+  });
+});
+
+describe("findPhaseType", () => {
+  it("retourne investment pour les phases investment", () => {
+    expect(findPhaseType("emergence")).toBe("investment");
+    expect(findPhaseType("bilan_cloture")).toBe("investment");
+  });
+
+  it("retourne event pour les phases event", () => {
+    expect(findPhaseType("event_framing")).toBe("event");
+    expect(findPhaseType("event_dday")).toBe("event");
+  });
+
+  it("retourne tracking pour les phases tracking", () => {
+    expect(findPhaseType("tracking_framing")).toBe("tracking");
+    expect(findPhaseType("tracking_review")).toBe("tracking");
   });
 });

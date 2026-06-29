@@ -1,5 +1,6 @@
 import {
   Lightbulb, Search, Landmark, Wallet, Ruler, HardHat, Flag,
+  ShieldCheck, Truck, PartyPopper, ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import type { ProjectPhase } from "@/lib/projects/types";
@@ -10,6 +11,7 @@ import type { ProjectPhase } from "@/lib/projects/types";
 // ═══════════════════════════════════════════════════════════════
 
 const ICONS: Record<ProjectPhase, LucideIcon> = {
+  // investment
   emergence: Lightbulb,
   faisabilite: Search,
   decision_budget: Landmark,
@@ -17,6 +19,16 @@ const ICONS: Record<ProjectPhase, LucideIcon> = {
   conception_marches: Ruler,
   realisation: HardHat,
   bilan_cloture: Flag,
+  // event
+  event_framing: Lightbulb,
+  event_authorizations: ShieldCheck,
+  event_logistics: Truck,
+  event_dday: PartyPopper,
+  event_review: Flag,
+  // tracking
+  tracking_framing: Lightbulb,
+  tracking_execution: ListChecks,
+  tracking_review: Flag,
 };
 
 interface Props {

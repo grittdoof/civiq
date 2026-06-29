@@ -11,6 +11,10 @@ import {
   Flag,
   PencilLine,
   Sparkles,
+  Gavel,
+  ShieldCheck,
+  Megaphone,
+  PiggyBank,
   Loader2,
   CheckCircle2,
   ArrowRight,
@@ -61,6 +65,10 @@ const KIND_LABEL: Record<DeliverableKind, string> = {
   milestone: "Jalon",
   field: "À remplir",
   identity: "Identité",
+  deliberation: "Délibération",
+  authorization: "Autorisation",
+  communication: "Communication",
+  budget: "Budget",
 };
 
 const KIND_ICON: Record<DeliverableKind, typeof FileText> = {
@@ -71,6 +79,10 @@ const KIND_ICON: Record<DeliverableKind, typeof FileText> = {
   milestone: Flag,
   field: PencilLine,
   identity: Sparkles,
+  deliberation: Gavel,
+  authorization: ShieldCheck,
+  communication: Megaphone,
+  budget: PiggyBank,
 };
 
 interface CurrentProject {

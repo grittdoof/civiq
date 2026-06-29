@@ -6,36 +6,43 @@
 //   • produire des messages cohérents avec la RPC SQL
 //     advance_project_phase() qui reste la source d'autorité
 //
-// Les règles couvertes :
-//   1. Ordre canonique des 7 phases
-//   2. Recul autorisé mais commentaire obligatoire
-//   3. Saut > 1 étape interdit sauf si force=true + admin
-//   4. Porte de financement : passage vers `realisation` bloqué
-//      sauf si au moins un financing ar_recu/accordée/soldée
-//      OU sans_subvention=true
-//   5. Bilan obligatoire avant entrée dans `bilan_cloture` :
-//      cout_reel ET explication_ecart renseignés
-//   6. Warnings non bloquants à l'entrée de decision_budget
-//      (pas de partie prenante « decide ») et de financement
-//      (pas de partie prenante de type « financeur »)
+// MIGRATION 028 — Comportement révisé :
+//   • Le projet a désormais un `type` (investment | event | tracking) ;
+//     l'ordre des phases dépend du gabarit.
+//   • Les anciennes règles bloquantes « porte de financement » et
+//     « bilan obligatoire » deviennent des WARNINGS NON BLOQUANTS,
+//     conformément au brief « portes indicatives, jamais bloquantes ».
+//   • Ces warnings ne sont remontés que pour le gabarit investment.
+//
+// Règles encore bloquantes (opérationnel, pas métier) :
+//   1. Rôle insuffisant
+//   2. Transition vers la même phase
+//   3. Phase cible étrangère au gabarit du projet
+//   4. Recul sans commentaire
+//   5. Saut > 1 étape (effective, hors phases NA) sans force+admin+commentaire
 // ═══════════════════════════════════════════════════════════════
 
 import {
-  PROJECT_PHASES,
+  PROJECT_PHASES_BY_TYPE,
   SECURED_FINANCING_STATUSES,
   type FinancingStatus,
   type ProjectPhase,
+  type ProjectType,
   type StakeholderRole,
   type StakeholderType,
 } from "./types";
 
 export interface ProjectSnapshot {
+  /** Gabarit du projet — détermine l'ordre des phases. Default 'investment'. */
+  type?: ProjectType;
   phase: ProjectPhase;
   sans_subvention: boolean;
   cout_reel: number | null;
   explication_ecart: string | null;
   financings: { statut: FinancingStatus }[];
   stakeholders: { role: StakeholderRole; type: StakeholderType }[];
+  /** Phases marquées « non applicable ». Default {}. */
+  phase_not_applicable?: Record<string, string>;
 }
 
 export interface UserContext {
@@ -58,40 +65,46 @@ export interface TransitionDecision {
   require_force: boolean;
 }
 
-const REFUSAL_FINANCING =
-  "Impossible de lancer la réalisation : aucune subvention n'a reçu d'accusé de réception et l'autofinancement n'a pas été déclaré. Demandez vos subventions avant tout commencement, ou cochez « sans subvention ».";
-
-const REFUSAL_BILAN =
-  "Bilan obligatoire avant clôture : renseignez le coût réel et l'explication de l'écart.";
-
 const REFUSAL_JUMP =
   "Sauter une étape n'est pas autorisé. Utilisez « forcer » (admin uniquement) avec un commentaire.";
-
-const REFUSAL_FORCE_ROLE =
-  "Seul un administrateur peut forcer un saut d'étape.";
-
-const REFUSAL_FORCE_COMMENT =
-  "Un commentaire est obligatoire pour forcer une transition.";
-
-const REFUSAL_BACK_COMMENT =
-  "Un commentaire est obligatoire pour reculer d'étape.";
-
+const REFUSAL_FORCE_ROLE = "Seul un administrateur peut forcer un saut d'étape.";
+const REFUSAL_FORCE_COMMENT = "Un commentaire est obligatoire pour forcer une transition.";
+const REFUSAL_BACK_COMMENT = "Un commentaire est obligatoire pour reculer d'étape.";
 const REFUSAL_SAME = "Le projet est déjà à cette étape.";
+const REFUSAL_ROLE = "Permissions insuffisantes pour faire évoluer le projet.";
+const REFUSAL_FOREIGN_PHASE =
+  "Cette phase n'appartient pas au gabarit du projet. Changez d'abord le type du projet pour utiliser cette phase.";
 
-const REFUSAL_ROLE =
-  "Permissions insuffisantes pour faire évoluer le projet.";
+// Warnings (non bloquants — gabarit investment uniquement)
+const WARN_FINANCING_NOT_SECURED =
+  "Aucune subvention sécurisée et autofinancement non déclaré. Le risque d'irrégularité est élevé si vous notifiez un marché maintenant.";
+const WARN_BILAN_INCOMPLETE =
+  "Bilan incomplet : coût réel ou explication de l'écart manquants. La clôture reste possible mais le projet n'aura pas de bilan exploitable.";
+const WARN_NO_DECIDE =
+  "Aucune partie prenante avec le rôle « décide » n'est associée.";
+const WARN_NO_FINANCEUR =
+  "Aucune partie prenante de type « financeur » n'est associée.";
 
+/** Retourne le gabarit auquel appartient une phase, ou null si inconnue. */
+export function findPhaseType(phase: ProjectPhase): ProjectType | null {
+  for (const t of Object.keys(PROJECT_PHASES_BY_TYPE) as ProjectType[]) {
+    if (PROJECT_PHASES_BY_TYPE[t].includes(phase)) return t;
+  }
+  return null;
+}
+
+/** Position 0-indexée d'une phase dans son gabarit. Retourne -1 si absente. */
+export function phasePosition(phase: ProjectPhase, type: ProjectType): number {
+  return PROJECT_PHASES_BY_TYPE[type].indexOf(phase);
+}
+
+/** @deprecated Conservé pour rétrocompat tests. Suppose le gabarit investment. */
 export function phaseIndex(p: ProjectPhase): number {
-  return PROJECT_PHASES.indexOf(p);
+  return PROJECT_PHASES_BY_TYPE.investment.indexOf(p);
 }
 
 /**
  * Décide si une transition est autorisée. Pur — ne fait pas d'I/O.
- *
- * @param project  Snapshot du projet (phase, financings, bilan, parties prenantes)
- * @param toPhase  Phase cible
- * @param user     Rôle de l'utilisateur courant
- * @param options  { force, comment } — l'UI peut pré-fournir ces valeurs
  */
 export function decideTransition(
   project: ProjectSnapshot,
@@ -99,9 +112,10 @@ export function decideTransition(
   user: UserContext,
   options: { force?: boolean; comment?: string } = {},
 ): TransitionDecision {
-  const fromIdx = phaseIndex(project.phase);
-  const toIdx = phaseIndex(toPhase);
-  const step = toIdx - fromIdx;
+  const type: ProjectType = project.type ?? "investment";
+  const order = PROJECT_PHASES_BY_TYPE[type];
+  const fromIdx = order.indexOf(project.phase);
+  const toIdx = order.indexOf(toPhase);
 
   // Rôle
   const allowedRoles = ["super_admin", "admin", "editor"] as const;
@@ -109,7 +123,14 @@ export function decideTransition(
     return refused(REFUSAL_ROLE);
   }
 
-  if (step === 0) return refused(REFUSAL_SAME);
+  // Phase cible étrangère au gabarit
+  if (toIdx < 0) {
+    return refused(REFUSAL_FOREIGN_PHASE);
+  }
+
+  if (fromIdx === toIdx) return refused(REFUSAL_SAME);
+
+  const step = toIdx - fromIdx;
 
   // ─── Recul ───
   if (step < 0) {
@@ -132,8 +153,18 @@ export function decideTransition(
     };
   }
 
-  // ─── Saut d'étape ───
-  if (step > 1) {
+  // Distance effective : on ne compte pas les phases marquées « non applicable »
+  const naPhases = project.phase_not_applicable ?? {};
+  let naBetween = 0;
+  for (let i = fromIdx + 1; i < toIdx; i++) {
+    if (Object.prototype.hasOwnProperty.call(naPhases, order[i])) {
+      naBetween++;
+    }
+  }
+  const effStep = step - naBetween;
+
+  // ─── Saut > 1 étape effective ───
+  if (effStep > 1) {
     if (!options.force) {
       return {
         ok: false,
@@ -150,46 +181,37 @@ export function decideTransition(
     if (!hasNonEmpty(options.comment)) {
       return refused(REFUSAL_FORCE_COMMENT);
     }
-    // Même en forçant, on doit toujours respecter la porte
-    // de financement et le bilan obligatoire. La règle de saut
-    // est la seule contournée par force.
   }
 
-  // ─── Porte de financement (vers realisation) ───
-  if (toPhase === "realisation") {
-    const hasSecured = project.financings.some((f) =>
-      SECURED_FINANCING_STATUSES.includes(f.statut),
-    );
-    if (!hasSecured && !project.sans_subvention) {
-      return refused(REFUSAL_FINANCING);
-    }
-  }
-
-  // ─── Bilan obligatoire (vers bilan_cloture) ───
-  if (toPhase === "bilan_cloture") {
-    if (project.cout_reel === null || !hasNonEmpty(project.explication_ecart)) {
-      return refused(REFUSAL_BILAN);
-    }
-  }
-
-  // ─── Warnings non bloquants ───
+  // ─── Warnings métier (non bloquants — investment uniquement) ───
   const warnings: string[] = [];
 
-  if (toPhase === "decision_budget") {
-    const hasDecide = project.stakeholders.some((s) => s.role === "decide");
-    if (!hasDecide) {
-      warnings.push(
-        "Aucune partie prenante avec le rôle « décide » n'est associée.",
+  if (type === "investment") {
+    // Porte de financement — n'est plus bloquante, juste un warning
+    if (toPhase === "realisation") {
+      const hasSecured = project.financings.some((f) =>
+        SECURED_FINANCING_STATUSES.includes(f.statut),
       );
+      if (!hasSecured && !project.sans_subvention) {
+        warnings.push(WARN_FINANCING_NOT_SECURED);
+      }
     }
-  }
 
-  if (toPhase === "financement") {
-    const hasFinanceur = project.stakeholders.some((s) => s.type === "financeur");
-    if (!hasFinanceur) {
-      warnings.push(
-        "Aucune partie prenante de type « financeur » n'est associée.",
-      );
+    // Bilan — n'est plus bloquant, juste un warning
+    if (toPhase === "bilan_cloture") {
+      if (project.cout_reel === null || !hasNonEmpty(project.explication_ecart)) {
+        warnings.push(WARN_BILAN_INCOMPLETE);
+      }
+    }
+
+    if (toPhase === "decision_budget") {
+      const hasDecide = project.stakeholders.some((s) => s.role === "decide");
+      if (!hasDecide) warnings.push(WARN_NO_DECIDE);
+    }
+
+    if (toPhase === "financement") {
+      const hasFinanceur = project.stakeholders.some((s) => s.type === "financeur");
+      if (!hasFinanceur) warnings.push(WARN_NO_FINANCEUR);
     }
   }
 
@@ -197,7 +219,7 @@ export function decideTransition(
     ok: true,
     direction: "forward",
     warnings,
-    require_comment: step > 1, // saut forcé → commentaire déjà fourni
+    require_comment: effStep > 1,
     require_force: false,
   };
 }
@@ -220,12 +242,26 @@ function hasNonEmpty(s: string | null | undefined): boolean {
 
 // ─── Helpers de présentation ───
 
-export function nextPhase(phase: ProjectPhase): ProjectPhase | null {
-  const i = phaseIndex(phase);
-  return i >= 0 && i < PROJECT_PHASES.length - 1 ? PROJECT_PHASES[i + 1] : null;
+/** Phase suivante du gabarit. Si `type` non précisé, le déduit de la phase. */
+export function nextPhase(
+  phase: ProjectPhase,
+  type?: ProjectType,
+): ProjectPhase | null {
+  const t = type ?? findPhaseType(phase);
+  if (!t) return null;
+  const order = PROJECT_PHASES_BY_TYPE[t];
+  const i = order.indexOf(phase);
+  return i >= 0 && i < order.length - 1 ? order[i + 1] : null;
 }
 
-export function previousPhase(phase: ProjectPhase): ProjectPhase | null {
-  const i = phaseIndex(phase);
-  return i > 0 ? PROJECT_PHASES[i - 1] : null;
+/** Phase précédente du gabarit. Si `type` non précisé, le déduit de la phase. */
+export function previousPhase(
+  phase: ProjectPhase,
+  type?: ProjectType,
+): ProjectPhase | null {
+  const t = type ?? findPhaseType(phase);
+  if (!t) return null;
+  const order = PROJECT_PHASES_BY_TYPE[t];
+  const i = order.indexOf(phase);
+  return i > 0 ? order[i - 1] : null;
 }

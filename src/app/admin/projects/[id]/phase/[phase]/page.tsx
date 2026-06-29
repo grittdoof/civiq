@@ -5,7 +5,7 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { getProject } from "@/lib/projects/queries";
 import {
-  PROJECT_PHASES,
+  PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_GUIDE,
   type ProjectPhase,
@@ -38,12 +38,16 @@ const KIND_LABEL: Record<DeliverableKind, string> = {
   milestone: "Jalon",
   field: "À remplir",
   identity: "Identité",
+  deliberation: "Délibération",
+  authorization: "Autorisation",
+  communication: "Communication",
+  budget: "Budget",
 };
 
 export default async function ProjectPhasePage({ params }: Props) {
   const { id, phase: phaseParam } = await params;
   const phase = phaseParam as ProjectPhase;
-  if (!PROJECT_PHASES.includes(phase)) notFound();
+  if (!(phase in PROJECT_PHASE_LABELS)) notFound();
 
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
@@ -55,6 +59,9 @@ export default async function ProjectPhasePage({ params }: Props) {
   const detail = await getProject(ctx.communeId, id);
   if (!detail.project) notFound();
   const p = detail.project;
+  // La phase doit appartenir au gabarit du projet
+  const phasesForType = PROJECT_PHASES_BY_TYPE[p.type];
+  if (!phasesForType.includes(phase)) notFound();
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
   const progress = (p.phase_progress ?? {}) as Record<
@@ -90,9 +97,9 @@ export default async function ProjectPhasePage({ params }: Props) {
   const firstTodo = firstTodoIdx >= 0 ? guide.deliverables[firstTodoIdx] : null;
   const remaining = Math.max(total - doneCount, 0);
 
-  const phaseIdx = PROJECT_PHASES.indexOf(phase);
-  const nextPhase = phaseIdx < PROJECT_PHASES.length - 1
-    ? PROJECT_PHASES[phaseIdx + 1]
+  const phaseIdx = phasesForType.indexOf(phase);
+  const nextPhase = phaseIdx < phasesForType.length - 1
+    ? phasesForType[phaseIdx + 1]
     : null;
 
   return (
@@ -144,7 +151,7 @@ export default async function ProjectPhasePage({ params }: Props) {
         </div>
         <div className="pj-flow-hero-text">
           <div className="pj-flow-hero-eyebrow">
-            Étape {phaseIdx + 1} sur {PROJECT_PHASES.length}
+            Étape {phaseIdx + 1} sur {phasesForType.length}
           </div>
           <h2 className="pj-flow-hero-title">{PROJECT_PHASE_LABELS[phase]}</h2>
           <p className="pj-flow-hero-objective">{guide.objective}</p>
