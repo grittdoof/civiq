@@ -7,14 +7,18 @@ import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listProjects } from "@/lib/projects/queries";
 import {
-  PROJECT_PHASES,
+  PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_HINTS,
+  PROJECT_TYPE_LABELS,
   type ProjectPhase,
+  type ProjectType,
 } from "@/lib/projects/types";
 import ProjectCard from "@/components/projects/ProjectCard";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import ProjectsListExperience from "@/components/projects/ProjectsListExperience";
+
+const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects — Lanes horizontales par phase.
@@ -29,13 +33,17 @@ import ProjectsListExperience from "@/components/projects/ProjectsListExperience
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string }>;
 }
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
-  const { view } = await searchParams;
+  const { view, commission: commissionParam, gabarit: gabaritParam } = await searchParams;
   // Vue par défaut : liste. Vue lanes (kanban par phase) en alternative.
   const viewMode: "lanes" | "list" = view === "lanes" ? "lanes" : "list";
+  // Gabarit affiché en vue lanes (chaque gabarit a ses propres phases).
+  const selectedType: ProjectType = VALID_TYPES.includes(gabaritParam as ProjectType)
+    ? (gabaritParam as ProjectType)
+    : "investment";
 
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
@@ -44,7 +52,27 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const projects = await listProjects(ctx.communeId);
+  const allProjects = await listProjects(ctx.communeId);
+
+  // Liste des commissions de la commune pour le filtre du portefeuille
+  const service0 = await createServiceClient();
+  const { data: communeCommissions } = await service0
+    .from("commissions")
+    .select("id, nom, color, icon")
+    .eq("commune_id", ctx.communeId)
+    .eq("active", true)
+    .order("nom");
+
+  // Filtrage par commission (server-side via URL ?commission=ID)
+  const projects = commissionParam
+    ? allProjects.filter((p) =>
+        (p.commissions ?? []).some((c) => c.id === commissionParam),
+      )
+    : allProjects;
+
+  const selectedCommission = commissionParam
+    ? (communeCommissions ?? []).find((c) => c.id === commissionParam)
+    : null;
 
   const service = await createServiceClient();
   const { data: allFinancings } = await service
@@ -70,9 +98,29 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   // dans le drawer Statistiques (calculés côté client) — on évite ainsi
   // un N+1 sur project_global_cost à chaque chargement de page.
 
+  // Vue lanes : on n'affiche que les projets du gabarit sélectionné
+  // (chaque gabarit a son propre jeu de phases — afficher 15 lanes
+  //  serait illisible et la plupart seraient vides).
+  const lanePhases = PROJECT_PHASES_BY_TYPE[selectedType];
+  const projectsForLanes = projects.filter((p) => p.type === selectedType);
   const byPhase = new Map<ProjectPhase, typeof projects>();
-  for (const p of PROJECT_PHASES) byPhase.set(p, []);
-  for (const p of projects) byPhase.get(p.phase)!.push(p);
+  for (const ph of lanePhases) byPhase.set(ph, []);
+  for (const p of projectsForLanes) {
+    if (byPhase.has(p.phase)) byPhase.get(p.phase)!.push(p);
+  }
+
+  // Helper de construction d'URL en préservant les params actifs
+  function buildHref(overrides: Partial<{ view: string; commission: string; gabarit: string }>) {
+    const url = new URLSearchParams();
+    const v = overrides.view !== undefined ? overrides.view : (viewMode === "lanes" ? "lanes" : "");
+    if (v) url.set("view", v);
+    const c = overrides.commission !== undefined ? overrides.commission : (commissionParam ?? "");
+    if (c) url.set("commission", c);
+    const g = overrides.gabarit !== undefined ? overrides.gabarit : selectedType;
+    if (g && viewMode === "lanes") url.set("gabarit", g);
+    const qs = url.toString();
+    return qs ? `/admin/projects?${qs}` : "/admin/projects";
+  }
 
   const canCreate = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
@@ -89,7 +137,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         <div className="pj-page-header-actions">
           <div className="pj-view-toggle" role="tablist" aria-label="Affichage">
             <Link
-              href="/admin/projects"
+              href={buildHref({ view: "" })}
               className={`pj-view-toggle-btn${viewMode === "list" ? " is-active" : ""}`}
               role="tab"
               aria-selected={viewMode === "list"}
@@ -99,7 +147,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
               <List size={14} /> <span>Liste</span>
             </Link>
             <Link
-              href="/admin/projects?view=lanes"
+              href={buildHref({ view: "lanes" })}
               className={`pj-view-toggle-btn${viewMode === "lanes" ? " is-active" : ""}`}
               role="tab"
               aria-selected={viewMode === "lanes"}
@@ -109,6 +157,63 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
               <LayoutGrid size={14} /> <span>Phases</span>
             </Link>
           </div>
+
+          {/* Filtre commission (préserve la vue active) */}
+          {(communeCommissions?.length ?? 0) > 0 && (
+            <details className="pj-portfolio-commission-filter">
+              <summary
+                className={`pj-view-toggle-btn${selectedCommission ? " is-active" : ""}`}
+                title="Filtrer le portefeuille par commission de rattachement"
+              >
+                <Users size={14} />
+                <span>
+                  {selectedCommission ? selectedCommission.nom : "Toutes commissions"}
+                </span>
+              </summary>
+              <div className="pj-portfolio-commission-menu">
+                <Link
+                  href={buildHref({ commission: "" })}
+                  className={`pj-portfolio-commission-item${!selectedCommission ? " is-active" : ""}`}
+                  prefetch={false}
+                >
+                  Toutes commissions
+                </Link>
+                {(communeCommissions ?? []).map((c) => (
+                  <Link
+                    key={c.id}
+                    href={buildHref({ commission: c.id })}
+                    className={`pj-portfolio-commission-item${c.id === commissionParam ? " is-active" : ""}`}
+                    prefetch={false}
+                  >
+                    <span
+                      className="pj-portfolio-commission-dot"
+                      style={{ background: c.color }}
+                      aria-hidden
+                    />
+                    {c.nom}
+                  </Link>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Sélecteur de gabarit (vue lanes uniquement) */}
+          {viewMode === "lanes" && (
+            <div className="pj-view-toggle" role="tablist" aria-label="Gabarit">
+              {VALID_TYPES.map((t) => (
+                <Link
+                  key={t}
+                  href={buildHref({ gabarit: t })}
+                  className={`pj-view-toggle-btn${selectedType === t ? " is-active" : ""}`}
+                  role="tab"
+                  aria-selected={selectedType === t}
+                  prefetch={false}
+                >
+                  {PROJECT_TYPE_LABELS[t]}
+                </Link>
+              ))}
+            </div>
+          )}
           <Link href="/admin/projects/comparatif" className="civiq-btn civiq-btn-outline">
             <BarChart3 size={14} /> <span>Comparatif coûts</span>
           </Link>
@@ -149,7 +254,18 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         />
       ) : (
         <div className="pj-lanes">
-          {PROJECT_PHASES.map((phase) => {
+          {projectsForLanes.length === 0 && (
+            <div className="civiq-card pj-empty" style={{ marginBottom: 16 }}>
+              <p className="pj-empty-title">
+                Aucun projet « {PROJECT_TYPE_LABELS[selectedType].toLowerCase()} »
+                {selectedCommission && ` pour la commission ${selectedCommission.nom}`}.
+              </p>
+              <p className="pj-empty-hint">
+                Changez de gabarit ou de commission pour voir d&apos;autres projets.
+              </p>
+            </div>
+          )}
+          {lanePhases.map((phase) => {
             const items = byPhase.get(phase) ?? [];
             return (
               <section key={phase} className="pj-lane">

@@ -4290,3 +4290,55 @@ a.pj-commission-badge:hover {
   display: flex; gap: 8px; justify-content: flex-end;
   margin-top: 10px;
 }
+
+/* ── Filtre commission sur la vue portefeuille ── */
+.pj-portfolio-commission-filter {
+  position: relative;
+}
+.pj-portfolio-commission-filter > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.pj-portfolio-commission-filter > summary::-webkit-details-marker { display: none; }
+
+.pj-portfolio-commission-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--civiq-card, #fff);
+  border: 1px solid var(--civiq-border, #e2dfd6);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -20px oklch(0 0 0 / 0.18);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pj-portfolio-commission-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--civiq-text, #1a2744);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.1s;
+}
+.pj-portfolio-commission-item:hover { background: var(--civiq-border-light, #f5f3ed); }
+.pj-portfolio-commission-item.is-active {
+  background: var(--civiq-border-light, #f5f3ed);
+  font-weight: 600;
+}
+.pj-portfolio-commission-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
