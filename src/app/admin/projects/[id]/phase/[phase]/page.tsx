@@ -138,11 +138,14 @@ export default async function ProjectPhasePage({ params }: Props) {
         )}
       </div>
 
-      {/* Stepper horizontal cliquable */}
+      {/* Stepper horizontal cliquable — drapeau rouge si une subvention est compromise */}
       <ProjectStepper
         current={p.phase}
         focused={phase}
         projectId={p.id}
+        type={p.type}
+        eligibilityCompromised={detail.financings.some((f) => f.eligibilite === "compromise")}
+        phaseNotApplicable={p.phase_not_applicable ?? {}}
       />
 
       {/* Hero phase compact */}

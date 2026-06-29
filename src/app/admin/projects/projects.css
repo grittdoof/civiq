@@ -454,6 +454,36 @@
   justify-content: center;
   color: var(--civiq-text-soft);
   margin-bottom: 4px;
+  position: relative;
+}
+.pj-stepper-red-flag-dot {
+  position: absolute;
+  top: -6px; right: -6px;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  background: oklch(0.55 0.20 25);
+  color: #fff;
+  border: 2px solid var(--civiq-card, #fff);
+  border-radius: 50%;
+  z-index: 2;
+}
+.pj-stepper-step.has-red-flag .pj-stepper-icon { color: oklch(0.55 0.20 25); }
+.pj-stepper-step.is-na { opacity: 0.45; }
+.pj-stepper-step.is-na .pj-stepper-icon,
+.pj-stepper-step.is-na .pj-stepper-label { text-decoration: line-through; text-decoration-color: var(--civiq-text-soft); }
+
+.pj-stepper-mobile-item.has-red-flag .pj-stepper-mobile-item-label { color: oklch(0.55 0.20 25); }
+.pj-stepper-mobile-item.is-na { opacity: 0.5; }
+.pj-stepper-mobile-item.is-na .pj-stepper-mobile-item-label { text-decoration: line-through; }
+.pj-stepper-red-flag {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  background: oklch(0.55 0.20 25);
+  color: #fff;
+  border-radius: 50%;
+  margin-left: auto;
 }
 .pj-stepper-step.is-active .pj-stepper-icon { color: var(--civiq-primary); }
 .pj-stepper-step.is-done .pj-stepper-icon { color: var(--civiq-success); }

@@ -41,6 +41,12 @@ import type {
 } from "@/lib/projects/types";
 import DocumentsEditor from "./DocumentsEditor";
 import ProjectPhotoUpload from "./ProjectPhotoUpload";
+import {
+  DeliberationSection,
+  AuthorizationSection,
+  CommunicationSection,
+  BudgetSection,
+} from "./DeliverableNewSections";
 
 // ═══════════════════════════════════════════════════════════════
 // DeliverablePage — page focalisée pour un livrable.
@@ -285,6 +291,50 @@ export default function DeliverablePage({
             canEdit={canEdit}
           />
         )}
+
+        {spec.kind === "deliberation" && (
+          <DeliberationSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
+
+        {spec.kind === "authorization" && (
+          <AuthorizationSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
+
+        {spec.kind === "communication" && (
+          <CommunicationSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
+
+        {spec.kind === "budget" && (
+          <BudgetSection
+            projectId={projectId}
+            phase={phase}
+            deliverableIdx={deliverableIdx}
+            nextDeliverableIdx={nextDeliverableIdx}
+            nextPhase={nextPhase}
+            canEdit={canEdit}
+          />
+        )}
       </div>
     </article>
   );
@@ -307,6 +357,14 @@ function contextHelp(kind: DeliverableKind): string {
       return "Ajoutez une ligne de financement avec son dispositif et son montant.";
     case "milestone":
       return "Ajoutez un jalon avec son échéance et un responsable.";
+    case "deliberation":
+      return "Tracez un passage en instance (Conseil municipal, bureau…) avec sa date, son numéro et son objet.";
+    case "authorization":
+      return "Enregistrez une autorisation administrative (arrêté, déclaration, dossier sécurité…) avec son statut et son échéance.";
+    case "communication":
+      return "Planifiez une action de communication (affiche, presse, réseaux, site, mailing…) avec son canal et sa date.";
+    case "budget":
+      return "Ajoutez une ligne au budget interne (dépense ou recette) avec son montant prévu.";
     default:
       return "";
   }

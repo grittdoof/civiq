@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, AlertTriangle } from "lucide-react";
 import {
-  PROJECT_PHASES,
+  PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_SHORT,
   PROJECT_PHASE_HINTS,
   type ProjectPhase,
+  type ProjectType,
 } from "@/lib/projects/types";
 import PhaseIcon from "./PhaseIcon";
 
@@ -16,6 +17,16 @@ interface Props {
   focused?: ProjectPhase;
   /** Si fourni, chaque étape devient un Link vers /phase/[phase]. */
   projectId?: string;
+  /** Gabarit du projet. Default 'investment' pour rétrocompat. */
+  type?: ProjectType;
+  /**
+   * Drapeau rouge éligibilité subvention (au moins un financing du
+   * projet a eligibilite='compromise'). Affiche un badge alerte sur
+   * la phase « réalisation » (gabarit investment uniquement).
+   */
+  eligibilityCompromised?: boolean;
+  /** Phases marquées « non applicable » — affichage atténué. */
+  phaseNotApplicable?: Record<string, string>;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -30,11 +41,22 @@ interface Props {
 //   - ligne horizontale verte/grise entre les étapes
 // ═══════════════════════════════════════════════════════════════
 
-export default function ProjectStepper({ current, focused, projectId }: Props) {
-  const currentIdx = PROJECT_PHASES.indexOf(current);
+export default function ProjectStepper({
+  current,
+  focused,
+  projectId,
+  type = "investment",
+  eligibilityCompromised = false,
+  phaseNotApplicable = {},
+}: Props) {
+  const phases = PROJECT_PHASES_BY_TYPE[type];
+  const currentIdx = phases.indexOf(current);
   const focusedPhase = focused ?? current;
-  const focusedIdx = PROJECT_PHASES.indexOf(focusedPhase);
-  const progress = ((currentIdx + 1) / PROJECT_PHASES.length) * 100;
+  const focusedIdx = phases.indexOf(focusedPhase);
+  const progress = ((currentIdx + 1) / phases.length) * 100;
+  // Le drapeau rouge s'affiche sur la phase « réalisation » pour
+  // signaler que le commencement d'exécution menace une subvention.
+  const RED_FLAG_PHASE: ProjectPhase = "realisation";
 
   return (
     <>
@@ -46,7 +68,7 @@ export default function ProjectStepper({ current, focused, projectId }: Props) {
           </div>
           <div className="pj-stepper-mobile-body">
             <div className="pj-stepper-mobile-step">
-              Étape {focusedIdx + 1} / {PROJECT_PHASES.length}
+              Étape {focusedIdx + 1} / {phases.length}
             </div>
             <div className="pj-stepper-mobile-label">
               {PROJECT_PHASE_LABELS[focusedPhase]}
@@ -65,10 +87,12 @@ export default function ProjectStepper({ current, focused, projectId }: Props) {
         <details className="pj-stepper-mobile-details">
           <summary>Voir toutes les étapes</summary>
           <ol className="pj-stepper-mobile-list">
-            {PROJECT_PHASES.map((phase, i) => {
+            {phases.map((phase, i) => {
               const done = i < currentIdx;
               const active = phase === focusedPhase;
-              const cls = `pj-stepper-mobile-item ${done ? "is-done" : ""} ${active ? "is-active" : ""}`;
+              const na = Boolean(phaseNotApplicable[phase]);
+              const redFlag = eligibilityCompromised && phase === RED_FLAG_PHASE && type === "investment";
+              const cls = `pj-stepper-mobile-item ${done ? "is-done" : ""} ${active ? "is-active" : ""} ${na ? "is-na" : ""} ${redFlag ? "has-red-flag" : ""}`;
               const inner = (
                 <>
                   <span className="pj-stepper-mobile-item-bullet">
@@ -80,6 +104,11 @@ export default function ProjectStepper({ current, focused, projectId }: Props) {
                   <span className="pj-stepper-mobile-item-label">
                     {PROJECT_PHASE_LABELS[phase]}
                   </span>
+                  {redFlag && (
+                    <span className="pj-stepper-red-flag" title="Risque d'éligibilité : un marché ou OS est saisi avant l'AR d'une subvention">
+                      <AlertTriangle size={12} />
+                    </span>
+                  )}
                   {active && (
                     <ChevronRight
                       size={14}
@@ -110,14 +139,21 @@ export default function ProjectStepper({ current, focused, projectId }: Props) {
 
       {/* ─── Desktop : grille 7 colonnes sans scroll ─── */}
       <ol className="pj-stepper" aria-label="Avancement du projet">
-        {PROJECT_PHASES.map((phase, i) => {
+        {phases.map((phase, i) => {
           const done = i < currentIdx;
           const active = phase === focusedPhase;
-          const cls = `pj-stepper-step ${done ? "is-done" : ""} ${active ? "is-active" : ""}`;
+          const na = Boolean(phaseNotApplicable[phase]);
+          const redFlag = eligibilityCompromised && phase === RED_FLAG_PHASE && type === "investment";
+          const cls = `pj-stepper-step ${done ? "is-done" : ""} ${active ? "is-active" : ""} ${na ? "is-na" : ""} ${redFlag ? "has-red-flag" : ""}`;
           const inner = (
             <>
               <div className="pj-stepper-icon" aria-hidden>
                 <PhaseIcon phase={phase} size={20} strokeWidth={1.75} />
+                {redFlag && (
+                  <span className="pj-stepper-red-flag-dot" title="Risque d'éligibilité : un marché ou OS est saisi avant l'AR d'une subvention">
+                    <AlertTriangle size={11} strokeWidth={2.5} />
+                  </span>
+                )}
               </div>
               <div className="pj-stepper-dot">
                 {done ? (
@@ -130,7 +166,7 @@ export default function ProjectStepper({ current, focused, projectId }: Props) {
             </>
           );
           return (
-            <li key={phase} className={cls} title={PROJECT_PHASE_HINTS[phase]}>
+            <li key={phase} className={cls} title={na ? phaseNotApplicable[phase] : PROJECT_PHASE_HINTS[phase]}>
               {projectId ? (
                 <Link
                   href={`/admin/projects/${projectId}/phase/${phase}`}
