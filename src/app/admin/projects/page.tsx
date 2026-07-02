@@ -75,13 +75,27 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     : null;
 
   const service = await createServiceClient();
-  const { data: allFinancings } = await service
-    .from("financings")
-    .select("project_id, statut, montant_demande, montant_obtenu")
-    .in(
-      "project_id",
-      projects.length > 0 ? projects.map((p) => p.id) : ["__none__"],
-    );
+  const projIds = projects.length > 0 ? projects.map((p) => p.id) : ["__none__"];
+  const [{ data: allFinancings }, { data: allBudgetLines }] = await Promise.all([
+    service
+      .from("financings")
+      .select("project_id, statut, montant_demande, montant_obtenu")
+      .in("project_id", projIds),
+    service
+      .from("project_budget_lines")
+      .select("project_id, sens, montant_prevu, montant_reel")
+      .in("project_id", projIds),
+  ]);
+
+  // Aggregat des lignes budget par projet : { depense_prevu, depense_reel, recette_prevu, recette_reel }
+  const budgetByProject = new Map<string, { depense: number; recette: number }>();
+  for (const l of allBudgetLines ?? []) {
+    const bucket = budgetByProject.get(l.project_id) ?? { depense: 0, recette: 0 };
+    const val = Number(l.montant_reel ?? l.montant_prevu ?? 0);
+    if (l.sens === "depense") bucket.depense += val;
+    if (l.sens === "recette") bucket.recette += val;
+    budgetByProject.set(l.project_id, bucket);
+  }
 
   const statusesByProject = new Map<string, string[]>();
   let totalDemande = 0;
@@ -251,6 +265,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           projects={projects}
           totalDemande={totalDemande}
           totalObtenu={totalObtenu}
+          budgetTotalsByProject={Object.fromEntries(budgetByProject)}
         />
       ) : (
         <div className="pj-lanes">

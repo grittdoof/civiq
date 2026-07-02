@@ -4342,3 +4342,34 @@ a.pj-commission-badge:hover {
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* ── Vignette photo (conditionnelle : rendue uniquement si photo_url) ── */
+.pj-list-thumb {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--civiq-border-light, #f5f3ed);
+  align-self: center;
+}
+.pj-list-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+@media (max-width: 640px) {
+  .pj-list-thumb { width: 40px; height: 40px; border-radius: 8px; }
+}
+
+/* ── Section header avec CTA aligné à droite ── */
+.pj-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.pj-section-head .pj-section-title { margin: 0; }

@@ -124,6 +124,8 @@ interface Props {
     full_name: string | null;
     job_title: string | null;
   }>;
+  communeCommissions: Array<{ id: string; nom: string; color: string }>;
+  currentCommissionId: string | null;
   nextDeliverableIdx: number | null;
   nextPhase: ProjectPhase | null;
   canEdit: boolean;
@@ -137,6 +139,8 @@ export default function DeliverablePage({
   manual,
   currentProject,
   profilesDirectory,
+  communeCommissions,
+  currentCommissionId,
   nextDeliverableIdx,
   nextPhase,
   canEdit,
@@ -213,6 +217,8 @@ export default function DeliverablePage({
             deliverableIdx={deliverableIdx}
             current={currentProject}
             manual={manual}
+            communeCommissions={communeCommissions}
+            currentCommissionId={currentCommissionId}
             nextDeliverableIdx={nextDeliverableIdx}
             nextPhase={nextPhase}
             canEdit={canEdit}
@@ -448,6 +454,8 @@ function IdentityForm({
   deliverableIdx,
   current,
   manual,
+  communeCommissions,
+  currentCommissionId,
   nextDeliverableIdx,
   nextPhase,
   canEdit,
@@ -457,6 +465,8 @@ function IdentityForm({
   deliverableIdx: number;
   current: CurrentProject;
   manual: { done: boolean; note: string | null };
+  communeCommissions: Array<{ id: string; nom: string; color: string }>;
+  currentCommissionId: string | null;
   nextDeliverableIdx: number | null;
   nextPhase: ProjectPhase | null;
   canEdit: boolean;
@@ -467,6 +477,7 @@ function IdentityForm({
   );
   const [description, setDescription] = useState(current.description ?? "");
   const [objectifs, setObjectifs] = useState(current.objectifs ?? "");
+  const [commissionId, setCommissionId] = useState(currentCommissionId ?? "");
   const [saving, setSaving] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -486,6 +497,24 @@ function IdentityForm({
       if (!res.ok) {
         setSaving(false);
         return;
+      }
+      // Rattachement à la commission (best-effort — n'échoue pas la sauvegarde)
+      if (commissionId !== (currentCommissionId ?? "")) {
+        try {
+          if (currentCommissionId) {
+            await fetch(
+              `/api/commissions/${currentCommissionId}/projects/${projectId}`,
+              { method: "DELETE" },
+            );
+          }
+          if (commissionId) {
+            await fetch(`/api/commissions/${commissionId}/projects`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ project_id: projectId }),
+            });
+          }
+        } catch { /* best effort */ }
       }
       // Marque ce livrable comme fait
       await markDeliverableDone(projectId, phase, deliverableIdx);
@@ -541,6 +570,26 @@ function IdentityForm({
           placeholder="Quels résultats concrets vous visez. Pour qui. Et pourquoi maintenant."
           disabled={!canEdit}
         />
+      </div>
+
+      <div className="pj-deliv-field">
+        <label htmlFor="d-commission">Commission de rattachement</label>
+        <select
+          id="d-commission"
+          className="pj-input"
+          value={commissionId}
+          onChange={(e) => setCommissionId(e.target.value)}
+          disabled={!canEdit || communeCommissions.length === 0}
+        >
+          <option value="">
+            {communeCommissions.length === 0
+              ? "Aucune commission active"
+              : "— Non rattaché —"}
+          </option>
+          {communeCommissions.map((c) => (
+            <option key={c.id} value={c.id}>{c.nom}</option>
+          ))}
+        </select>
       </div>
 
       <div className="pj-deliv-field">

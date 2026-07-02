@@ -40,6 +40,8 @@ interface Props {
   projects: ProjectListItem[];
   totalDemande: number;
   totalObtenu: number;
+  /** Totaux des lignes budget par projet (id → dépense/recette cumulées). */
+  budgetTotalsByProject?: Record<string, { depense: number; recette: number }>;
 }
 
 const TIERS_FILTERS = [
@@ -54,6 +56,7 @@ export default function ProjectsListExperience({
   projects,
   totalDemande,
   totalObtenu,
+  budgetTotalsByProject = {},
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [phasesSelected, setPhasesSelected] = useState<Set<ProjectPhase>>(
@@ -187,7 +190,10 @@ export default function ProjectsListExperience({
           )}
         </div>
       ) : (
-        <CleanProjectList projects={filteredProjects} />
+        <CleanProjectList
+          projects={filteredProjects}
+          budgetTotalsByProject={budgetTotalsByProject}
+        />
       )}
 
       <ProjectsStatsDrawer
@@ -310,13 +316,26 @@ function FiltersBar({
 // pj-list-col-*, juste les lignes de projets).
 // ─────────────────────────────────────────────────────────────────
 
-function CleanProjectList({ projects }: { projects: ProjectListItem[] }) {
+function CleanProjectList({
+  projects,
+  budgetTotalsByProject,
+}: {
+  projects: ProjectListItem[];
+  budgetTotalsByProject: Record<string, { depense: number; recette: number }>;
+}) {
   return (
     <ul className="pj-list">
       {projects.map((p) => {
         const demande = p.financing_total_demande ?? 0;
         const obtenu = p.financing_total_obtenu ?? 0;
-        const budget = Number(p.budget_estime ?? 0);
+        const budgetEstime = Number(p.budget_estime ?? 0);
+        const budgetLines = budgetTotalsByProject[p.id] ?? { depense: 0, recette: 0 };
+        // Budget affiché selon le gabarit :
+        //  - investment : budget_estime (enveloppe indicative + coût 10 ans)
+        //  - event/tracking : total des dépenses saisies OU budget_estime en fallback
+        const budget = p.type === "investment"
+          ? budgetEstime
+          : (budgetLines.depense > 0 ? budgetLines.depense : budgetEstime);
         const pctObtenu = budget > 0 ? Math.min(100, Math.round((obtenu / budget) * 100)) : 0;
         const pctDemande = budget > 0 ? Math.min(100, Math.round((demande / budget) * 100)) : 0;
 
@@ -342,6 +361,12 @@ function CleanProjectList({ projects }: { projects: ProjectListItem[] }) {
               className="pj-list-item"
               prefetch={false}
             >
+              {p.photo_url && (
+                <div className="pj-list-thumb" aria-hidden>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.photo_url} alt="" loading="lazy" />
+                </div>
+              )}
               <div className="pj-list-titre-cell">
                 <strong className="pj-list-titre">{p.titre}</strong>
                 <div className="pj-list-meta">
@@ -388,30 +413,57 @@ function CleanProjectList({ projects }: { projects: ProjectListItem[] }) {
               </div>
 
               <div className="pj-list-budget-cell">
-                <span className="pj-list-budget">{formatEuros(budget)}</span>
+                <span className="pj-list-budget">
+                  {budget > 0 ? formatEuros(budget) : <span className="pj-list-muted">—</span>}
+                </span>
+                {p.type !== "investment" && budgetLines.depense > 0 && (
+                  <span className="pj-list-financement-meta">
+                    dépenses saisies
+                  </span>
+                )}
               </div>
 
               <div className="pj-list-financement-cell">
-                {p.accompagne_sans_financer ? (
-                  <span className="pj-list-muted">—</span>
-                ) : budget > 0 ? (
-                  <>
-                    <div className="pj-list-progress" aria-hidden>
-                      <div
-                        className="pj-list-progress-demande"
-                        style={{ width: `${pctDemande}%` }}
-                      />
-                      <div
-                        className="pj-list-progress-obtenu"
-                        style={{ width: `${pctObtenu}%` }}
-                      />
-                    </div>
-                    <span className="pj-list-financement-meta">
-                      {formatEuros(obtenu)} obtenu · {formatEuros(demande)} demandé
-                    </span>
-                  </>
+                {p.type === "investment" ? (
+                  p.accompagne_sans_financer ? (
+                    <span className="pj-list-muted">—</span>
+                  ) : budget > 0 ? (
+                    <>
+                      <div className="pj-list-progress" aria-hidden>
+                        <div
+                          className="pj-list-progress-demande"
+                          style={{ width: `${pctDemande}%` }}
+                        />
+                        <div
+                          className="pj-list-progress-obtenu"
+                          style={{ width: `${pctObtenu}%` }}
+                        />
+                      </div>
+                      <span className="pj-list-financement-meta">
+                        {formatEuros(obtenu)} obtenu · {formatEuros(demande)} demandé
+                      </span>
+                    </>
+                  ) : (
+                    <span className="pj-list-muted">Budget non défini</span>
+                  )
+                ) : p.type === "event" ? (
+                  budgetLines.recette > 0 ? (
+                    <>
+                      <span className="pj-list-budget">{formatEuros(budgetLines.recette)}</span>
+                      <span className="pj-list-financement-meta">recettes propres</span>
+                    </>
+                  ) : (
+                    <span className="pj-list-muted">—</span>
+                  )
                 ) : (
-                  <span className="pj-list-muted">Budget non défini</span>
+                  // tracking : pas de logique financement structurante
+                  obtenu > 0 || demande > 0 ? (
+                    <span className="pj-list-financement-meta">
+                      {formatEuros(obtenu)} obtenu
+                    </span>
+                  ) : (
+                    <span className="pj-list-muted">—</span>
+                  )
                 )}
               </div>
             </Link>

@@ -60,6 +60,17 @@ export default async function DeliverableFocusPage({ params }: Props) {
     .select("id, full_name, job_title")
     .eq("commune_id", ctx.communeId);
 
+  // Liste des commissions actives (pour le select dans l'identity form)
+  const { data: communeCommissions } = await service
+    .from("commissions")
+    .select("id, nom, color")
+    .eq("commune_id", ctx.communeId)
+    .eq("active", true)
+    .order("nom");
+
+  // Commission actuellement rattachée (on prend la première si plusieurs)
+  const currentCommissionId = detail.commissions?.[0]?.id ?? null;
+
   const phaseIdx = phasesForType.indexOf(phase);
   const nextDelivIdx = idx + 1 < guide.deliverables.length ? idx + 1 : null;
   const nextPhase = phaseIdx < phasesForType.length - 1
@@ -122,6 +133,8 @@ export default async function DeliverableFocusPage({ params }: Props) {
             job_title: string | null;
           }>
         }
+        communeCommissions={(communeCommissions ?? []) as Array<{ id: string; nom: string; color: string }>}
+        currentCommissionId={currentCommissionId}
         nextDeliverableIdx={nextDelivIdx}
         nextPhase={nextPhase}
         canEdit={canEdit}

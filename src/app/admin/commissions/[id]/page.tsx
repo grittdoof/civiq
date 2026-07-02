@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarPlus } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Plus } from "lucide-react";
 import { extractExcerpt } from "@/lib/projects/text-utils";
 import "../../projects/projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -176,9 +176,20 @@ export default async function CommissionDetailPage({ params }: PageProps) {
         </section>
 
         <section className="civiq-card pj-section">
-          <h2 className="pj-section-title">
-            Projets suivis <span className="pj-section-count">({detail.projects.length})</span>
-          </h2>
+          <div className="pj-section-head">
+            <h2 className="pj-section-title">
+              Projets suivis <span className="pj-section-count">({detail.projects.length})</span>
+            </h2>
+            {canCreateSession && (
+              <Link
+                href={`/admin/projects/nouveau?from_commission=${id}`}
+                className="civiq-btn civiq-btn-default civiq-btn-sm"
+                prefetch={false}
+              >
+                <Plus size={13} /> Nouveau projet
+              </Link>
+            )}
+          </div>
           <CommissionProjectsEditor
             commissionId={id}
             initial={detail.projects.map((p) => ({
