@@ -1031,3 +1031,40 @@ export interface ProjectBudgetLine {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Devis prestataires (migration 030) ───
+
+export type QuoteStatut = "recu" | "en_attente" | "retenu" | "non_retenu";
+
+export const QUOTE_STATUT_LABELS: Record<QuoteStatut, string> = {
+  recu: "Reçu",
+  en_attente: "En attente",
+  retenu: "Retenu",
+  non_retenu: "Non retenu",
+};
+
+export interface ProjectQuote {
+  id: string;
+  project_id: string;
+  phase: ProjectPhase;
+  prestataire: string;
+  objet: string | null;
+  montant_ht: number | null;
+  montant_ttc: number | null;
+  delai_jours: number | null;
+  statut: QuoteStatut;
+  document_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Phase « mise en œuvre » selon le gabarit — c'est là que le
+ * comparateur de devis apparaît.
+ */
+export const QUOTES_PHASE_BY_TYPE: Record<ProjectType, ProjectPhase> = {
+  investment: "realisation",
+  event: "event_logistics",
+  tracking: "tracking_execution",
+};

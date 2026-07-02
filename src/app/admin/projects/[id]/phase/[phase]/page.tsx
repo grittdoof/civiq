@@ -8,6 +8,7 @@ import {
   PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
   PROJECT_PHASE_GUIDE,
+  QUOTES_PHASE_BY_TYPE,
   type ProjectPhase,
   type DeliverableKind,
 } from "@/lib/projects/types";
@@ -20,6 +21,7 @@ import ProjectStepper from "@/components/projects/ProjectStepper";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import PhaseFreeAdditions from "@/components/projects/PhaseFreeAdditions";
 import PhaseNaKebab from "@/components/projects/PhaseNaKebab";
+import QuotesComparator from "@/components/projects/QuotesComparator";
 import "../../../projects.css";
 import "../../../flow.css";
 
@@ -208,6 +210,11 @@ export default async function ProjectPhasePage({ params }: Props) {
 
       {/* Boutons libres : ajouter un document ou une étape clé, indépendamment du gabarit */}
       <PhaseFreeAdditions projectId={p.id} phase={phase} canEdit={canEdit} />
+
+      {/* Comparateur de devis prestataires (uniquement sur la phase de mise en œuvre) */}
+      {phase === QUOTES_PHASE_BY_TYPE[p.type] && (
+        <QuotesComparator projectId={p.id} phase={phase} canEdit={canEdit} />
+      )}
 
       {/* Liste verticale des livrables */}
       <ul className="pj-flow-deliverables">

@@ -706,6 +706,150 @@
   display: flex; gap: 8px; justify-content: flex-end;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   QuotesComparator — comparateur de devis prestataires
+   ═══════════════════════════════════════════════════════════════ */
+.pj-quotes-comparator {
+  margin: 24px 0 8px;
+  padding: 20px;
+  background: var(--civiq-card, #fff);
+  border: 1px solid var(--civiq-border, #e2dfd6);
+  border-radius: var(--civiq-radius, 16px);
+}
+.pj-quotes-head { margin-bottom: 14px; }
+.pj-quotes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--civiq-text, #1a2744);
+  margin: 0 0 4px;
+}
+.pj-quotes-sub {
+  font-size: 12.5px;
+  color: var(--civiq-text-light, #666);
+  margin: 0;
+  line-height: 1.5;
+}
+.pj-quotes-loading, .pj-quotes-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  font-size: 13px;
+  color: var(--civiq-text-light, #888);
+  justify-content: center;
+}
+.pj-quotes-table-wrap { overflow-x: auto; margin: 12px -4px; }
+.pj-quotes-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.pj-quotes-table thead th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--civiq-text-light, #888);
+  border-bottom: 1px solid var(--civiq-border, #e2dfd6);
+}
+.pj-quotes-table th.pj-quotes-num,
+.pj-quotes-table td.pj-quotes-num { text-align: right; }
+.pj-quotes-table tbody td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--civiq-border-light, #f5f3ed);
+  vertical-align: middle;
+}
+.pj-quotes-table tbody tr.is-retenu {
+  background: oklch(0.97 0.04 145);
+}
+.pj-quotes-table tbody tr.is-retenu td:first-child { position: relative; }
+.pj-quotes-check {
+  display: inline-block;
+  color: oklch(0.45 0.16 145);
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.pj-quotes-statut {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--civiq-border, #e2dfd6);
+  font-size: 12px;
+  background: var(--civiq-card, #fff);
+  cursor: pointer;
+}
+.pj-quotes-statut.is-retenu, .pj-quotes-statut-badge.is-retenu {
+  color: oklch(0.35 0.16 145);
+  background: oklch(0.94 0.05 145);
+  border-color: oklch(0.85 0.10 145);
+}
+.pj-quotes-statut.is-non_retenu, .pj-quotes-statut-badge.is-non_retenu {
+  color: var(--civiq-text-light, #888);
+  background: var(--civiq-border-light, #f5f3ed);
+}
+.pj-quotes-statut.is-en_attente, .pj-quotes-statut-badge.is-en_attente {
+  color: oklch(0.5 0.16 70);
+  background: oklch(0.96 0.06 70);
+  border-color: oklch(0.85 0.10 70);
+}
+.pj-quotes-statut-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.pj-quotes-del {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--civiq-text-light, #888);
+  cursor: pointer;
+}
+.pj-quotes-del:hover {
+  color: oklch(0.55 0.20 25);
+  background: oklch(0.96 0.06 25);
+}
+.pj-quotes-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--civiq-border-light, #f5f3ed);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--civiq-primary, #1a2744);
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.pj-quotes-doc-link:hover { background: var(--civiq-border, #e2dfd6); }
+.pj-quotes-add-btn {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px dashed var(--civiq-border, #e2dfd6);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--civiq-text-light, #666);
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.pj-quotes-add-btn:hover {
+  color: var(--civiq-text, #1a2744);
+  border-color: var(--civiq-text-light, #888);
+  background: var(--civiq-border-light, #f5f3ed);
+}
+
 /* ── Boutons libres « + document » / « + étape clé » ── */
 .pj-free-additions {
   margin: 12px 0 20px;
