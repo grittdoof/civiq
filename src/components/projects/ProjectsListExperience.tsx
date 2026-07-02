@@ -8,7 +8,9 @@ import {
   X,
   Handshake,
   Building2,
+  SlidersHorizontal,
 } from "lucide-react";
+import RightDrawer from "./RightDrawer";
 import {
   PROJECT_PHASES,
   PROJECT_PHASE_LABELS,
@@ -59,6 +61,7 @@ export default function ProjectsListExperience({
   budgetTotalsByProject = {},
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
   const [phasesSelected, setPhasesSelected] = useState<Set<ProjectPhase>>(
     new Set(),
   );
@@ -149,27 +152,59 @@ export default function ProjectsListExperience({
             </button>
           )}
         </div>
-        <button
-          type="button"
-          className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
-          onClick={() => setDrawerOpen(true)}
-          aria-haspopup="dialog"
-          aria-expanded={drawerOpen}
-        >
-          <BarChart3 size={14} />
-          <span>Statistiques</span>
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
+            onClick={() => setFiltersDrawerOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={filtersDrawerOpen}
+          >
+            <SlidersHorizontal size={14} />
+            <span>Filtres</span>
+            {activeFilterCount > 0 && (
+              <span className="pj-toolbar-badge">{activeFilterCount}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
+            onClick={() => setDrawerOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={drawerOpen}
+          >
+            <BarChart3 size={14} />
+            <span>Statistiques</span>
+          </button>
+        </div>
       </div>
 
-      <FiltersBar
-        phasesSelected={phasesSelected}
-        onTogglePhase={togglePhase}
-        commissions={allCommissions}
-        commissionsSelected={commissionsSelected}
-        onToggleCommission={toggleCommission}
-        tiersFilter={tiersFilter}
-        onTiersFilterChange={setTiersFilter}
-      />
+      <RightDrawer
+        open={filtersDrawerOpen}
+        onClose={() => setFiltersDrawerOpen(false)}
+        title="Filtres du portefeuille"
+        footer={
+          activeFilterCount > 0 ? (
+            <button
+              type="button"
+              className="civiq-btn civiq-btn-ghost"
+              onClick={resetFilters}
+            >
+              <X size={13} /> Réinitialiser
+            </button>
+          ) : null
+        }
+      >
+        <FiltersBar
+          phasesSelected={phasesSelected}
+          onTogglePhase={togglePhase}
+          commissions={allCommissions}
+          commissionsSelected={commissionsSelected}
+          onToggleCommission={toggleCommission}
+          tiersFilter={tiersFilter}
+          onTiersFilterChange={setTiersFilter}
+        />
+      </RightDrawer>
 
       {filteredProjects.length === 0 ? (
         <div className="civiq-card pj-empty pj-empty-soft">

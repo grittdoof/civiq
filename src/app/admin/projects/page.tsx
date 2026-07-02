@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, BarChart3, Users, CalendarDays, LayoutGrid, List, TrendingUp } from "lucide-react";
+import { Plus, LayoutGrid, List, Users } from "lucide-react";
 import "./projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -17,6 +17,7 @@ import {
 import ProjectCard from "@/components/projects/ProjectCard";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import ProjectsListExperience from "@/components/projects/ProjectsListExperience";
+import PortfolioActionsDrawer from "@/components/projects/PortfolioActionsDrawer";
 
 const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 
@@ -228,18 +229,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
               ))}
             </div>
           )}
-          <Link href="/admin/projects/comparatif" className="civiq-btn civiq-btn-outline">
-            <BarChart3 size={14} /> <span>Comparatif coûts</span>
-          </Link>
-          <Link href="/admin/projects/cartographie" className="civiq-btn civiq-btn-outline">
-            <Users size={14} /> <span>Parties prenantes</span>
-          </Link>
-          <Link href="/admin/projects/revue-mensuelle" className="civiq-btn civiq-btn-outline">
-            <CalendarDays size={14} /> <span>Revue mensuelle</span>
-          </Link>
-          <Link href="/admin/projects/ppi" className="civiq-btn civiq-btn-outline">
-            <TrendingUp size={14} /> <span>PPI</span>
-          </Link>
+          <PortfolioActionsDrawer />
           {canCreate && (
             <Link href="/admin/projects/nouveau" className="civiq-btn civiq-btn-default">
               <Plus size={14} /> Nouveau projet

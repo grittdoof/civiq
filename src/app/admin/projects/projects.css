@@ -4373,3 +4373,164 @@ a.pj-commission-badge:hover {
   flex-wrap: wrap;
 }
 .pj-section-head .pj-section-title { margin: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   RightDrawer — panneau off-canvas droit (Airbnb style)
+   ═══════════════════════════════════════════════════════════════ */
+.pj-drawer-root {
+  position: fixed; inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+.pj-drawer-root.is-open { pointer-events: auto; }
+.pj-drawer-backdrop {
+  position: absolute; inset: 0;
+  background: oklch(0 0 0 / 0);
+  transition: background 0.25s ease;
+}
+.pj-drawer-root.is-open .pj-drawer-backdrop { background: oklch(0 0 0 / 0.35); }
+.pj-drawer-panel {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: var(--pj-drawer-w, 380px);
+  max-width: 100vw;
+  background: var(--civiq-card, #fff);
+  border-left: 1px solid var(--civiq-border, #e2dfd6);
+  box-shadow: -18px 0 40px -20px oklch(0 0 0 / 0.25);
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+}
+.pj-drawer-root.is-open .pj-drawer-panel { transform: translateX(0); }
+.pj-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--civiq-border-light, #f5f3ed);
+  flex-shrink: 0;
+}
+.pj-drawer-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--civiq-text, #1a2744);
+  margin: 0;
+}
+.pj-drawer-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  background: transparent;
+  border: 1px solid var(--civiq-border, #e2dfd6);
+  border-radius: 50%;
+  color: var(--civiq-text, #1a2744);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.pj-drawer-close:hover { background: var(--civiq-border-light, #f5f3ed); }
+.pj-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px 24px;
+}
+.pj-drawer-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--civiq-border-light, #f5f3ed);
+  display: flex; gap: 10px; justify-content: flex-end;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .pj-drawer-panel { width: 100vw; }
+}
+
+/* Contenu filtres dans le drawer : forcer stack vertical */
+.pj-drawer-body .pj-filters {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 20px;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: none;
+}
+.pj-drawer-body .pj-filters-group {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.pj-drawer-body .pj-filters-chips {
+  flex-wrap: wrap;
+}
+.pj-drawer-body .pj-filters-sep { display: none; }
+
+/* Badge compteur de filtres actifs sur le bouton toolbar */
+.pj-toolbar-badge {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  min-width: 18px; height: 18px;
+  padding: 0 5px;
+  margin-left: 4px;
+  background: var(--civiq-primary, #1a2744);
+  color: #fff;
+  border-radius: 99px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* ── Actions liste dans le drawer (vues transversales) ── */
+.pj-drawer-help {
+  font-size: 13px;
+  color: var(--civiq-text-light, #666);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+.pj-actions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pj-actions-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px;
+  background: var(--civiq-card, #fff);
+  border: 1px solid var(--civiq-border, #e2dfd6);
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--civiq-text, #1a2744);
+  transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+.pj-actions-item:hover {
+  border-color: var(--civiq-primary, #1a2744);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -12px oklch(0 0 0 / 0.15);
+}
+.pj-actions-icon {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--civiq-border-light, #f5f3ed);
+  color: var(--civiq-primary, #1a2744);
+  flex-shrink: 0;
+}
+.pj-actions-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pj-actions-copy strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--civiq-text, #1a2744);
+}
+.pj-actions-copy em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--civiq-text-light, #666);
+  line-height: 1.4;
+}
