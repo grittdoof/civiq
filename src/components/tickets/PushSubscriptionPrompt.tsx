@@ -7,18 +7,20 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 // ═══════════════════════════════════════════════════════════════
 // PushSubscriptionPrompt
 //
-// Modal pleine page bloquante affichée à chaque session tant que
-// l'utilisateur n'a pas activé les notifications (ou explicitement
-// reporté pour la session). Indispensable pour les agents qui
-// reçoivent des assignations de tickets.
+// Modal bloquante affichée jusqu'à activation des notifications ou
+// snooze explicite (« Plus tard »). Indispensable pour les agents
+// qui reçoivent des assignations de tickets.
 //
 // Cas spécial iOS : si l'app n'est pas installée en PWA, on
 // affiche un guide pour l'ajouter à l'écran d'accueil.
+//
+// Snooze : localStorage avec expiration à 7 jours. sessionStorage
+// était trop agressif — la prompt réapparaissait presque à chaque
+// nouvelle session desktop, ce qui devenait insupportable.
 // ═══════════════════════════════════════════════════════════════
 
-// Dismiss par session uniquement (pas localStorage). À chaque
-// nouvelle session de l'app, on redemande tant que pas souscrit.
-const SESSION_DISMISS_KEY = "tickets:push:dismissed-session";
+const DISMISS_KEY = "tickets:push:snoozed-until";
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
 
 // ─── Composant : animation des étapes d'installation iPhone ───
 function IosInstallSteps() {
@@ -96,17 +98,28 @@ function IosInstallSteps() {
 
 export default function PushSubscriptionPrompt() {
   const { status, subscribe } = usePushSubscription();
-  const [dismissedSession, setDismissedSession] = useState(true);
+  const [snoozed, setSnoozed] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setDismissedSession(sessionStorage.getItem(SESSION_DISMISS_KEY) === "1");
+    try {
+      const raw = localStorage.getItem(DISMISS_KEY);
+      const until = raw ? parseInt(raw, 10) : 0;
+      const active = Number.isFinite(until) && until > Date.now();
+      setSnoozed(active);
+      // Purge des valeurs expirées pour ne pas polluer localStorage
+      if (raw && !active) localStorage.removeItem(DISMISS_KEY);
+    } catch {
+      setSnoozed(false);
+    }
   }, []);
 
-  function dismissForSession() {
-    sessionStorage.setItem(SESSION_DISMISS_KEY, "1");
-    setDismissedSession(true);
+  function snoozeFor7Days() {
+    try {
+      localStorage.setItem(DISMISS_KEY, String(Date.now() + SNOOZE_MS));
+    } catch { /* localStorage bloqué : au pire, la prompt réapparait au reload */ }
+    setSnoozed(true);
   }
 
   // Pas d'affichage si :
@@ -117,7 +130,7 @@ export default function PushSubscriptionPrompt() {
   if (status === "loading" || status === "subscribed" || status === "unsupported") {
     return null;
   }
-  if (dismissedSession) return null;
+  if (snoozed) return null;
 
   const isIos = status === "ios-pwa-required";
   const isDenied = status === "denied";
@@ -175,7 +188,7 @@ export default function PushSubscriptionPrompt() {
             <div className="tk-push-ios-ctas">
               <button
                 type="button"
-                onClick={dismissForSession}
+                onClick={snoozeFor7Days}
                 className="tk-push-modal-cta"
                 title="Si vous avez installé l'app, fermez Safari et rouvrez depuis l'icône GoCiviq"
               >
@@ -183,7 +196,7 @@ export default function PushSubscriptionPrompt() {
               </button>
               <button
                 type="button"
-                onClick={dismissForSession}
+                onClick={snoozeFor7Days}
                 className="tk-push-modal-cta tk-push-modal-cta-secondary"
               >
                 Pas encore
@@ -198,10 +211,10 @@ export default function PushSubscriptionPrompt() {
           ) : (
             <button
               type="button"
-              onClick={dismissForSession}
+              onClick={snoozeFor7Days}
               className="tk-push-modal-skip"
             >
-              {isDenied ? "Continuer pour cette session" : "Plus tard"}
+              {isDenied ? "Continuer sans notifications" : "Plus tard (7 jours)"}
             </button>
           )}
         </div>

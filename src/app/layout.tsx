@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import BootLoaderCleanup from "@/components/BootLoaderCleanup";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -75,7 +76,60 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {/*
+          Boot loader SSR-rendu — visible IMMÉDIATEMENT à l'ouverture
+          (styles inline, pas de dépendance JS/CSS bundle). Il masque
+          l'écran blanc/noir des 3-5 s avant l'hydratation Next.js,
+          notamment sur le lancement PWA iOS où start_url requiert
+          une redirection d'auth.
+
+          Auto-hide via `DOMContentLoaded` OU après 4 s max en dernier
+          recours. Une fois React hydraté, le loader disparaît en
+          fondu — les .tsx `loading.tsx` prennent le relais pour les
+          navigations intra-app.
+        */}
+        <div id="civiq-boot" aria-hidden="true">
+          <div className="civiq-boot-spinner" />
+          <span className="civiq-boot-label">GoCiviq</span>
+        </div>
+        <style>{`
+          #civiq-boot {
+            position: fixed; inset: 0;
+            z-index: 9999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 14px;
+            background: #FFFFFF;
+            transition: opacity 0.28s ease-out;
+          }
+          #civiq-boot.civiq-boot-hidden {
+            opacity: 0;
+            pointer-events: none;
+          }
+          .civiq-boot-spinner {
+            width: 34px; height: 34px;
+            border: 3px solid rgba(4, 47, 100, 0.15);
+            border-top-color: #042F64;
+            border-radius: 50%;
+            animation: civiq-boot-spin 0.9s linear infinite;
+          }
+          .civiq-boot-label {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+            color: #042F64;
+            opacity: 0.75;
+          }
+          @keyframes civiq-boot-spin { to { transform: rotate(360deg); } }
+          @media (prefers-color-scheme: dark) {
+            #civiq-boot { background: #042F64; }
+            .civiq-boot-spinner { border-color: rgba(255,255,255,0.15); border-top-color: #fff; }
+            .civiq-boot-label { color: #fff; }
+          }
+        `}</style>
+        <BootLoaderCleanup />
+        {children}
+      </body>
     </html>
   );
 }
