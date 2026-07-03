@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getAuthContext, isSuperAdmin } from "@/lib/auth-helpers";
+import { getBaseUrl } from "@/lib/base-url";
 
 const VALID_ROLES = ["super_admin", "admin", "editor", "viewer"];
 const VALID_JOB_TITLES = ["maire", "adjoint", "conseiller", "dgs", "secretaire", "agent", "citoyen", "autre"];
@@ -78,12 +79,9 @@ export async function POST(request: Request) {
   let tempPassword: string | null = null;
 
   if (send_invite) {
-    // URL absolue de retour : on prend NEXT_PUBLIC_SITE_URL en prod ;
-    // sinon Vercel injecte VERCEL_URL ; en dernier recours localhost.
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-      "http://localhost:3000";
+    // URL absolue de retour : getBaseUrl() force le domaine canonique
+    // en prod Vercel (sinon on renvoyait des URLs civiq-xxx.vercel.app).
+    const siteUrl = getBaseUrl();
 
     // Magic link / invitation par email — pas de mot de passe à transmettre
     const { data, error } = await service.auth.admin.inviteUserByEmail(email, {

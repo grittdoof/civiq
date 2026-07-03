@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { createServiceClient } from "@/lib/supabase-server";
 import { sendOptInSms } from "@/lib/notifications/sms";
+import { getBaseUrl } from "@/lib/base-url";
 
 // ═══════════════════════════════════════════════════════════════
 // Wrapper d'envoi Web Push
@@ -176,11 +177,7 @@ export async function notifyTicketAssigned(opts: {
   });
 
   // Email transactionnel (lazy import pour éviter un cycle si Resend pas configuré)
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://www.gociviq.fr";
-  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  const ticketUrl = `${getBaseUrl()}/admin/tickets/${opts.ticketId}`;
   import("@/lib/notifications/email")
     .then(({ sendTicketAssignedEmail }) =>
       sendTicketAssignedEmail({
@@ -229,11 +226,7 @@ export async function notifyUrgentUnassigned(opts: {
   });
 
   // Email
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://www.gociviq.fr";
-  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  const ticketUrl = `${getBaseUrl()}/admin/tickets/${opts.ticketId}`;
   import("@/lib/notifications/email")
     .then(({ sendUrgentUnassignedEmail }) =>
       sendUrgentUnassignedEmail({
@@ -274,11 +267,7 @@ export async function notifyTicketCommented(opts: {
   });
 
   // Email
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://www.gociviq.fr";
-  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  const ticketUrl = `${getBaseUrl()}/admin/tickets/${opts.ticketId}`;
 
   // Résout le nom de l'auteur si fourni en ID
   let authorName: string | null = null;
@@ -342,11 +331,7 @@ export async function notifyTicketClosed(opts: { ticketId: string; ticketNumero:
   });
 
   // Email
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://www.gociviq.fr";
-  const ticketUrl = `${baseUrl}/admin/tickets/${opts.ticketId}`;
+  const ticketUrl = `${getBaseUrl()}/admin/tickets/${opts.ticketId}`;
   import("@/lib/notifications/email")
     .then(({ sendTicketClosedEmail }) =>
       sendTicketClosedEmail({

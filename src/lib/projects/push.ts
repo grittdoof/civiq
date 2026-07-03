@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { createServiceClient } from "@/lib/supabase-server";
 import { sendOptInSms } from "@/lib/notifications/sms";
 import { sendEmail } from "@/lib/notifications/email";
+import { getBaseUrl } from "@/lib/base-url";
 import { PROJECT_PHASE_LABELS, FINANCING_STATUS_LABELS } from "./types";
 import type { ProjectPhase, FinancingStatus } from "./types";
 
@@ -146,14 +147,8 @@ async function getProjectSubscribers(projectId: string): Promise<string[]> {
   return (data ?? []).map((r) => r.user_id as string);
 }
 
-// ─── Récupère l'URL absolue de base ───
-function baseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-    "https://www.gociviq.fr"
-  );
-}
+// ─── Récupère l'URL absolue de base (voir src/lib/base-url.ts) ───
+const baseUrl = getBaseUrl;
 
 async function getEmails(profileIds: string[]): Promise<string[]> {
   if (profileIds.length === 0) return [];

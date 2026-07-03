@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { notifyTicketReopened } from "@/lib/tickets/push";
+import { getBaseUrl } from "@/lib/base-url";
 
 /**
  * Cron — réouverture des tickets dont la date de suivi est atteinte.
@@ -78,11 +79,9 @@ export async function GET(request: NextRequest) {
     assigneesByTicket.get(a.ticket_id)?.add(a.profile_id);
   });
 
-  // 4. Base URL pour les liens dans push/email
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    request.headers.get("origin") ||
-    "https://www.gociviq.fr";
+  // 4. Base URL pour les liens dans push/email — force gociviq.fr
+  // en prod Vercel (getBaseUrl gère aussi les previews).
+  const baseUrl = getBaseUrl();
 
   // 5. Envoi des notifications (parallèle)
   const results = await Promise.allSettled(
