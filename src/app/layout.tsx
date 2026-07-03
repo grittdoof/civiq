@@ -69,39 +69,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>
         {/*
-          Boot loader SSR-rendu — visible IMMÉDIATEMENT à l'ouverture
-          (styles inline, pas de dépendance JS/CSS bundle). Il masque
-          l'écran blanc/noir des 3-5 s avant l'hydratation Next.js,
-          notamment sur le lancement PWA iOS où start_url requiert
-          une redirection d'auth.
-
-          Auto-hide via `DOMContentLoaded` OU après 4 s max en dernier
-          recours. Une fois React hydraté, le loader disparaît en
-          fondu — les .tsx `loading.tsx` prennent le relais pour les
-          navigations intra-app.
+          Styles du boot loader placés dans <head> pour qu'ils soient
+          parsés AVANT que le body ne soit rendu — sinon layout.css
+          externe (qui bloque le paint) monopolise le rendu et le
+          loader n'est visible que quelques ms.
+          Le fond html/body est aussi défini ici pour que la fenêtre
+          soit colorée dès l'arrivée du HTML (jamais blanc/noir).
         */}
-        <div id="civiq-boot" aria-hidden="true">
-          <div className="civiq-boot-spinner" />
-          <span className="civiq-boot-label">GoCiviq</span>
-        </div>
-        <style>{`
+        <style dangerouslySetInnerHTML={{ __html: `
+          html, body { background: #FFFFFF; margin: 0; }
           #civiq-boot {
             position: fixed; inset: 0;
-            z-index: 9999;
+            z-index: 2147483647;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             gap: 14px;
             background: #FFFFFF;
             transition: opacity 0.28s ease-out;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           }
           #civiq-boot.civiq-boot-hidden {
             opacity: 0;
@@ -115,18 +101,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             animation: civiq-boot-spin 0.9s linear infinite;
           }
           .civiq-boot-label {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
-            color: #042F64;
-            opacity: 0.75;
+            color: #042F64; opacity: 0.75;
           }
           @keyframes civiq-boot-spin { to { transform: rotate(360deg); } }
           @media (prefers-color-scheme: dark) {
+            html, body { background: #042F64; }
             #civiq-boot { background: #042F64; }
             .civiq-boot-spinner { border-color: rgba(255,255,255,0.15); border-top-color: #fff; }
             .civiq-boot-label { color: #fff; }
           }
-        `}</style>
+        ` }} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>
+        {/*
+          Boot loader SSR-rendu — visible IMMÉDIATEMENT à l'ouverture.
+          Styles dans <head> (voir plus haut), donc pas de dépendance
+          au layout.css externe qui bloque le paint sur mobile lent.
+          Masque le blank 3-5 s avant l'hydratation Next.js (surtout
+          PWA iOS avec redirection d'auth).
+          BootLoaderCleanup (client) ajoute la classe civiq-boot-hidden
+          au montage — le noeud reste dans le DOM (React en garde la
+          propriété, sinon insertBefore lève NotFoundError sur iOS).
+        */}
+        <div id="civiq-boot" aria-hidden="true">
+          <div className="civiq-boot-spinner" />
+          <span className="civiq-boot-label">GoCiviq</span>
+        </div>
         <BootLoaderCleanup />
         {children}
       </body>
