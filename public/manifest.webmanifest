@@ -3,7 +3,7 @@
   "name": "GoCiviq — Plateforme citoyenne",
   "short_name": "GoCiviq",
   "description": "Plateforme modulaire pour les collectivités engagées dans une démarche de participation citoyenne.",
-  "start_url": "/admin/dashboard?source=pwa",
+  "start_url": "/pwa-launch.html",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui", "browser"],

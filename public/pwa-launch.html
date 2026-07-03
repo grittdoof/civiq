@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>GoCiviq</title>
+<link rel="apple-touch-icon" href="/app-icon/apple-touch-icon.png">
+<style>
+  html,body{margin:0;background:#fff;height:100%;color-scheme:light dark}
+  .civiq-launch{
+    position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  .civiq-launch-spinner{
+    width:34px;height:34px;border:3px solid rgba(4,47,100,.15);
+    border-top-color:#042F64;border-radius:50%;
+    animation:civiq-launch-spin .9s linear infinite;
+  }
+  .civiq-launch-label{
+    font-size:14px;font-weight:600;letter-spacing:.02em;color:#042F64;opacity:.75;
+  }
+  @keyframes civiq-launch-spin{to{transform:rotate(360deg)}}
+  @media (prefers-color-scheme: dark){
+    html,body{background:#042F64}
+    .civiq-launch{background:#042F64}
+    .civiq-launch-spinner{border-color:rgba(255,255,255,.15);border-top-color:#fff}
+    .civiq-launch-label{color:#fff}
+  }
+</style>
+</head>
+<body>
+<!--
+  Page statique servie en <100ms depuis /public. Aucun middleware,
+  aucun SSR, aucune DB. Elle sert de « splash screen dynamique » à
+  la PWA iOS : le manifest.webmanifest a start_url = /pwa-launch.html
+  → iOS voit du contenu peint IMMÉDIATEMENT (pas 3-5 s de blanc).
+
+  Le JS ci-dessous redirige vers /admin/dashboard une fois la
+  page peinte. Le boot loader du layout Next.js prendra ensuite le
+  relais sans transition visible.
+-->
+<div class="civiq-launch" aria-hidden="true">
+  <div class="civiq-launch-spinner"></div>
+  <span class="civiq-launch-label">GoCiviq</span>
+</div>
+<script>
+  // Redirection immédiate vers le vrai point d'entrée. On garde
+  // ?source=pwa pour l'analytique. replace() évite d'ajouter une
+  // entrée à l'historique (bouton retour ne revient pas ici).
+  (function(){
+    var target = "/admin/dashboard?source=pwa";
+    // Laisse un frame au navigateur pour peindre le loader avant redirect
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        location.replace(target);
+      });
+    });
+  })();
+</script>
+</body>
+</html>
