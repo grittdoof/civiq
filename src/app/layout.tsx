@@ -100,18 +100,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             border-radius: 50%;
             animation: civiq-boot-spin 0.9s linear infinite;
           }
-          .civiq-boot-label {
-            font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
-            color: #042F64; opacity: 0.75;
+          .civiq-boot-logo {
+            width: 84px; height: auto; display: block;
           }
           @keyframes civiq-boot-spin { to { transform: rotate(360deg); } }
           @media (prefers-color-scheme: dark) {
             html, body { background: #042F64; }
             #civiq-boot { background: #042F64; }
             .civiq-boot-spinner { border-color: rgba(255,255,255,0.15); border-top-color: #fff; }
-            .civiq-boot-label { color: #fff; }
           }
         ` }} />
+        {/* Préchargement du logo utilisé par le boot loader */}
+        <link rel="preload" as="image" href="/brand/logo-vertical.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -131,8 +131,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           propriété, sinon insertBefore lève NotFoundError sur iOS).
         */}
         <div id="civiq-boot" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img className="civiq-boot-logo" src="/brand/logo-vertical.svg" alt="" />
           <div className="civiq-boot-spinner" />
-          <span className="civiq-boot-label">GoCiviq</span>
         </div>
         <BootLoaderCleanup />
         {children}

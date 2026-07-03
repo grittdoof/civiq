@@ -8,10 +8,16 @@ import { Spinner } from "@/components/ui/Skeleton";
 export default function RootLoading() {
   return (
     <div className="civiq-page-loader" role="status" aria-live="polite">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="civiq-page-loader-logo"
+        src="/brand/logo-vertical.svg"
+        alt="GoCiviq"
+        width={84}
+      />
       <span className="civiq-page-loader-spinner">
-        <Spinner size={32} stroke={2.5} />
+        <Spinner size={26} stroke={2.5} />
       </span>
-      <span className="civiq-page-loader-text">Chargement…</span>
     </div>
   );
 }

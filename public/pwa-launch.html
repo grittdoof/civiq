@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>GoCiviq</title>
 <link rel="apple-touch-icon" href="/app-icon/apple-touch-icon.png">
+<link rel="preload" as="image" href="/brand/logo-vertical.svg" type="image/svg+xml">
 <style>
   html,body{margin:0;background:#fff;height:100%;color-scheme:light dark}
   .civiq-launch{
@@ -20,15 +21,14 @@
     border-top-color:#042F64;border-radius:50%;
     animation:civiq-launch-spin .9s linear infinite;
   }
-  .civiq-launch-label{
-    font-size:14px;font-weight:600;letter-spacing:.02em;color:#042F64;opacity:.75;
+  .civiq-launch-logo{
+    width:84px;height:auto;display:block;
   }
   @keyframes civiq-launch-spin{to{transform:rotate(360deg)}}
   @media (prefers-color-scheme: dark){
     html,body{background:#042F64}
     .civiq-launch{background:#042F64}
     .civiq-launch-spinner{border-color:rgba(255,255,255,.15);border-top-color:#fff}
-    .civiq-launch-label{color:#fff}
   }
 </style>
 </head>
@@ -44,8 +44,8 @@
   relais sans transition visible.
 -->
 <div class="civiq-launch" aria-hidden="true">
+  <img class="civiq-launch-logo" src="/brand/logo-vertical.svg" alt="">
   <div class="civiq-launch-spinner"></div>
-  <span class="civiq-launch-label">GoCiviq</span>
 </div>
 <script>
   // Redirection immédiate vers le vrai point d'entrée. On garde

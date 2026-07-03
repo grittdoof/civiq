@@ -2,6 +2,7 @@ import { Spinner } from "@/components/ui/Skeleton";
 
 // Loader pour /auth/* — transitions login → register → reset etc.
 // Court overlay sur fond dégradé pour rester cohérent visuellement.
+// Logo « blanc » (variante fond marine) car le fond est dégradé sombre.
 
 export default function AuthLoading() {
   return (
@@ -15,14 +16,20 @@ export default function AuthLoading() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 12,
+        gap: 14,
         color: "#fff",
         fontFamily: "'Source Sans 3', -apple-system, sans-serif",
         animation: "civiq-page-loader-in 0.18s ease-out",
       }}
     >
-      <Spinner size={32} stroke={2.5} />
-      <span style={{ fontSize: 14, opacity: 0.85 }}>Chargement…</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/logo-vertical-blanc.svg"
+        alt="GoCiviq"
+        width={84}
+        style={{ display: "block", height: "auto" }}
+      />
+      <Spinner size={26} stroke={2.5} />
     </div>
   );
 }

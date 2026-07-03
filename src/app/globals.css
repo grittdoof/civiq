@@ -2968,6 +2968,11 @@ button.civiq-card,
 .civiq-page-loader-spinner {
   color: var(--accent, #1a2744);
 }
+.civiq-page-loader-logo {
+  width: 84px;
+  height: auto;
+  display: block;
+}
 .civiq-page-loader-text {
   font-size: 14px;
   color: var(--fg-muted, #888);
