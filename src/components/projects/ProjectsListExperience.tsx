@@ -396,24 +396,29 @@ function CleanProjectList({
               className="pj-list-item"
               prefetch={false}
             >
-              {p.photo_url && (
-                <div className="pj-list-thumb" aria-hidden>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.photo_url} alt="" loading="lazy" />
+              <div className="pj-list-titre-wrap">
+                <div
+                  className={`pj-list-thumb${p.photo_url ? " has-photo" : ""}`}
+                  aria-hidden
+                >
+                  {p.photo_url && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={p.photo_url} alt="" loading="lazy" />
+                  )}
                 </div>
-              )}
-              <div className="pj-list-titre-cell">
-                <strong className="pj-list-titre">{p.titre}</strong>
-                <div className="pj-list-meta">
-                  {p.concerne_tiers && (
-                    <span className="pj-list-pill pj-list-pill-tiers">
-                      <Handshake size={11} aria-hidden /> Tiers
-                      {p.accompagne_sans_financer ? " · non financé" : ""}
-                    </span>
-                  )}
-                  {p.description && (
-                    <span className="pj-list-desc">{p.description}</span>
-                  )}
+                <div className="pj-list-titre-cell">
+                  <strong className="pj-list-titre">{p.titre}</strong>
+                  <div className="pj-list-meta">
+                    {p.concerne_tiers && (
+                      <span className="pj-list-pill pj-list-pill-tiers">
+                        <Handshake size={11} aria-hidden /> Tiers
+                        {p.accompagne_sans_financer ? " · non financé" : ""}
+                      </span>
+                    )}
+                    {p.description && (
+                      <span className="pj-list-desc">{p.description}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 

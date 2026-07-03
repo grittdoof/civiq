@@ -4343,15 +4343,30 @@ a.pj-commission-badge:hover {
   flex-shrink: 0;
 }
 
-/* ── Vignette photo (conditionnelle : rendue uniquement si photo_url) ── */
+/* ── Vignette photo + wrap titre pour alignement grid cohérent ──
+   Le slot thumb est TOUJOURS présent (même sans photo) pour que
+   toutes les .pj-list-titre-cell soient alignées sur le même X.
+   Il devient invisible (transparent, sans fond) quand pas de photo. */
+.pj-list-titre-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.pj-list-titre-wrap .pj-list-titre-cell {
+  flex: 1;
+  min-width: 0;
+}
 .pj-list-thumb {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
   border-radius: 10px;
   overflow: hidden;
+  background: transparent;
+}
+.pj-list-thumb.has-photo {
   background: var(--civiq-border-light, #f5f3ed);
-  align-self: center;
 }
 .pj-list-thumb img {
   width: 100%;
@@ -4361,6 +4376,7 @@ a.pj-commission-badge:hover {
 }
 @media (max-width: 640px) {
   .pj-list-thumb { width: 40px; height: 40px; border-radius: 8px; }
+  .pj-list-titre-wrap { gap: 10px; }
 }
 
 /* ── Section header avec CTA aligné à droite ── */
