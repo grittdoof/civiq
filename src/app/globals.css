@@ -8,6 +8,12 @@
 /* ── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
+/* Pas d'UI sombre réelle (voir [data-theme="dark"] plus bas, jamais
+   activé) : on le déclare explicitement pour que les widgets natifs
+   iOS (inputs, select, scrollbars) restent toujours clairs, même en
+   mode sombre système, au lieu de suivre un rendu sombre par défaut
+   qui ne correspondrait à aucune couleur réellement définie ici. */
+html { color-scheme: light; }
 body {
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);

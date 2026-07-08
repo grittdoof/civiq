@@ -57,10 +57,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-    { media: "(prefers-color-scheme: dark)", color: "#042F64" },
-  ],
+  // L'app n'a pas d'UI sombre fonctionnelle (le contenu réel reste
+  // toujours clair, cf. globals.css [data-theme="dark"] non utilisé).
+  // Une themeColor sombre ici teinterait la barre de statut iOS en
+  // marine en permanence, alors que apple-mobile-web-app-status-bar-style
+  // "default" garde des icônes noires → texte noir illisible sur fond
+  // marine sur tout l'app, pas seulement au démarrage.
+  themeColor: "#FFFFFF",
   width: "device-width",
   initialScale: 1,
 };
@@ -76,6 +79,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           loader n'est visible que quelques ms.
           Le fond html/body est aussi défini ici pour que la fenêtre
           soit colorée dès l'arrivée du HTML (jamais blanc/noir).
+          Le fond marine du mode sombre est réservé à #civiq-boot (qui
+          couvre tout le viewport pendant le chargement) : html/body
+          reste clair en permanence, sinon le bounce iOS (overscroll
+          élastique) révèle un bandeau marine derrière une barre de
+          statut aux icônes noires (illisible) sur TOUTES les pages,
+          pas seulement au démarrage — l'app n'a pas d'UI sombre réelle.
         */}
         <style dangerouslySetInnerHTML={{ __html: `
           html, body { background: #FFFFFF; margin: 0; }
@@ -106,7 +115,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }
           @keyframes civiq-boot-spin { to { transform: rotate(360deg); } }
           @media (prefers-color-scheme: dark) {
-            html, body { background: #042F64; }
             #civiq-boot { background: #042F64; }
             .civiq-boot-spinner { border-color: rgba(255,255,255,0.15); border-top-color: #fff; }
             .civiq-boot-label { color: #fff; }

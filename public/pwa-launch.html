@@ -9,7 +9,7 @@
 <title>GoCiviq</title>
 <link rel="apple-touch-icon" href="/app-icon/apple-touch-icon.png">
 <style>
-  html,body{margin:0;background:#fff;height:100%;color-scheme:light dark}
+  html,body{margin:0;background:#fff;height:100%;color-scheme:light}
   .civiq-launch{
     position:fixed;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:14px;background:#fff;
@@ -24,12 +24,10 @@
     font-size:14px;font-weight:600;letter-spacing:.02em;color:#042F64;opacity:.75;
   }
   @keyframes civiq-launch-spin{to{transform:rotate(360deg)}}
-  @media (prefers-color-scheme: dark){
-    html,body{background:#042F64}
-    .civiq-launch{background:#042F64}
-    .civiq-launch-spinner{border-color:rgba(255,255,255,.15);border-top-color:#fff}
-    .civiq-launch-label{color:#fff}
-  }
+  /* .civiq-launch reste clair (fond blanc, texte marine) même en mode
+     sombre système : l'app n'a pas d'UI sombre réelle, et un fond
+     marine ici teinterait la barre de statut iOS (icônes toujours
+     noires en style "default") en marine+noir, illisible. */
 </style>
 </head>
 <body>
