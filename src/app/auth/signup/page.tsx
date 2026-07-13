@@ -19,6 +19,7 @@ const FUNCTIONS = [
   { value: "citoyen",     label: "Citoyen·ne / Administré·e" },
   { value: "associatif",  label: "Représentant·e d'association" },
   { value: "agent",       label: "Agent municipal" },
+  { value: "agent_technique", label: "Agent technique" },
   { value: "conseiller",  label: "Conseiller·e municipal" },
   { value: "adjoint",     label: "Adjoint·e au maire" },
   { value: "maire",       label: "Maire" },

@@ -33,6 +33,7 @@ const FUNCTIONS = [
   { value: "dgs", label: "DGS / Direction" },
   { value: "secretaire", label: "Secrétaire de mairie" },
   { value: "agent", label: "Agent territorial" },
+  { value: "agent_technique", label: "Agent technique" },
   { value: "autre", label: "Autre" },
 ];
 

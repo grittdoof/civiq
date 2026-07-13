@@ -41,6 +41,7 @@ const JOB_TITLES: Array<{ value: string; label: string; group: string }> = [
   { value: "dgs", label: "Directeur Général des Services", group: "Services" },
   { value: "secretaire", label: "Secrétaire de mairie", group: "Services" },
   { value: "agent", label: "Agent territorial", group: "Services" },
+  { value: "agent_technique", label: "Agent technique", group: "Services" },
   { value: "citoyen", label: "Administré", group: "Citoyens" },
   { value: "autre", label: "Autre", group: "Autres" },
 ];
@@ -431,6 +432,7 @@ function EditUserModal({
                   <option value="dgs">Directeur Général des Services</option>
                   <option value="secretaire">Secrétaire de mairie</option>
                   <option value="agent">Agent territorial</option>
+                  <option value="agent_technique">Agent technique</option>
                 </optgroup>
                 <optgroup label="Citoyens">
                   <option value="citoyen">Administré</option>

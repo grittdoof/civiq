@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Building2, Plus, Search, ArrowRight, Clock, CheckCircle2, AlertCircle, X,
+  Building2, Plus, Search, ArrowRight, Clock, CheckCircle2, AlertCircle, X, LogOut,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase-browser";
 
 interface CommuneOption {
   id: string;
@@ -95,12 +96,27 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
               ? <>Votre demande de rattachement à <strong>{pending.communes?.name || "cette commune"}</strong> a été transmise à un super-administrateur.</>
               : <>Votre demande de création de la commune <strong>{pending.proposed_name}</strong> a été transmise à un super-administrateur.</>}
           </p>
-          <p style={{ fontSize: 13, color: "var(--fg-xmuted)", marginBottom: 20 }}>
-            Vous recevrez un email dès la décision.
+          <p style={{ fontSize: 13.5, color: "var(--fg)", marginBottom: 8, fontWeight: 500 }}>
+            Vous n&apos;avez rien à faire de plus pour l&apos;instant.
           </p>
-          <button type="button" onClick={cancelRequest} className="civiq-btn civiq-btn-outline">
-            <X size={14} /> Annuler ma demande
-          </button>
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 24, lineHeight: 1.55 }}>
+            Vous recevrez un email dès la décision. Vous pouvez fermer cette fenêtre.
+          </p>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={async () => {
+                await createClient().auth.signOut();
+                router.push("/auth/login?logged_out=1");
+              }}
+              className="civiq-btn civiq-btn-default"
+            >
+              <LogOut size={14} /> Se déconnecter
+            </button>
+            <button type="button" onClick={cancelRequest} className="civiq-btn civiq-btn-outline">
+              <X size={14} /> Annuler ma demande
+            </button>
+          </div>
         </div>
         <style>{onbCss}</style>
       </main>

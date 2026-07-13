@@ -465,6 +465,7 @@ function AddUserModal({ communeId, communeName, onClose, onCreated }: {
                     <option value="dgs">DGS</option>
                     <option value="secretaire">Secrétaire</option>
                     <option value="agent">Agent</option>
+                    <option value="agent_technique">Agent technique</option>
                     <option value="autre">Autre</option>
                   </select>
                 </div>

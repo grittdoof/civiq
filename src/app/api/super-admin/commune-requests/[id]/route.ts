@@ -90,12 +90,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
     communeId = newCommune.id;
 
-    // Active le module surveys par défaut
-    await service.from("commune_modules").insert({
-      commune_id: communeId,
-      module_id: "surveys",
-      activated_by: ctx!.userId,
-    });
+    // Aucun module activé par défaut : la commune démarre vierge.
+    // Le super-admin active manuellement les modules souhaités depuis
+    // /super-admin/communes/[id] après l'approbation.
   }
 
   if (!communeId) {

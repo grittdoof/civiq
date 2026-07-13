@@ -4,7 +4,7 @@ import { getAuthContext, isSuperAdmin } from "@/lib/auth-helpers";
 import { getBaseUrl } from "@/lib/base-url";
 
 const VALID_ROLES = ["super_admin", "admin", "editor", "viewer"];
-const VALID_JOB_TITLES = ["maire", "adjoint", "conseiller", "dgs", "secretaire", "agent", "citoyen", "autre"];
+const VALID_JOB_TITLES = ["maire", "adjoint", "conseiller", "dgs", "secretaire", "agent", "agent_technique", "citoyen", "autre"];
 
 // GET /api/super-admin/users — tous les utilisateurs avec leur commune
 export async function GET() {
