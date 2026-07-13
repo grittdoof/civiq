@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Search, Shield, ShieldCheck, Edit3, Eye, Download, Trash2, PencilLine, X, Save, History,
+  Search, Shield, ShieldCheck, Edit3, Eye, Download, Trash2, PencilLine, X, Save, History, Mail,
 } from "lucide-react";
 
 interface UserRow {
@@ -16,6 +16,8 @@ interface UserRow {
   communes: { name: string; slug: string } | null;
   created_at: string;
   last_sign_in_at: string | null;
+  email_confirmed?: boolean;
+  has_profile?: boolean;
 }
 
 interface CommuneOption { id: string; name: string; }
@@ -26,6 +28,9 @@ const ROLES: Array<{ value: string; label: string; color: string }> = [
   { value: "admin", label: "Administrateur", color: "civiq-badge-info" },
   { value: "editor", label: "Éditeur", color: "civiq-badge-success" },
   { value: "viewer", label: "Administré", color: "civiq-badge" },
+  // Pseudo-rôle : compte auth existant mais profil applicatif pas encore créé
+  // (email pas confirmé ou callback pas encore appelé). Non éditable.
+  { value: "pending", label: "Profil incomplet", color: "civiq-badge-warning" },
 ];
 
 // ─── Fonctions (job titles) ───
@@ -195,9 +200,17 @@ export default function SuperAdminUsers() {
                           <span className={`civiq-badge ${role.color}`}>
                             {u.role === "super_admin" ? <ShieldCheck size={12} /> :
                              u.role === "admin" ? <Shield size={12} /> :
-                             u.role === "editor" ? <Edit3 size={12} /> : <Eye size={12} />}
+                             u.role === "editor" ? <Edit3 size={12} /> :
+                             u.role === "pending" ? <Mail size={12} /> : <Eye size={12} />}
                             {role.label}
                           </span>
+                          {u.role === "pending" && (
+                            <div className="civiq-muted" style={{ fontSize: 11, marginTop: 4 }}>
+                              {u.email_confirmed === false
+                                ? "Email non confirmé"
+                                : "Callback pas encore passé"}
+                            </div>
+                          )}
                         </td>
                         <td className="civiq-muted">
                           {u.last_sign_in_at

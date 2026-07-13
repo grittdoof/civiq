@@ -15,21 +15,43 @@ export async function GET() {
 
   const service = await createServiceClient();
 
+  // On repart de auth.users (source de vérité des comptes) et on
+  // LEFT JOIN avec profiles. Un compte fraîchement créé qui n'a pas
+  // encore confirmé son email ou hit /auth/callback n'a pas encore
+  // de profile ; on veut quand même le voir ici pour pouvoir agir.
+  const { data: { users: authUsers } } = await service.auth.admin.listUsers({ perPage: 1000 });
+
   const { data: profiles } = await service
     .from("profiles")
-    .select("id, full_name, role, job_title, commune_id, created_at, communes(name, slug)")
-    .order("created_at", { ascending: false });
+    .select("id, full_name, role, job_title, commune_id, created_at, communes(name, slug)");
 
-  const { data: { users: authUsers } } = await service.auth.admin.listUsers();
+  const profilesById = new Map((profiles ?? []).map((p) => [p.id, p]));
 
-  const merged = (profiles ?? []).map((p) => {
-    const u = authUsers?.find((au) => au.id === p.id);
-    return {
-      ...p,
-      email: u?.email ?? null,
-      last_sign_in_at: u?.last_sign_in_at ?? null,
-    };
-  });
+  const merged = (authUsers ?? [])
+    .map((u) => {
+      const p = profilesById.get(u.id);
+      return {
+        id: u.id,
+        email: u.email ?? null,
+        full_name:
+          p?.full_name ??
+          (typeof u.user_metadata?.full_name === "string" ? u.user_metadata.full_name : null),
+        // Un compte sans profile n'a pas encore de rôle applicatif → on
+        // le signale avec "pending" (traité côté UI comme "profil à
+        // compléter"). Sinon on prend le rôle de la table profiles.
+        role: p?.role ?? "pending",
+        job_title:
+          p?.job_title ??
+          (typeof u.user_metadata?.job_title === "string" ? u.user_metadata.job_title : null),
+        commune_id: p?.commune_id ?? null,
+        communes: p?.communes ?? null,
+        created_at: p?.created_at ?? u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        email_confirmed: Boolean(u.email_confirmed_at),
+        has_profile: Boolean(p),
+      };
+    })
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
   return NextResponse.json(merged);
 }
