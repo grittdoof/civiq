@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import {
   ArrowLeft,
@@ -51,6 +51,7 @@ interface TimelinePoint {
 
 export default function SurveyResultsPage() {
   const params = useParams();
+  const router = useRouter();
   const surveyId = params.id as string;
 
   const [survey, setSurvey] = useState<Survey | null>(null);
@@ -393,6 +394,10 @@ export default function SurveyResultsPage() {
           onDelete={(deletedId) => {
             setResponses((prev) => prev.filter((r) => r.id !== deletedId));
             setActiveResponseIdx(null);
+            // Les tableaux de bord (compteur « Réponses », cartes de stats)
+            // sont rendus côté serveur : sans ça, le cache du routeur les
+            // réaffiche avec l'ancien total au retour.
+            router.refresh();
           }}
         />
       )}

@@ -75,7 +75,9 @@ export default async function AdminDashboardPage() {
       .from("surveys")
       .select("id, status, responses(count)")
       .eq("commune_id", ctx.communeId)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      // Exclut les réponses mises à la corbeille de l'agrégat
+      .is("responses.deleted_at", null);
     surveysTotal = data?.length ?? 0;
     surveysActive = data?.filter((s) => s.status === "published").length ?? 0;
     responsesTotal = (data ?? []).reduce((sum, s) => {

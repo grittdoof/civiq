@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     service.from("profiles").select("id, full_name, role, job_title, created_at").eq("commune_id", id).order("created_at", { ascending: false }),
     service.auth.admin.listUsers(),
     service.from("surveys").select("id", { count: "exact", head: true }).eq("commune_id", id),
-    service.from("responses").select("id", { count: "exact", head: true }).eq("commune_id", id),
+    service.from("responses").select("id", { count: "exact", head: true }).eq("commune_id", id).is("deleted_at", null),
   ]);
 
   if (communeRes.error || !communeRes.data) {

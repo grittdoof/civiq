@@ -47,6 +47,7 @@ export async function GET() {
   const { data: respRaw } = await service
     .from("responses")
     .select("submitted_at")
+    .is("deleted_at", null)
     .gte("submitted_at", since);
 
   // grid[dayOfWeek][hour] = count ; lundi=0 … dimanche=6

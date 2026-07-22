@@ -6,6 +6,19 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [2026-07-22] — Compteurs de réponses : les suppressions sont prises en compte
+
+### Corrigé
+- **Le compteur « Réponses » ne bougeait pas après la suppression d'une réponse.** Les réponses sont en soft-delete (corbeille) depuis la v009, mais tous les agrégats les comptaient encore. Corrigé partout :
+  - colonne « Réponses » du tableau des sondages (tableau de bord) ;
+  - cartes de statistiques de `/admin/dashboard` et `/admin/surveys` (total et 30 derniers jours) ;
+  - fiche commune et analytics côté super-admin ;
+  - vue SQL `commune_stats`, fonctions `platform_activity_by_hour()` et `get_survey_stats()` (migration `032`).
+- Les compteurs du tableau de bord sont désormais **dérivés** de la liste des sondages : supprimer un sondage met aussi à jour « X sondages · Y actifs · Z réponses », ce qui n'était pas le cas.
+- Après suppression d'une réponse, le cache du routeur est invalidé : les tableaux de bord rendus côté serveur affichent le bon total dès le retour.
+
+---
+
 ## [2026-07-22] — Module Sondage : mode « inscription à un événement »
 
 ### Ajouté

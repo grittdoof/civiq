@@ -34,7 +34,9 @@ export default async function SurveysDashboardPage() {
     .from("surveys")
     .select("id, status, created_at, ends_at, responses(count)")
     .eq("commune_id", ctx.communeId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // Exclut les réponses mises à la corbeille de l'agrégat
+    .is("responses.deleted_at", null);
 
   const total = surveys?.length ?? 0;
   const active = surveys?.filter((s) => s.status === "published").length ?? 0;
@@ -50,6 +52,7 @@ export default async function SurveysDashboardPage() {
     .from("responses")
     .select("id", { count: "exact", head: true })
     .eq("commune_id", ctx.communeId)
+    .is("deleted_at", null)
     .gte("submitted_at", sinceISO);
   const responses30d = (recent as unknown as { count?: number })?.count ?? 0;
 

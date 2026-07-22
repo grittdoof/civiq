@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   BarChart3,
   FileText,
@@ -26,15 +26,12 @@ interface SurveyRow {
   responses: { count: number }[];
 }
 
-interface DashboardStats {
-  totalSurveys: number;
-  activeSurveys: number;
-  totalResponses: number;
+function responseCount(s: SurveyRow): number {
+  return (s.responses?.[0] as { count: number } | undefined)?.count || 0;
 }
 
 export default function SurveysSection() {
   const [surveys, setSurveys] = useState<SurveyRow[]>([]);
-  const [stats, setStats] = useState<DashboardStats>({ totalSurveys: 0, activeSurveys: 0, totalResponses: 0 });
   const [loading, setLoading] = useState(true);
   const [commune, setCommune] = useState<{ name: string; slug: string } | null>(null);
   const [role, setRole] = useState<string | null>(null);
@@ -51,10 +48,8 @@ export default function SurveysSection() {
         fetch("/api/auth/me"),
       ]);
 
-      let surveyData: SurveyRow[] = [];
       if (surveysRes.ok) {
-        surveyData = await surveysRes.json() as SurveyRow[];
-        setSurveys(surveyData);
+        setSurveys(await surveysRes.json() as SurveyRow[]);
       }
 
       if (profileRes.ok) {
@@ -63,20 +58,23 @@ export default function SurveysSection() {
         if (profileData.role) setRole(profileData.role);
       }
 
-      setStats({
-        totalSurveys: surveyData.length,
-        activeSurveys: surveyData.filter((s) => s.status === "published").length,
-        totalResponses: surveyData.reduce(
-          (sum, s) => sum + ((s.responses?.[0] as { count: number } | undefined)?.count || 0),
-          0
-        ),
-      });
     } catch (err) {
       console.error("loadData error:", err);
     } finally {
       setLoading(false);
     }
   }
+
+  // Dérivé de `surveys` : les compteurs restent justes après une
+  // suppression sans avoir à les remettre à jour à la main.
+  const stats = useMemo(
+    () => ({
+      totalSurveys: surveys.length,
+      activeSurveys: surveys.filter((s) => s.status === "published").length,
+      totalResponses: surveys.reduce((sum, s) => sum + responseCount(s), 0),
+    }),
+    [surveys]
+  );
 
   function getStatusBadge(status: string) {
     const map: Record<string, { cls: string; label: string }> = {
@@ -210,7 +208,7 @@ export default function SurveysSection() {
                           {getStatusBadge(s.status)}
                         </td>
                         <td data-label="Réponses" style={{ padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>
-                          {(s.responses?.[0] as { count: number } | undefined)?.count || 0}
+                          {responseCount(s)}
                         </td>
                         <td data-label="Créé le" style={{ padding: "14px 16px", fontSize: 13, color: "var(--fg-muted)", whiteSpace: "nowrap" }}>
                           {new Date(s.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}

@@ -37,11 +37,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Aucune commune associée" }, { status: 403 });
   }
 
+  // Le `.is("responses.deleted_at", null)` filtre la ressource imbriquée
+  // AVANT l'agrégat : sans lui, une réponse mise à la corbeille continue
+  // d'être comptée dans la colonne « Réponses » du tableau de bord.
   const { data: surveys, error } = await service
     .from("surveys")
     .select("*, responses(count)")
     .eq("commune_id", profile.commune_id)
     .is("deleted_at", null)
+    .is("responses.deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (error) {

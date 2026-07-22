@@ -492,3 +492,23 @@ settings: {
 ```
 npm test  → 77 ✓ (dont 26 nouveaux sur survey-event)
 ```
+
+---
+
+## Session 9 — Compteurs de réponses et soft-delete (2026-07-22)
+
+### Prompt de départ
+> "Dans les tableaux de bord le `data-label="Réponses"` doit être MAJ quand on supprime une réponse, même chose pour les `civiq-card` et `civiq-stat-card`."
+
+### Cause racine
+Les réponses sont en **soft-delete** depuis la migration 009 (`responses.deleted_at`). Toutes les listes filtraient bien `.is("deleted_at", null)`, mais **aucun agrégat ne le faisait** : `responses(count)`, `count: "exact"`, la vue `commune_stats` et les fonctions SQL comptaient les lignes en corbeille. Le compteur restait donc figé après une suppression.
+
+### Livrés
+- `.is("responses.deleted_at", null)` sur les trois requêtes `responses(count)` (`/api/surveys`, `/admin/dashboard`, `/admin/surveys`) — le filtre porte sur la ressource imbriquée et s'applique **avant** l'agrégat.
+- `.is("deleted_at", null)` sur les comptages directs : réponses 30 j, fiche commune super-admin, heatmap analytics.
+- Migration `032_stats_exclude_soft_deleted.sql` : vue `commune_stats` (réponses **et** sondages), `platform_activity_by_hour()`, `get_survey_stats()`.
+- `SurveysSection` : les compteurs passent de `useState` à `useMemo` dérivé de `surveys` — supprimer un sondage met aussi à jour la ligne de synthèse.
+- `router.refresh()` après suppression d'une réponse : les pages serveur (`civiq-stat-card`) ne réaffichent plus l'ancien total depuis le cache du routeur.
+
+### Point d'attention
+**Tout nouvel agrégat sur `surveys` ou `responses` doit exclure `deleted_at`.** Le filtre d'une ressource imbriquée s'écrit `.is("responses.deleted_at", null)` au niveau de la requête parente (même pattern que `src/lib/tickets/queries.ts`).
