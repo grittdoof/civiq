@@ -3,19 +3,61 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import { ArrowLeft, FileText, Sparkles, Plus } from "lucide-react";
+import { ArrowLeft, FileText, Sparkles, Plus, ClipboardList, CalendarDays } from "lucide-react";
 import Link from "next/link";
-import type { SurveyTemplate } from "@/types/survey";
+import type { SurveySchema, SurveyTemplate } from "@/types/survey";
+
+// Un formulaire d'inscription part d'un socle prêt à l'emploi : coordonnées
+// du participant + nombre de places. Les écrans d'étape sont masqués (le
+// citoyen enchaîne directement les champs) et le mode événement est déjà
+// activé — il ne reste qu'à renseigner la date et le lieu dans l'éditeur.
+const EVENT_SCHEMA: SurveySchema = {
+  settings: {
+    show_progress: true,
+    hide_step_intros: true,
+    start_cta: "Je m'inscris",
+    event: { enabled: true },
+  },
+  steps: [
+    {
+      id: "inscription",
+      title: "Votre inscription",
+      icon: "CalendarDays",
+      fields: [
+        { id: "nom", type: "text", label: "Votre nom et prénom", required: true },
+        { id: "email", type: "email", label: "Votre email", required: true },
+        {
+          id: "telephone",
+          type: "tel",
+          label: "Votre téléphone",
+          hint: "Pour vous prévenir en cas de changement",
+        },
+        {
+          id: "nb_participants",
+          type: "number",
+          label: "Combien serez-vous ?",
+          required: true,
+          min: 1,
+          max: 20,
+        },
+      ],
+    },
+  ],
+};
+
+type SurveyKind = "survey" | "event";
 
 export default function NewSurveyPage() {
   const router = useRouter();
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
+  const [kind, setKind] = useState<SurveyKind>("survey");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [createError, setCreateError] = useState<string | null>(null);
+  const isEvent = kind === "event";
 
   useEffect(() => {
     loadTemplates();
@@ -45,7 +87,10 @@ export default function NewSurveyPage() {
         body: JSON.stringify({
           title,
           description,
-          template_id: selectedTemplate,
+          // Un événement démarre sur le socle d'inscription, pas sur un modèle
+          ...(isEvent
+            ? { schema: EVENT_SCHEMA }
+            : { template_id: selectedTemplate }),
         }),
       });
 
@@ -80,22 +125,67 @@ export default function NewSurveyPage() {
         <ArrowLeft size={16} /> Retour
       </Link>
 
-      <h1>Nouveau sondage</h1>
+      <h1>{isEvent ? "Nouvel événement" : "Nouveau sondage"}</h1>
       <p className="page-desc">
-        Partez d'un modèle ou créez un sondage vierge que vous pourrez
-        personnaliser.
+        {isEvent
+          ? "Un formulaire d'inscription avec date, lieu sur une carte et ajout à l'agenda."
+          : "Partez d'un modèle ou créez un sondage vierge que vous pourrez personnaliser."}
       </p>
+
+      {/* Type de formulaire */}
+      <div className="form-section">
+        <h2>Que souhaitez-vous créer ?</h2>
+        <div className="kind-list">
+          <button
+            type="button"
+            className={`kind-option ${!isEvent ? "selected" : ""}`}
+            onClick={() => setKind("survey")}
+          >
+            <span className="kind-icon">
+              <ClipboardList size={22} />
+            </span>
+            <span>
+              <strong>Un sondage</strong>
+              <span>
+                Consulter les habitants et analyser leurs réponses.
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`kind-option ${isEvent ? "selected" : ""}`}
+            onClick={() => setKind("event")}
+          >
+            <span className="kind-icon">
+              <CalendarDays size={22} />
+            </span>
+            <span>
+              <strong>Un événement</strong>
+              <span>
+                Recueillir des inscriptions : date, lieu sur une carte et
+                ajout à l'agenda.
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
 
       {/* Title & description */}
       <div className="form-section">
         <label className="form-label">
-          Titre du sondage <span className="req">*</span>
+          {isEvent ? "Nom de l'événement" : "Titre du sondage"}{" "}
+          <span className="req">*</span>
         </label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Ex : Besoins périscolaires 2026-2027"
+          placeholder={
+            isEvent
+              ? "Ex : Fête des associations 2026"
+              : "Ex : Besoins périscolaires 2026-2027"
+          }
           className="form-input"
         />
 
@@ -105,13 +195,29 @@ export default function NewSurveyPage() {
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Décrivez brièvement l'objectif de cette consultation…"
+          placeholder={
+            isEvent
+              ? "Présentez brièvement l'événement à vos habitants…"
+              : "Décrivez brièvement l'objectif de cette consultation…"
+          }
           className="form-input form-textarea"
           rows={3}
         />
       </div>
 
-      {/* Templates */}
+      {/* Socle de l'événement (pas de modèles pour ce type) */}
+      {isEvent ? (
+        <div className="form-section">
+          <h2>Votre formulaire de départ</h2>
+          <div className="kind-note">
+            <strong>Nom, email, téléphone et nombre de participants</strong>
+            <span>
+              Vous pourrez ajouter vos propres questions dans l'éditeur, puis
+              renseigner la date, le lieu et la bannière de l'événement.
+            </span>
+          </div>
+        </div>
+      ) : (
       <div className="form-section">
         <h2>Choisir un modèle</h2>
 
@@ -154,6 +260,7 @@ export default function NewSurveyPage() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Create button */}
       {createError && (
@@ -165,7 +272,11 @@ export default function NewSurveyPage() {
           disabled={!title.trim() || creating}
           className="create-btn"
         >
-          {creating ? "Création…" : "Créer le sondage"}{" "}
+          {creating
+            ? "Création…"
+            : isEvent
+            ? "Créer l'événement"
+            : "Créer le sondage"}{" "}
           {!creating && <Sparkles size={18} />}
         </button>
       </div>
@@ -228,6 +339,45 @@ export default function NewSurveyPage() {
         }
         .form-input:focus { border-color: #3b6fa0; box-shadow: 0 0 0 3px rgba(59,111,160,0.1); }
         .form-textarea { resize: vertical; }
+
+        /* Choix du type : sondage ou événement */
+        .kind-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        @media (max-width: 560px) { .kind-list { grid-template-columns: 1fr; } }
+        .kind-option {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          text-align: left;
+          padding: 18px 20px;
+          border: 2px solid #e8e5de;
+          border-radius: 10px;
+          background: #fff;
+          font-family: inherit;
+          cursor: pointer;
+          transition: 0.2s;
+        }
+        .kind-option:hover { border-color: #5a8fbf; }
+        .kind-option.selected { border-color: #3b6fa0; background: rgba(59,111,160,0.04); }
+        .kind-icon {
+          width: 44px; height: 44px;
+          flex-shrink: 0;
+          border-radius: 10px;
+          background: #e6f1fb;
+          color: #3b6fa0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .kind-option strong { display: block; font-size: 15px; font-weight: 600; color: #1a2744; margin-bottom: 3px; }
+        .kind-option span span { display: block; font-size: 13px; color: #888; line-height: 1.5; }
+        .kind-note {
+          padding: 16px 20px;
+          border: 2px dashed #e8e5de;
+          border-radius: 10px;
+          background: #fff;
+        }
+        .kind-note strong { display: block; font-size: 14px; color: #1a2744; margin-bottom: 4px; }
+        .kind-note span { font-size: 13px; color: #888; line-height: 1.55; }
 
         .templates-list { display: grid; gap: 12px; }
         .template-option {

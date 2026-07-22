@@ -103,6 +103,10 @@ export default function EditSurveyPage() {
     [surveyId, title, description, schema, status, endsAt, customThankYou, customHeaderText]
   );
 
+  // Le mode événement change la mise en page : le panneau date/lieu/bannière
+  // remonte dans la colonne principale, au-dessus des questions.
+  const isEvent = Boolean(schema.settings?.event?.enabled);
+
   async function togglePublish() {
     const newStatus = status === "published" ? "closed" : "published";
     await handleSave(newStatus);
@@ -205,10 +209,22 @@ export default function EditSurveyPage() {
       </header>
 
       <div className="edit-body">
-        {/* Left: builder */}
+        {/* Left: builder — pour un événement, la date et le lieu passent
+            avant les questions : c'est l'information structurante. */}
         <main className="edit-main">
+          {isEvent && (
+            <EventSettingsPanel
+              surveyId={surveyId}
+              schema={schema}
+              onChange={setSchema}
+              layout="main"
+            />
+          )}
+
           <section className="edit-section">
-            <h2 className="edit-section-title">Étapes & Questions</h2>
+            <h2 className="edit-section-title">
+              {isEvent ? "Formulaire d'inscription" : "Étapes & Questions"}
+            </h2>
             <SurveyBuilder schema={schema} onChange={setSchema} />
           </section>
         </main>
@@ -265,12 +281,15 @@ export default function EditSurveyPage() {
             </div>
           </section>
 
-          {/* Bannière, CTA et mode événement */}
-          <EventSettingsPanel
-            surveyId={surveyId}
-            schema={schema}
-            onChange={setSchema}
-          />
+          {/* Bannière, CTA et mode événement — dans la colonne principale
+              dès que le mode événement est activé */}
+          {!isEvent && (
+            <EventSettingsPanel
+              surveyId={surveyId}
+              schema={schema}
+              onChange={setSchema}
+            />
+          )}
 
           {/* Infos */}
           <section className="edit-section edit-info-section">

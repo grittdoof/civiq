@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { SurveySchema, SurveyEvent, SurveyEventLocation } from "@/types/survey";
 import { formatEventDate } from "@/lib/survey-event";
-import EventMap from "./EventMap";
+import EventLocationPicker from "./EventLocationPicker";
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT SETTINGS PANEL — back-office
@@ -27,6 +27,8 @@ interface EventSettingsPanelProps {
   surveyId: string;
   schema: SurveySchema;
   onChange: (schema: SurveySchema) => void;
+  /** Colonne d'accueil : le titre suit la typographie de la colonne */
+  layout?: "aside" | "main";
 }
 
 interface GeocodeResult {
@@ -39,6 +41,7 @@ export default function EventSettingsPanel({
   surveyId,
   schema,
   onChange,
+  layout = "aside",
 }: EventSettingsPanelProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -143,7 +146,11 @@ export default function EventSettingsPanel({
 
   return (
     <section className="edit-section">
-      <h3 className="edit-aside-title">Habillage & événement</h3>
+      {layout === "main" ? (
+        <h2 className="edit-section-title">Événement & habillage</h2>
+      ) : (
+        <h3 className="edit-aside-title">Habillage & événement</h3>
+      )}
 
       {/* ─── Bannière ─── */}
       <div className="edit-field">
@@ -320,11 +327,12 @@ export default function EventSettingsPanel({
               ) : (
                 <Search size={14} />
               )}
-              Localiser sur la carte
+              Rechercher l'adresse
             </button>
             <p className="edit-field-hint">
-              Nécessaire pour afficher la carte. Sans coordonnées, seul le
-              bouton d'itinéraire est proposé.
+              Recherche automatique, puis ajustez précisément sur la carte
+              ci-dessous. Sans point placé, seul le bouton d'itinéraire est
+              proposé (pas de carte).
             </p>
             {geoError && <p className="evt-error">⚠ {geoError}</p>}
             {geoResults && (
@@ -340,8 +348,15 @@ export default function EventSettingsPanel({
             )}
           </div>
 
-          {location.lat != null && location.lng != null && (
-            <div className="edit-field">
+          <div className="edit-field">
+            <label>Point exact sur la carte</label>
+            <EventLocationPicker
+              lat={location.lat}
+              lng={location.lng}
+              onChange={(lat, lng) => patchLocation({ lat, lng })}
+              height={240}
+            />
+            {location.lat != null && location.lng != null ? (
               <div className="evt-coords">
                 <span>
                   {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
@@ -352,20 +367,16 @@ export default function EventSettingsPanel({
                     patchLocation({ lat: undefined, lng: undefined })
                   }
                 >
-                  Retirer
+                  Retirer le point
                 </button>
               </div>
-              <div className="evt-map-preview">
-                <EventMap
-                  lat={location.lat}
-                  lng={location.lng}
-                  label={location.name || location.address}
-                  height={160}
-                  interactive={false}
-                />
-              </div>
-            </div>
-          )}
+            ) : (
+              <p className="edit-field-hint">
+                Cliquez sur la carte pour placer le lieu, puis glissez le
+                curseur pour l'ajuster au mètre près.
+              </p>
+            )}
+          </div>
 
           <div className="edit-field">
             <label>Précisions (facultatif)</label>
@@ -488,6 +499,7 @@ export default function EventSettingsPanel({
         .evt-geo-results svg { flex-shrink: 0; margin-top: 2px; color: #3b6fa0; }
 
         .evt-coords {
+          margin-top: 8px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -506,13 +518,6 @@ export default function EventSettingsPanel({
           font-size: 11px;
           cursor: pointer;
         }
-        .evt-map-preview {
-          margin-top: 8px;
-          border-radius: 10px;
-          overflow: hidden;
-          border: 1px solid #e8e5de;
-        }
-        .evt-map-preview .leaflet-container { border-radius: 10px; }
       `}</style>
     </section>
   );

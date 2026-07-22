@@ -82,6 +82,8 @@ export interface SurveySettings {
   redirect_url?: string;
   /** Texte du bouton d'entrée (défaut : « Commencer le sondage ») */
   start_cta?: string;
+  /** Masque les écrans d'intro de section : on enchaîne les questions */
+  hide_step_intros?: boolean;
   /** Visuel bannière affiché en tête de l'écran d'accueil */
   banner_url?: string;
   banner_storage_path?: string;

@@ -473,7 +473,16 @@ settings: {
 - Migration `031_survey_event_banner.sql` — bucket public + policies (idempotente).
 - `tests/unit/survey-event.test.ts` — 26 tests.
 
+### Itération 2 (même session)
+> "Pour l'adresse et la localisation sur la carte, il faut permettre de déplacer le curseur manuellement. Dans le back-office de création il faut demander s'il s'agit d'un sondage ou d'un événement ; dans le cas d'un événement la section « Habillage et événement » doit être au-dessus de `edit-main`. Il est possible de masquer les étapes pour arriver directement aux questions."
+
+- `src/components/survey/EventLocationPicker.tsx` — clic sur la carte pour poser le point + marqueur **draggable**. Remplace l'aperçu figé dans le panneau back-office ; la recherche d'adresse ne fait que pré-positionner.
+- `/admin/surveys/nouveau` — choix **Sondage / Événement** en tête de page. L'événement envoie un `schema` complet (socle d'inscription : nom, email, téléphone, nb de participants) au lieu d'un `template_id` ; `event.enabled`, `start_cta` et `hide_step_intros` sont pré-réglés.
+- `/admin/surveys/[id]/edit` — `EventSettingsPanel` bascule de l'aside vers `edit-main` (au-dessus du builder) dès que `settings.event.enabled` est vrai, via la prop `layout="main"` qui adapte aussi la typographie du titre.
+- `settings.hide_step_intros` — `buildSlides()` n'émet plus les slides d'intro de section. Case à cocher dans l'en-tête du `SurveyBuilder`.
+
 ### Points d'attention
+- **`leaflet-icons.ts` ne peut pas être importé statiquement.** Le module appelle Leaflet au chargement → `ReferenceError: window is not defined` au SSR (page blanche + hydratation morte, y compris sur les autres routes tant que le dev server n'est pas redémarré). Toujours l'importer dans l'effet : `await import("@/components/tickets/leaflet-icons")`.
 - **Carte : Leaflet, pas d'iframe.** La CSP du projet (`next.config.ts`) autorise les tuiles OSM en `img-src` mais **pas** `openstreetmap.org` en `frame-src` : un embed iframe serait bloqué. Réutiliser `EventMap` / le pattern de `TicketLocationMap`.
 - **Dates** : saisies en `datetime-local` (donc sans fuseau) et interprétées dans le fuseau du navigateur. `parseEventDate()` force l'interprétation **locale** des dates seules (`2026-09-12`), sinon le moteur JS les lit en UTC et décale d'un jour.
 - **Bannière** : l'API persiste elle-même `schema.settings.banner_url` côté serveur *et* renvoie l'URL au client, qui met à jour son état local — sinon la sauvegarde suivante du builder écraserait la valeur avec un schema périmé.

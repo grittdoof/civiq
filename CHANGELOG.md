@@ -19,6 +19,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
   - **Bouton d'itinéraire** vers le lieu (« Voir sur la carte » à l'accueil, « S'y rendre » après inscription).
   - Écran de confirmation adapté : « Votre inscription est enregistrée ! » + rappel de la date et du lieu.
 
+### Ajouté (suite)
+- **Choix du type à la création** : `/admin/surveys/nouveau` demande désormais s'il s'agit **d'un sondage** ou **d'un événement**. Un événement démarre sur un formulaire d'inscription prêt à l'emploi (nom, email, téléphone, nombre de participants), avec le mode événement déjà activé.
+- **Placement manuel du lieu** : la recherche d'adresse ne fait plus autorité — un clic sur la carte pose le point et le curseur se déplace à la souris pour ajuster au mètre près (salle municipale, entrée d'un parc, parking…).
+- **Mise en page adaptée** : dès que le mode événement est actif, le panneau « Événement & habillage » remonte dans la colonne principale de l'éditeur, au-dessus des questions.
+- **Masquer les écrans d'étape** : nouvelle option du builder pour enchaîner directement les questions, sans écran de présentation entre les sections (activée par défaut sur les événements).
+
 ### Corrigé
 - **Liste déroulante** : le type de champ « Liste déroulante » affichait en réalité une liste de boutons identique au choix unique. Il rend désormais une vraie balise `<select>` native (meilleure ergonomie sur les longues listes, clavier et mobile).
 

@@ -661,6 +661,22 @@ export default function SurveyBuilder({ schema, onChange }: SurveyBuilderProps) 
             />
             Réponses anonymes
           </label>
+          <label
+            className="sb-settings-checkbox"
+            title="Le citoyen enchaîne directement les questions, sans écran de présentation entre les étapes."
+          >
+            <input
+              type="checkbox"
+              checked={!!schema.settings.hide_step_intros}
+              onChange={(e) =>
+                onChange({
+                  ...schema,
+                  settings: { ...schema.settings, hide_step_intros: e.target.checked },
+                })
+              }
+            />
+            Masquer les écrans d'étape
+          </label>
           <input
             type="text"
             value={schema.settings.estimated_time || ""}

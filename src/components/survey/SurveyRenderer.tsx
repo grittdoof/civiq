@@ -81,7 +81,7 @@ type FlowSlide =
 
 function buildSlides(
   schema: SurveySchema,
-  options: { hasWelcome: boolean }
+  options: { hasWelcome: boolean; hideStepIntros: boolean }
 ): FlowSlide[] {
   const out: FlowSlide[] = [];
   if (options.hasWelcome) {
@@ -89,13 +89,17 @@ function buildSlides(
   }
   const totalSteps = schema.steps.length;
   schema.steps.forEach((step, sIdx) => {
-    out.push({
-      kind: "intro",
-      stepIndex: sIdx,
-      step,
-      totalSteps,
-      questionsCount: step.fields.length,
-    });
+    // Les écrans d'intro de section peuvent être masqués pour enchaîner
+    // directement les questions (formulaires courts, inscriptions…).
+    if (!options.hideStepIntros) {
+      out.push({
+        kind: "intro",
+        stepIndex: sIdx,
+        step,
+        totalSteps,
+        questionsCount: step.fields.length,
+      });
+    }
     step.fields.forEach((field) => {
       out.push({
         kind: "question",
@@ -216,9 +220,10 @@ export default function SurveyRenderer({
   const hasWelcome = Boolean(
     surveyTitle || surveyDescription || communeName || bannerUrl || isEvent
   );
+  const hideStepIntros = Boolean(settings.hide_step_intros);
   const allSlides = useMemo(
-    () => buildSlides(schema, { hasWelcome }),
-    [schema, hasWelcome]
+    () => buildSlides(schema, { hasWelcome, hideStepIntros }),
+    [schema, hasWelcome, hideStepIntros]
   );
 
   // Indices des slides effectivement visibles (welcome + intros toujours
