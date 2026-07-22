@@ -23,15 +23,17 @@ select
 from public.communes c;
 
 -- ─── 2. Activité plateforme par heure (super-admin) ───
+-- ⚠ La colonne d'horodatage est `submitted_at`, pas `created_at`
+-- (cf. migration 006, qui corrigeait déjà ce point).
 create or replace function public.platform_activity_by_hour()
 returns table (hour_of_day integer, response_count bigint)
 language sql security definer stable
 set search_path = public
 as $$
   with bucket as (
-    select extract(hour from r.created_at at time zone 'Europe/Paris')::integer as h
+    select extract(hour from r.submitted_at at time zone 'Europe/Paris')::integer as h
       from public.responses r
-     where r.created_at >= now() - interval '30 days'
+     where r.submitted_at >= now() - interval '30 days'
        and r.deleted_at is null
   )
   select h as hour_of_day, count(*)::bigint as response_count
@@ -39,6 +41,8 @@ as $$
    group by h
    order by h
 $$;
+
+grant execute on function public.platform_activity_by_hour() to authenticated;
 
 -- ─── 3. Stats agrégées d'un sondage ───
 create or replace function public.get_survey_stats(p_survey_id uuid)
@@ -58,4 +62,4 @@ begin
 
   return result;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
