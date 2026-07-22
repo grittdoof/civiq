@@ -23,6 +23,8 @@ interface EventLocationPickerProps {
   onChange: (lat: number, lng: number) => void;
   /** Centre par défaut quand aucun point n'est encore placé (France) */
   defaultCenter?: [number, number];
+  /** Zoom initial sans point placé — resserré quand on connaît la commune */
+  defaultZoom?: number;
   height?: number;
 }
 
@@ -31,6 +33,7 @@ export default function EventLocationPicker({
   lng,
   onChange,
   defaultCenter = [46.6, 2.4],
+  defaultZoom = 5,
   height = 260,
 }: EventLocationPickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -60,7 +63,7 @@ export default function EventLocationPicker({
 
       const map = L.map(containerRef.current, {
         center: hasPoint ? [lat!, lng!] : defaultCenter,
-        zoom: hasPoint ? 17 : 5,
+        zoom: hasPoint ? 17 : defaultZoom,
         scrollWheelZoom: false,
       });
       mapRef.current = map;

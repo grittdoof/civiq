@@ -6,6 +6,19 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [2026-07-22] — Événements : modèles d'inscription et adresse assistée
+
+### Ajouté
+- **6 modèles d'événement** à la création : inscription simple, réunion publique, fête ou repas de village, atelier ou activité, sortie ou voyage, vide-grenier (exposant). Chacun arrive avec ses questions (régimes alimentaires, transport, créneau, métrage…), modifiables ensuite dans l'éditeur.
+- **Adresse en autocomplétion** : les suggestions apparaissent au fil de la saisie (plus de bouton « Rechercher »), enrichies du code postal et du nom de la commune pour remonter les bons résultats. Choisir une suggestion pose le point sur la carte.
+- **Géocodage inverse** : un point placé ou déplacé sur la carte remplit automatiquement le champ Adresse.
+- **La carte s'ouvre sur la commune** au lieu de la France entière, pour que le placement manuel démarre au bon endroit.
+
+### Modifié
+- Le type — sondage ou événement — étant choisi à la création, la bascule « Mode inscription à un événement » a été retirée de l'éditeur, et le panneau latéral d'un sondage s'intitule désormais simplement **« Habillage »** (plus aucune mention d'événement).
+
+---
+
 ## [2026-07-22] — Compteurs de réponses : les suppressions sont prises en compte
 
 ### Corrigé

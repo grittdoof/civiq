@@ -512,3 +512,21 @@ Les réponses sont en **soft-delete** depuis la migration 009 (`responses.delete
 
 ### Point d'attention
 **Tout nouvel agrégat sur `surveys` ou `responses` doit exclure `deleted_at`.** Le filtre d'une ressource imbriquée s'écrit `.is("responses.deleted_at", null)` au niveau de la requête parente (même pattern que `src/lib/tickets/queries.ts`).
+
+---
+
+## Session 10 — Événements : modèles et saisie du lieu (2026-07-22)
+
+### Prompt de départ
+> "En mode événement, quand on saisit une adresse on n'arrive pas à trouver l'adresse, ce n'est pas intuitif. Ajoute des modèles d'événements en formulaire de départ. Quand on crée un sondage, « Habillage & événement » ne doit pas mentionner événement, et le mode inscription à un événement ne doit pas apparaître puisqu'on le sélectionne au départ."
+
+### Livrés
+- `src/lib/event-templates.ts` — 6 modèles d'inscription (simple, réunion publique, fête/repas, atelier, sortie/voyage, exposant). En TypeScript et non dans `survey_templates` : communs à toutes les communes, versionnés avec le code, sans seed SQL.
+- **Adresse en autocomplétion** dans `EventSettingsPanel` (debounce 450 ms — Nominatim limite à 1 req/s), contexte commune (`code postal + nom`) issu de `/api/auth/me`.
+- `/api/geocode` accepte `?lat=&lng=` (**géocodage inverse**) et `?context=`, et renvoie un libellé court (`name, rue, CP ville`) au lieu du `display_name` verbeux. Repli sans contexte si la recherche contextualisée ne renvoie rien.
+- **Carte centrée sur la commune** : la commune est géocodée une fois au montage et sert de `defaultCenter` (zoom 14). Le picker n'est monté qu'une fois ce centre résolu — il s'initialise une seule fois et ne se recentre pas ensuite.
+- Bascule « Mode inscription à un événement » **supprimée** : le panneau affiche le bloc événement si `settings.event.enabled`, positionné à la création. Titre « Habillage » en colonne latérale (sondage), « Événement & habillage » en colonne principale (événement).
+
+### Points d'attention
+- **Un sondage existant ne peut plus devenir un événement depuis l'interface** (le type est figé à la création). Il faudrait éditer `schema.settings.event.enabled` en base — ou rétablir une bascule si le besoin apparaît.
+- **Nominatim ne géolocalise pas les noms d'équipements** (« salle des fêtes » + commune → 0 résultat). D'où la séparation nom du lieu / adresse et le placement manuel sur la carte : c'est le chemin nominal, pas un repli.

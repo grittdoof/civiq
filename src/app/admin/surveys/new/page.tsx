@@ -3,47 +3,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
-import { ArrowLeft, FileText, Sparkles, Plus, ClipboardList, CalendarDays } from "lucide-react";
+import { ArrowLeft, Sparkles, Plus, ClipboardList, CalendarDays } from "lucide-react";
 import Link from "next/link";
-import type { SurveySchema, SurveyTemplate } from "@/types/survey";
-
-// Un formulaire d'inscription part d'un socle prêt à l'emploi : coordonnées
-// du participant + nombre de places. Les écrans d'étape sont masqués (le
-// citoyen enchaîne directement les champs) et le mode événement est déjà
-// activé — il ne reste qu'à renseigner la date et le lieu dans l'éditeur.
-const EVENT_SCHEMA: SurveySchema = {
-  settings: {
-    show_progress: true,
-    hide_step_intros: true,
-    start_cta: "Je m'inscris",
-    event: { enabled: true },
-  },
-  steps: [
-    {
-      id: "inscription",
-      title: "Votre inscription",
-      icon: "CalendarDays",
-      fields: [
-        { id: "nom", type: "text", label: "Votre nom et prénom", required: true },
-        { id: "email", type: "email", label: "Votre email", required: true },
-        {
-          id: "telephone",
-          type: "tel",
-          label: "Votre téléphone",
-          hint: "Pour vous prévenir en cas de changement",
-        },
-        {
-          id: "nb_participants",
-          type: "number",
-          label: "Combien serez-vous ?",
-          required: true,
-          min: 1,
-          max: 20,
-        },
-      ],
-    },
-  ],
-};
+import type { SurveyTemplate } from "@/types/survey";
+import { EVENT_TEMPLATES, getEventTemplate } from "@/lib/event-templates";
 
 type SurveyKind = "survey" | "event";
 
@@ -54,6 +17,7 @@ export default function NewSurveyPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedEventTemplate, setSelectedEventTemplate] = useState<string>("blank");
   const [creating, setCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -87,9 +51,10 @@ export default function NewSurveyPage() {
         body: JSON.stringify({
           title,
           description,
-          // Un événement démarre sur le socle d'inscription, pas sur un modèle
+          // Un événement démarre sur un modèle d'inscription local,
+          // pas sur un template de sondage en base
           ...(isEvent
-            ? { schema: EVENT_SCHEMA }
+            ? { schema: getEventTemplate(selectedEventTemplate)?.schema }
             : { template_id: selectedTemplate }),
         }),
       });
@@ -205,16 +170,36 @@ export default function NewSurveyPage() {
         />
       </div>
 
-      {/* Socle de l'événement (pas de modèles pour ce type) */}
+      {/* Modèles d'événement (les templates en base concernent les sondages) */}
       {isEvent ? (
         <div className="form-section">
           <h2>Votre formulaire de départ</h2>
-          <div className="kind-note">
-            <strong>Nom, email, téléphone et nombre de participants</strong>
-            <span>
-              Vous pourrez ajouter vos propres questions dans l'éditeur, puis
-              renseigner la date, le lieu et la bannière de l'événement.
-            </span>
+          <p className="section-hint">
+            Choisissez le type d'inscription : les questions sont pré-remplies
+            et restent modifiables dans l'éditeur.
+          </p>
+
+          <div className="templates-list">
+            {EVENT_TEMPLATES.map((t) => (
+              <div
+                key={t.id}
+                className={`template-option ${selectedEventTemplate === t.id ? "selected" : ""}`}
+                onClick={() => {
+                  setSelectedEventTemplate(t.id);
+                  if (!title.trim() && t.suggestedTitle) setTitle(t.suggestedTitle);
+                }}
+              >
+                <div className="template-icon">{t.icon}</div>
+                <div>
+                  <strong>{t.title}</strong>
+                  <span>{t.description}</span>
+                  <span className="template-fields">
+                    {t.schema.steps[0].fields.length} question
+                    {t.schema.steps[0].fields.length > 1 ? "s" : ""} de départ
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : (
@@ -379,6 +364,17 @@ export default function NewSurveyPage() {
         .kind-note strong { display: block; font-size: 14px; color: #1a2744; margin-bottom: 4px; }
         .kind-note span { font-size: 13px; color: #888; line-height: 1.55; }
 
+        .section-hint { font-size: 13px; color: #888; margin: -8px 0 16px; line-height: 1.55; }
+        .template-fields {
+          display: inline-block !important;
+          margin-top: 6px;
+          font-size: 11px !important;
+          color: #3b6fa0 !important;
+          background: #e6f1fb;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-weight: 600;
+        }
         .templates-list { display: grid; gap: 12px; }
         .template-option {
           display: flex;
