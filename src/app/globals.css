@@ -1115,6 +1115,37 @@ button.civiq-card,
 }
 .civiq-flow-textarea:focus { border-color: var(--accent); border-bottom-width: 1px; }
 
+/* Liste déroulante — vraie <select> native, stylée comme une carte */
+.civiq-flow-select-wrap {
+  position: relative;
+  margin-top: 4px;
+}
+.civiq-flow-select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  padding: 16px 48px 16px 16px;
+  min-height: 58px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.civiq-flow-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.14);
+}
+.civiq-flow-select:invalid,
+.civiq-flow-select option[value=""] { color: var(--fg-muted); }
+.civiq-flow-select-caret {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--fg-muted);
+}
+
 /* Options — gros cards avec lettre-clé style Typeform */
 .civiq-flow-options {
   display: flex;
@@ -1456,6 +1487,129 @@ button.civiq-card,
 
 /* Empêche le footer de page de passer sous la nav flottante */
 .civiq-flow-wrap ~ .civiq-footer { margin-bottom: 96px; }
+
+/* ─── Bannière de l'écran d'accueil ─── */
+.civiq-flow-banner {
+  width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 32px -22px oklch(0 0 0 / 0.5);
+  line-height: 0;
+}
+.civiq-flow-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+}
+
+/* ─── Bloc événement (accueil + confirmation) ─── */
+.civiq-event-card {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.civiq-flow-thankyou .civiq-event-card { margin: 28px auto 0; max-width: 420px; }
+
+.civiq-event-rows { display: flex; flex-direction: column; gap: 12px; }
+.civiq-event-row { display: flex; align-items: flex-start; gap: 12px; }
+.civiq-event-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.civiq-event-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.civiq-event-row-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+  line-height: 1.35;
+}
+.civiq-event-row-text span { font-size: 13.5px; color: var(--fg-muted); line-height: 1.5; }
+
+.civiq-event-map {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.civiq-event-map .leaflet-container { font: inherit; }
+
+.civiq-event-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.civiq-event-menu-wrap { position: relative; flex: 1 1 auto; }
+.civiq-event-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter var(--transition), transform 0.08s ease;
+}
+.civiq-event-btn:hover { filter: brightness(0.96); }
+.civiq-event-btn:active { transform: scale(0.985); }
+.civiq-event-btn.secondary {
+  flex: 1 1 auto;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+}
+
+.civiq-event-menu {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -18px oklch(0 0 0 / 0.45);
+  overflow: hidden;
+}
+.civiq-event-menu button,
+.civiq-event-menu a {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+}
+.civiq-event-menu button + a,
+.civiq-event-menu a + a { border-top: 1px solid var(--border); }
+.civiq-event-menu button:hover,
+.civiq-event-menu a:hover { background: var(--bg); }
+
+@media (max-width: 480px) {
+  .civiq-event-actions { flex-direction: column; }
+  .civiq-event-menu-wrap { width: 100%; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Module Tickets d'intervention

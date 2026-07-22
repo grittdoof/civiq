@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase-server";
 import SurveyRenderer from "@/components/survey/SurveyRenderer";
-import type { Survey, Commune } from "@/types/survey";
+import type { Survey, Commune, SurveySchema } from "@/types/survey";
 import type { Metadata } from "next";
 
 // Type retourné par Supabase lors du join surveys + communes
@@ -21,16 +21,27 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   const { data: survey } = await supabase
     .from("surveys")
-    .select("title, description, communes(name)")
+    .select("title, description, schema, communes(name)")
     .eq("slug", slug)
     .maybeSingle();
 
   if (!survey) return { title: "Sondage introuvable" };
 
   const communeName = (survey as unknown as SurveyWithCommune).communes?.name || "";
+  const title = `${survey.title} — ${communeName}`;
+  const description =
+    survey.description || `Participez au sondage de ${communeName}`;
+  // La bannière du sondage sert aussi d'aperçu au partage (OG image)
+  const banner = (survey.schema as SurveySchema | null)?.settings?.banner_url;
+
   return {
-    title: `${survey.title} — ${communeName}`,
-    description: survey.description || `Participez au sondage de ${communeName}`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      ...(banner ? { images: [banner] } : {}),
+    },
   };
 }
 
@@ -84,6 +95,11 @@ export default async function SurveyPage({ params, searchParams }: Props) {
     );
   }
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://www.gociviq.fr";
+
   return (
     <main className="civiq-page civiq-page-flow">
       <SurveyRenderer
@@ -105,6 +121,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         rgpdFinalite={survey.rgpd_finalite || undefined}
         rgpdDureeJours={survey.rgpd_duree_conservation_jours || undefined}
         rgpdContactEmail={commune?.contact_email}
+        publicUrl={`${siteUrl.replace(/\/$/, "")}/survey/${survey.slug}`}
       />
 
       <footer className="civiq-footer">

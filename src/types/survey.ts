@@ -51,6 +51,28 @@ export interface SurveyStep {
   fields: SurveyField[];
 }
 
+// ─── Mode événement ───
+// Un sondage peut servir de formulaire d'inscription à un événement
+// gratuit. Dans ce cas on expose, avant et après le formulaire, la
+// date, le lieu (carte + itinéraire) et l'ajout à l'agenda.
+
+export interface SurveyEventLocation {
+  name?: string; // « Salle des fêtes »
+  address?: string; // adresse postale complète
+  lat?: number;
+  lng?: number;
+}
+
+export interface SurveyEvent {
+  enabled?: boolean;
+  starts_at?: string; // ISO local (datetime-local) ou date si all_day
+  ends_at?: string;
+  all_day?: boolean;
+  location?: SurveyEventLocation;
+  organizer?: string;
+  details?: string; // précisions affichées sous la date
+}
+
 export interface SurveySettings {
   allow_anonymous?: boolean;
   show_progress?: boolean;
@@ -58,6 +80,12 @@ export interface SurveySettings {
   require_email?: boolean;
   custom_css?: string;
   redirect_url?: string;
+  /** Texte du bouton d'entrée (défaut : « Commencer le sondage ») */
+  start_cta?: string;
+  /** Visuel bannière affiché en tête de l'écran d'accueil */
+  banner_url?: string;
+  banner_storage_path?: string;
+  event?: SurveyEvent;
 }
 
 export interface SurveySchema {

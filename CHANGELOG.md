@@ -6,6 +6,30 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [2026-07-22] — Module Sondage : mode « inscription à un événement »
+
+### Ajouté
+- **Bannière du sondage** : visuel importé depuis le back-office (page d'édition → panneau « Habillage & événement »), affiché en tête de l'écran d'accueil et repris en aperçu au partage du lien (OG image). Format recommandé indiqué dans l'interface : **1200 × 400 px (ratio 3:1)**, JPG/PNG/WebP, 5 Mo max.
+- **Texte du bouton d'entrée personnalisable** : « Commencer le sondage » n'est plus figé. Ex. « Je m'inscris », « Je réserve ma place ». Par défaut, le mode événement propose « Je m'inscris ».
+- **Mode inscription à un événement** (activable par sondage) :
+  - Date et heure de début / fin, option journée entière, précisions et organisateur.
+  - Lieu (nom + adresse) avec bouton **« Localiser sur la carte »** (géocodage OpenStreetMap via `/api/geocode`).
+  - **Carte Leaflet** du lieu affichée avant le formulaire et sur l'écran de confirmation.
+  - **« Ajouter à mon agenda »** disponible **avant** de remplir le formulaire et **après** l'inscription : fichier `.ics` (Apple Calendar et tout agenda compatible), Google Agenda, Outlook.
+  - **Bouton d'itinéraire** vers le lieu (« Voir sur la carte » à l'accueil, « S'y rendre » après inscription).
+  - Écran de confirmation adapté : « Votre inscription est enregistrée ! » + rappel de la date et du lieu.
+
+### Corrigé
+- **Liste déroulante** : le type de champ « Liste déroulante » affichait en réalité une liste de boutons identique au choix unique. Il rend désormais une vraie balise `<select>` native (meilleure ergonomie sur les longues listes, clavier et mobile).
+
+### Technique
+- Réglages stockés dans `surveys.schema.settings` (jsonb) — aucune colonne SQL ajoutée.
+- Migration `031_survey_event_banner.sql` : bucket Storage public `survey-banners` (5 Mo, JPG/PNG/WebP) + policies RLS (lecture publique, écriture éditeurs+).
+- Nouvelles routes : `POST|DELETE /api/surveys/:id/banner`, `GET /api/geocode` (authentifiée).
+- 26 tests unitaires sur la génération ICS, les dates et les liens cartographiques (`tests/unit/survey-event.test.ts`).
+
+---
+
 ## [2026-06-07] — Module « Gestion de projet » (beta)
 
 ### Ajouté

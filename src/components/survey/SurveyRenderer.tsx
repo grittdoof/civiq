@@ -5,6 +5,7 @@ import type { SurveySchema, SurveyField, SurveyStep } from "@/types/survey";
 import {
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Check,
   Lock,
   Clock,
@@ -16,6 +17,8 @@ import {
   ICON_BY_NAME,
   EMOJI_TO_ICON_NAME,
 } from "./icon-library";
+import EventCard from "./EventCard";
+import { eventIsConfigured } from "@/lib/survey-event";
 
 // ═══════════════════════════════════════════════════
 // SURVEY RENDERER — Flow UX (une question / un écran)
@@ -45,6 +48,8 @@ interface SurveyRendererProps {
   rgpdFinalite?: string;
   rgpdDureeJours?: number;
   rgpdContactEmail?: string;
+  /** URL publique du sondage, reprise dans l'entrée d'agenda */
+  publicUrl?: string;
   onSubmit?: (data: Record<string, unknown>) => Promise<void>;
 }
 
@@ -181,6 +186,7 @@ export default function SurveyRenderer({
   rgpdFinalite,
   rgpdDureeJours,
   rgpdContactEmail,
+  publicUrl,
   onSubmit,
 }: SurveyRendererProps) {
   void _communeSlug;
@@ -195,9 +201,21 @@ export default function SurveyRenderer({
   const [shake, setShake] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ─── Mode événement / habillage (schema.settings) ───
+  const settings = schema.settings || {};
+  const event = settings.event;
+  const isEvent = eventIsConfigured(event);
+  const bannerUrl = settings.banner_url;
+  const startCta =
+    settings.start_cta?.trim() ||
+    (isEvent ? "Je m'inscris" : "Commencer le sondage");
+  const eventTitle = surveyTitle || "Événement";
+
   // Une slide d'accueil est ajoutée si au moins un élément de contexte
-  // (titre, description, commune) est fourni.
-  const hasWelcome = Boolean(surveyTitle || surveyDescription || communeName);
+  // (titre, description, commune, bannière, événement) est fourni.
+  const hasWelcome = Boolean(
+    surveyTitle || surveyDescription || communeName || bannerUrl || isEvent
+  );
   const allSlides = useMemo(
     () => buildSlides(schema, { hasWelcome }),
     [schema, hasWelcome]
@@ -527,38 +545,33 @@ export default function SurveyRenderer({
             />
           );
 
+        // Liste déroulante : vraie balise <select> native (le type
+        // "radio" reste la version en boutons empilés).
         case "select":
           return (
-            <div className="civiq-flow-options">
-              {field.options?.map((opt, idx) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`civiq-flow-option${
-                    value === opt.value ? " selected" : ""
-                  }`}
-                  onClick={() => setValue(field.id, opt.value)}
-                  style={
-                    value === opt.value
-                      ? {
-                          borderColor: primaryColor,
-                          background: `${primaryColor}10`,
-                        }
-                      : undefined
-                  }
-                >
-                  <span className="civiq-flow-option-key">
-                    {String.fromCharCode(65 + idx)}
-                  </span>
-                  <span className="civiq-flow-option-text">
-                    <strong>{opt.label}</strong>
-                    {opt.sublabel && <span>{opt.sublabel}</span>}
-                  </span>
-                  {value === opt.value && (
-                    <Check size={16} className="civiq-flow-option-tick" />
-                  )}
-                </button>
-              ))}
+            <div className="civiq-flow-select-wrap">
+              <select
+                value={(value as string) || ""}
+                onChange={(e) => setValue(field.id, e.target.value)}
+                className="civiq-flow-input civiq-flow-select"
+                style={
+                  hasValue(value) ? { borderColor: primaryColor } : undefined
+                }
+              >
+                <option value="" disabled>
+                  {field.placeholder || "Sélectionnez une réponse…"}
+                </option>
+                {field.options?.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.sublabel ? `${opt.label} — ${opt.sublabel}` : opt.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={20}
+                className="civiq-flow-select-caret"
+                aria-hidden
+              />
             </div>
           );
 
@@ -693,11 +706,27 @@ export default function SurveyRenderer({
           >
             <Check size={36} />
           </div>
-          <h2>Merci pour votre participation !</h2>
+          <h2>
+            {isEvent ? "Votre inscription est enregistrée !" : "Merci pour votre participation !"}
+          </h2>
           <p>
             {thankYouText ||
-              "Vos réponses ont bien été enregistrées. Elles seront analysées pour construire une offre adaptée à vos besoins."}
+              (isEvent
+                ? "À très bientôt ! Retrouvez ci-dessous la date et le lieu du rendez-vous — pensez à l'ajouter à votre agenda."
+                : "Vos réponses ont bien été enregistrées. Elles seront analysées pour construire une offre adaptée à vos besoins.")}
           </p>
+
+          {isEvent && event && (
+            <EventCard
+              event={event}
+              title={eventTitle}
+              description={surveyDescription}
+              url={publicUrl}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
+              variant="thanks"
+            />
+          )}
         </div>
       </div>
     );
@@ -783,6 +812,13 @@ export default function SurveyRenderer({
             ) : currentSlide?.kind === "welcome" ? (
               // ── Écran d'accueil (1er écran) ──
               <div className="civiq-flow-welcome">
+                {bannerUrl && (
+                  <div className="civiq-flow-banner">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={bannerUrl} alt="" aria-hidden />
+                  </div>
+                )}
+
                 {communeName && (
                   <div className="civiq-flow-welcome-brand">
                     {communeLogoUrl && (
@@ -831,7 +867,8 @@ export default function SurveyRenderer({
                   )}
                   {endsAt && (
                     <span className="civiq-flow-welcome-meta-item">
-                      <CalendarDays size={14} aria-hidden /> Jusqu'au{" "}
+                      <CalendarDays size={14} aria-hidden />{" "}
+                      {isEvent ? "Inscriptions jusqu'au" : "Jusqu'au"}{" "}
                       {new Date(endsAt).toLocaleDateString("fr-FR", {
                         day: "numeric",
                         month: "long",
@@ -841,13 +878,25 @@ export default function SurveyRenderer({
                   )}
                 </div>
 
+                {isEvent && event && (
+                  <EventCard
+                    event={event}
+                    title={eventTitle}
+                    description={surveyDescription}
+                    url={publicUrl}
+                    primaryColor={primaryColor}
+                    accentColor={accentColor}
+                    variant="welcome"
+                  />
+                )}
+
                 <button
                   type="button"
                   className="civiq-flow-intro-cta"
                   onClick={goNext}
                   style={{ background: primaryColor, color: "#fff" }}
                 >
-                  Commencer le sondage
+                  {startCta}
                   <ChevronRight size={18} />
                 </button>
               </div>

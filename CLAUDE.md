@@ -438,3 +438,48 @@ npm test  → 47 ✓
 - tests/unit/projects/state-machine.test.ts (29)
 - tests/unit/projects/cost-calc.test.ts (18)
 ```
+
+---
+
+## Session 8 — Module Sondage : mode « inscription à un événement » (2026-07-22)
+
+### Prompt de départ
+> "Dans le module sondage : quand je sélectionne liste déroulante, ce n'est pas une liste déroulante. Le call to action de départ est « Commencer le sondage » mais je dois pouvoir le personnaliser pour créer des inscriptions à des events gratuits. Permettre d'ajouter un visuel au format bannière (l'indiquer dans le back office) et le lieu sur une maps ; l'utilisateur doit pouvoir ajouter à son agenda avant de remplir le formulaire d'inscription, et à la fin du formulaire se rendre à l'événement via une maps et ajouter l'événement à son agenda."
+
+### Décision d'architecture
+Tous les réglages vivent dans **`surveys.schema.settings`** (jsonb) — cohérent avec le principe fondateur du module (« n'importe quel sondage sans migration SQL »). Seule la bannière nécessitait du stockage binaire → migration 031 pour le bucket.
+
+```ts
+settings: {
+  start_cta?: string;             // texte du bouton d'entrée
+  banner_url?: string;            // visuel bannière (bucket public)
+  banner_storage_path?: string;   // chemin interne, pour le nettoyage
+  event?: {
+    enabled, starts_at, ends_at, all_day,
+    location: { name, address, lat, lng },
+    organizer, details,
+  }
+}
+```
+
+### Livrés
+- **Fix « liste déroulante »** : le type `select` rendait la même liste de boutons que `radio`. Il rend maintenant une vraie `<select>` native (`civiq-flow-select`), avec placeholder et chevron. `radio` reste la version en cartes empilées.
+- `src/lib/survey-event.ts` — génération ICS (RFC 5545 : échappement, pliage à 75 caractères, VALARM -2h), URLs Google Agenda / Outlook, liens Google Maps (itinéraire + recherche), formatage FR des dates.
+- `src/components/survey/EventCard.tsx` — bloc événement (date, lieu, carte, menu agenda, itinéraire), affiché sur l'écran d'accueil **et** sur l'écran de confirmation.
+- `src/components/survey/EventMap.tsx` — mini-carte Leaflet + tuiles OSM.
+- `src/components/survey/EventSettingsPanel.tsx` — panneau back-office monté dans la colonne de droite de `/admin/surveys/[id]/edit`.
+- `POST|DELETE /api/surveys/[id]/banner` — upload bucket `survey-banners`, écrit `schema.settings`, nettoie l'ancien fichier, audit log.
+- `GET /api/geocode?q=` — proxy Nominatim authentifié (User-Agent conforme, pas de CORS).
+- Migration `031_survey_event_banner.sql` — bucket public + policies (idempotente).
+- `tests/unit/survey-event.test.ts` — 26 tests.
+
+### Points d'attention
+- **Carte : Leaflet, pas d'iframe.** La CSP du projet (`next.config.ts`) autorise les tuiles OSM en `img-src` mais **pas** `openstreetmap.org` en `frame-src` : un embed iframe serait bloqué. Réutiliser `EventMap` / le pattern de `TicketLocationMap`.
+- **Dates** : saisies en `datetime-local` (donc sans fuseau) et interprétées dans le fuseau du navigateur. `parseEventDate()` force l'interprétation **locale** des dates seules (`2026-09-12`), sinon le moteur JS les lit en UTC et décale d'un jour.
+- **Bannière** : l'API persiste elle-même `schema.settings.banner_url` côté serveur *et* renvoie l'URL au client, qui met à jour son état local — sinon la sauvegarde suivante du builder écraserait la valeur avec un schema périmé.
+- Le mode événement ne s'active que si `enabled` **et** `starts_at` sont renseignés (`eventIsConfigured()`).
+
+### Tests
+```
+npm test  → 77 ✓ (dont 26 nouveaux sur survey-event)
+```

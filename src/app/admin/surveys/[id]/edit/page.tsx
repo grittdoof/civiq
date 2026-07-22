@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import SurveyBuilder from "@/components/survey/SurveyBuilder";
+import EventSettingsPanel from "@/components/survey/EventSettingsPanel";
 import type { Survey, SurveySchema } from "@/types/survey";
 import {
   ArrowLeft,
@@ -263,6 +264,13 @@ export default function EditSurveyPage() {
               />
             </div>
           </section>
+
+          {/* Bannière, CTA et mode événement */}
+          <EventSettingsPanel
+            surveyId={surveyId}
+            schema={schema}
+            onChange={setSchema}
+          />
 
           {/* Infos */}
           <section className="edit-section edit-info-section">
