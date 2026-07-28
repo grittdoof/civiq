@@ -530,3 +530,32 @@ Les réponses sont en **soft-delete** depuis la migration 009 (`responses.delete
 ### Points d'attention
 - **Un sondage existant ne peut plus devenir un événement depuis l'interface** (le type est figé à la création). Il faudrait éditer `schema.settings.event.enabled` en base — ou rétablir une bascule si le besoin apparaît.
 - **Nominatim ne géolocalise pas les noms d'équipements** (« salle des fêtes » + commune → 0 résultat). D'où la séparation nom du lieu / adresse et le placement manuel sur la carte : c'est le chemin nominal, pas un repli.
+
+---
+
+## Session 11 — Accessibilité : mode nuit iOS illisible (2026-07-28)
+
+### Prompt de départ
+> "Il y a un problème avec le mode nuit sur iPhone : le fond est bleu et le texte en bleu aussi, du coup on ne voit rien. Vérifie l'accessibilité des couleurs."
+
+### Cause racine
+Le mode nuit était **à moitié implémenté** — un hybride cassé :
+- Le **boot loader** (`src/app/layout.tsx`) forçait `html, body { background: #042F64 }` (bleu marine) via `@media (prefers-color-scheme: dark)`, et ce fond persistait sur **toute** l'app après l'hydratation.
+- Les **tokens applicatifs** restaient en mode clair (`--fg` = bleu marine foncé `oklch(0.13 …)`) : le dark mode `[data-theme="dark"]` n'est **branché nulle part** (aucun toggle, aucun script ne pose l'attribut) et **aucun `color-scheme`** n'était déclaré → iOS assombrissait de son côté les surfaces/contrôles natifs.
+- Résultat : **texte bleu marine foncé sur fond bleu marine ⇒ contraste quasi nul, illisible.**
+
+### Décision
+L'app est conçue **light-first** et truffée de couleurs claires codées en dur (ex. `SurveyBuilder` : dizaines de `#fff`/`#f0f7ff`). Un dark mode global régresserait la lisibilité de l'admin. Correction retenue : **forcer un schéma clair cohérent** (accessible tout de suite), plutôt que d'activer un dark mode non audité.
+
+### Livrés (commit `77e08e0`)
+- `src/app/globals.css` : `color-scheme: light` sur `:root` → iOS rend les contrôles natifs (inputs, selects, scrollbars) en clair même OS en mode nuit. `color-scheme: dark` ajouté sur `[data-theme="dark"]` pour cohérence future.
+- `src/app/layout.tsx` : suppression du bloc `@media (prefers-color-scheme: dark)` du boot loader (le fond par défaut `html, body { background: #FFFFFF }` s'applique désormais aussi en mode nuit).
+
+### Vérification (navigateur mobile 375×812, `prefers-color-scheme: dark` actif)
+- `color-scheme` = `light`, `bodyBg` = `rgb(255,255,255)`, texte `oklch(0.13 …)` → **contraste ≈ 15:1** (WCAG AAA largement dépassé).
+- Page publique du sondage lisible en mode nuit (screenshot).
+
+### Points d'attention
+- **Le dark mode reste volontairement désactivé.** Les tokens `[data-theme="dark"]` existent mais ne sont pas câblés ; un commentaire dans `globals.css` signale qu'un **audit des couleurs codées en dur** (admin surtout) est requis avant toute activation via `prefers-color-scheme` ou un toggle.
+- **`themeColor` dark (#042F64) est conservé** (couleur de la barre d'adresse iOS uniquement, pas le contenu) — barre marine + page blanche = cohérent et on-brand, pas un problème d'accessibilité.
+- **Toute future surface qui réagit à `prefers-color-scheme: dark`** (boot, splash, meta) doit rester cohérente avec les tokens : ne pas repeindre `html/body` en sombre tant que `--fg`/`--bg` restent en clair.
