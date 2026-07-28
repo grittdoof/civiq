@@ -104,11 +104,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             width: 84px; height: auto; display: block;
           }
           @keyframes civiq-boot-spin { to { transform: rotate(360deg); } }
-          @media (prefers-color-scheme: dark) {
-            html, body { background: #042F64; }
-            #civiq-boot { background: #042F64; }
-            .civiq-boot-spinner { border-color: rgba(255,255,255,0.15); border-top-color: #fff; }
-          }
         ` }} />
         {/* Préchargement du logo utilisé par le boot loader */}
         <link rel="preload" as="image" href="/brand/logo-vertical.svg" type="image/svg+xml" />

@@ -24,6 +24,12 @@ body {
 
 /* ── Design Tokens (Light mode) ──────────────────────────────────── */
 :root {
+  /* Force le rendu clair des contrôles natifs (inputs, selects, scrollbars)
+     même quand l'OS est en mode nuit. L'app n'a pas (encore) de thème sombre
+     câblé : sans ceci, iOS assombrit les surfaces natives alors que les tokens
+     restent en clair → texte bleu marine sur fond bleu foncé, illisible. */
+  color-scheme: light;
+
   /* ─── Charte République (couleurs officielles) ─── */
   --marine:        #042F64;          /* Bleu marine principal */
   --azur:          #2F6FDB;          /* Azur secondaire — accent app */
@@ -96,7 +102,12 @@ body {
 }
 
 /* ── Dark mode ──────────────────────────────────────────────────── */
+/* Activé uniquement via data-theme="dark" (aucun câblage actuel).
+   NB : n'est PAS branché sur prefers-color-scheme — l'app (admin en
+   particulier) contient de nombreuses couleurs claires codées en dur,
+   un dark mode global régresserait la lisibilité. À auditer avant activation. */
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg:            oklch(0.112 0.010 258);
   --card:          oklch(0.152 0.010 258);
   --fg:            oklch(0.955 0.004 258);
