@@ -604,7 +604,7 @@ Le workflow cible : `/auth/register` → email/OTP → `resolvePostLoginRedirect
 1. **Ordre d'inscription** — `/auth/register` : l'option « Me rattacher à une commune existante » est désormais **première et sélectionnée par défaut** (`choice` init `"join"`). L'onboarding avait déjà `join` par défaut.
 2. **Emails transactionnels de décision** (approbation / refus)
    - `src/lib/email.ts` — `sendEmail()` via l'**API REST Resend** (pas de SDK, zéro dépendance npm, pas de churn de lockfile). **Gracieux** : si `RESEND_API_KEY`/`EMAIL_FROM` manquent → log + `{ sent: false }`, **jamais de throw** (une décision ne doit jamais échouer à cause d'un email). Helper `getSiteUrl()` (env → `VERCEL_URL` → prod).
-   - `src/lib/emails/commune-decision.ts` — templates HTML **email-safe** (tables + styles inline, **pas de SVG** car bloqué par Gmail → logo PNG `app-icon/icon-192.png` via URL absolue). Charte : marine `#1a2744` + or `#c9a84c`. L'email d'approbation inclut un **bloc coordonnées mairie** (nom, CP, email, téléphone, site) ; le refus inclut le motif.
+   - `src/lib/emails/commune-decision.ts` — reprend **à l'identique la charte du template d'auth Supabase** (`supabase/templates/magic-link.html`) : fond `#f5f7fb`, carte blanche arrondie 560px (`border #e6eaf2`, radius 18), **logo horizontal SVG** `brand/logo-horizontal.svg` centré, eyebrow bleu `#2f6fdb` majuscule, titre navy `#042f64`, **bouton pill navy**, bandeau footer `#f9fafc`, baseline « GoCiviq - Plate-forme citoyenne… ». L'email d'approbation inclut un **bloc coordonnées mairie** (nom, CP, email, téléphone, site) ; le refus inclut le motif. → cohérence visuelle totale avec l'email de lien magique.
    - Câblage dans `POST /api/super-admin/commune-requests/[id]` : après succès BDD, envoi best-effort (`getRecipient()` lit l'email via `auth.admin.getUserById` + le nom via `profiles`).
 3. **Sélection des modules à l'approbation**
    - L'endpoint approve accepte `modules: string[]` → filtre sur `modules.is_available` → upsert `commune_modules` (PK `(commune_id, module_id)`, `onConflict`).
@@ -625,6 +625,6 @@ Sans ces variables, tout le flux fonctionne **sauf** l'envoi d'email (dégradati
 
 ### Points d'attention
 - **Provider email = Resend via REST.** Pour changer de provider, ne modifier que `src/lib/email.ts` (l'appelant est agnostique). Le domaine `EMAIL_FROM` doit être vérifié côté Resend, sinon 4xx.
-- **Logo email en PNG uniquement** (`icon-192.png`) : ne pas passer au SVG (blocage Gmail). Le logo dépend de `NEXT_PUBLIC_SITE_URL` — sans elle, fallback `https://gociviq.fr`.
+- **Charte email = celle de `supabase/templates/magic-link.html`.** Toute évolution du look des emails de décision doit rester alignée sur ce template (logo horizontal SVG, eyebrow bleu, titre navy, bouton pill, footer). Le logo dépend de `NEXT_PUBLIC_SITE_URL` — sans elle, fallback `https://gociviq.fr`.
 - **Copie register/onboarding remet la promesse email** (Session 12 l'avait retirée) : cohérent seulement une fois Resend configuré.
 - **Activation modules à l'approbation ≠ exclusive** : upsert idempotent, complémentaire du toggle depuis `/super-admin/communes/[id]`.
