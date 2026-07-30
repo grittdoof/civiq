@@ -100,8 +100,9 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
             Vous n&apos;avez rien à faire de plus pour l&apos;instant.
           </p>
           <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 24, lineHeight: 1.55 }}>
-            Reconnectez-vous pour consulter la décision : elle s'affichera ici
-            dès qu'un super-administrateur aura traité votre demande.
+            Vous serez informé·e par email dès qu'un super-administrateur aura
+            traité votre demande. La décision s'affichera aussi ici à votre
+            prochaine connexion.
           </p>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button

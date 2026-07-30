@@ -45,7 +45,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [jobTitle, setJobTitle] = useState("maire");
-  const [choice, setChoice] = useState<Choice>("create");
+  const [choice, setChoice] = useState<Choice>("join");
   const [joinCommuneId, setJoinCommuneId] = useState("");
   const [createCommuneName, setCreateCommuneName] = useState("");
   const [createCommuneCP, setCreateCommuneCP] = useState("");
@@ -133,9 +133,9 @@ export default function RegisterPage() {
             {choice === "join"
               ? "rattachement"
               : "création d'espace commune"}{" "}
-            sera ensuite examinée par un super-administrateur. Reconnectez-vous
-            pour suivre l'avancement : la décision s'affichera dès votre
-            prochaine connexion.
+            sera ensuite examinée par un super-administrateur. Vous serez
+            informé·e de la décision par email — elle s'affichera aussi à
+            votre prochaine connexion.
           </p>
           <Link href="/auth/login" className="auth-link-btn">
             ← Retour à la connexion
@@ -223,6 +223,19 @@ export default function RegisterPage() {
 
           <div className="auth-choice">
             <div className="auth-choice-title">Votre commune</div>
+            <label className={`auth-choice-opt${choice === "join" ? " is-selected" : ""}`}>
+              <input
+                type="radio"
+                name="choice"
+                value="join"
+                checked={choice === "join"}
+                onChange={() => setChoice("join")}
+              />
+              <div>
+                <strong>Me rattacher à une commune existante</strong>
+                <span>Ma commune est déjà présente — je demande à la rejoindre.</span>
+              </div>
+            </label>
             <label className={`auth-choice-opt${choice === "create" ? " is-selected" : ""}`}>
               <input
                 type="radio"
@@ -234,19 +247,6 @@ export default function RegisterPage() {
               <div>
                 <strong>Créer un nouvel espace commune</strong>
                 <span>Votre commune n'est pas encore sur GoCiviq — je la mets en place.</span>
-              </div>
-            </label>
-            <label className={`auth-choice-opt${choice === "join" ? " is-selected" : ""}`}>
-              <input
-                type="radio"
-                name="choice"
-                value="join"
-                checked={choice === "join"}
-                onChange={() => setChoice("join")}
-              />
-              <div>
-                <strong>Rejoindre une commune existante</strong>
-                <span>Ma commune est déjà présente — je demande à la rejoindre.</span>
               </div>
             </label>
           </div>

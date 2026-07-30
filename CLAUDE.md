@@ -592,3 +592,39 @@ Le workflow cible : `/auth/register` → email/OTP → `resolvePostLoginRedirect
 - **`signup_intent` est immuable** dans `user_metadata` : toute logique post-login qui s'en sert doit se garder contre la réexécution (idempotence via l'état en base, pas via la metadata).
 - **Aucun provider email câblé.** Si une notification de décision devient nécessaire, l'ajouter dans l'endpoint approve/reject et rétablir la copie correspondante.
 - **Rôle `viewer` = lecteur sans commune.** Il n'a pas d'espace admin ; ne pas le rattacher à une commune via l'approbation.
+
+---
+
+## Session 13 — Emails de décision, ordre d'inscription, modules à l'approbation (2026-07-30)
+
+### Prompt de départ
+> "Quand l'utilisateur est confirmé ou refusé par le super admin, il reçoit un mail charté avec le logo GoCiviq et les coordonnées de la mairie quand une mairie a été sélectionnée. Lors de l'inscription l'utilisateur doit voir en premier « se rattacher à une commune ». Lors de la demande de rattachement que le super admin valide, le super admin sélectionne les modules à activer pour le compte."
+
+### Livrés
+1. **Ordre d'inscription** — `/auth/register` : l'option « Me rattacher à une commune existante » est désormais **première et sélectionnée par défaut** (`choice` init `"join"`). L'onboarding avait déjà `join` par défaut.
+2. **Emails transactionnels de décision** (approbation / refus)
+   - `src/lib/email.ts` — `sendEmail()` via l'**API REST Resend** (pas de SDK, zéro dépendance npm, pas de churn de lockfile). **Gracieux** : si `RESEND_API_KEY`/`EMAIL_FROM` manquent → log + `{ sent: false }`, **jamais de throw** (une décision ne doit jamais échouer à cause d'un email). Helper `getSiteUrl()` (env → `VERCEL_URL` → prod).
+   - `src/lib/emails/commune-decision.ts` — templates HTML **email-safe** (tables + styles inline, **pas de SVG** car bloqué par Gmail → logo PNG `app-icon/icon-192.png` via URL absolue). Charte : marine `#1a2744` + or `#c9a84c`. L'email d'approbation inclut un **bloc coordonnées mairie** (nom, CP, email, téléphone, site) ; le refus inclut le motif.
+   - Câblage dans `POST /api/super-admin/commune-requests/[id]` : après succès BDD, envoi best-effort (`getRecipient()` lit l'email via `auth.admin.getUserById` + le nom via `profiles`).
+3. **Sélection des modules à l'approbation**
+   - L'endpoint approve accepte `modules: string[]` → filtre sur `modules.is_available` → upsert `commune_modules` (PK `(commune_id, module_id)`, `onConflict`).
+   - `/super-admin/requests` : le `window.prompt` de rôle est remplacé par une **modale** (rôle admin/editor + cases à cocher des modules, catalogue via `/api/super-admin/modules`, présélection `surveys`).
+
+### Configuration requise (Vercel → Environment Variables)
+Pour que les emails partent réellement :
+```
+RESEND_API_KEY = re_xxx
+EMAIL_FROM     = "GoCiviq <no-reply@votredomaine.fr>"   # domaine vérifié dans Resend
+NEXT_PUBLIC_SITE_URL = https://votre-app.vercel.app      # liens + logo des emails
+```
+Sans ces variables, tout le flux fonctionne **sauf** l'envoi d'email (dégradation silencieuse, la décision reste consultable à la reconnexion).
+
+### Vérification
+- `npx tsc --noEmit` → exit 0 ; `npm test` → 77 ✓.
+- Rendu des deux emails généré et contrôlé (logo, couleurs marine/or, coordonnées mairie, CTA) — aperçus envoyés à l'utilisateur.
+
+### Points d'attention
+- **Provider email = Resend via REST.** Pour changer de provider, ne modifier que `src/lib/email.ts` (l'appelant est agnostique). Le domaine `EMAIL_FROM` doit être vérifié côté Resend, sinon 4xx.
+- **Logo email en PNG uniquement** (`icon-192.png`) : ne pas passer au SVG (blocage Gmail). Le logo dépend de `NEXT_PUBLIC_SITE_URL` — sans elle, fallback `https://gociviq.fr`.
+- **Copie register/onboarding remet la promesse email** (Session 12 l'avait retirée) : cohérent seulement une fois Resend configuré.
+- **Activation modules à l'approbation ≠ exclusive** : upsert idempotent, complémentaire du toggle depuis `/super-admin/communes/[id]`.

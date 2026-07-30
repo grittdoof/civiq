@@ -1,9 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getAuthContext, isSuperAdmin } from "@/lib/auth-helpers";
+import { sendEmail, getSiteUrl } from "@/lib/email";
+import {
+  buildApprovalEmail,
+  buildRejectionEmail,
+  type CommuneContact,
+} from "@/lib/emails/commune-decision";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
+}
+
+// Récupère l'email (auth.users) et le nom (profiles) du demandeur.
+async function getRecipient(
+  service: SupabaseClient,
+  userId: string,
+): Promise<{ email: string | null; fullName: string | null }> {
+  let email: string | null = null;
+  try {
+    const { data } = await service.auth.admin.getUserById(userId);
+    email = data.user?.email ?? null;
+  } catch (e) {
+    console.error("[commune-requests] getUserById error:", e);
+  }
+  const { data: profile } = await service
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+  return { email, fullName: profile?.full_name ?? null };
 }
 
 function slugify(s: string): string {
@@ -26,6 +53,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const body = await request.json();
   const { action, role, rejection_reason } = body;
+  // Modules à activer pour la commune (sélectionnés par le super-admin).
+  const modules: string[] = Array.isArray(body.modules)
+    ? body.modules.filter((m: unknown): m is string => typeof m === "string")
+    : [];
 
   if (!["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "action invalide" }, { status: 400 });
@@ -47,16 +78,36 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   // ─── Refus ───
   if (action === "reject") {
+    const reason = rejection_reason?.trim() || "Demande non retenue.";
     const { error } = await service
       .from("commune_requests")
       .update({
         status: "rejected",
-        rejection_reason: rejection_reason?.trim() || "Demande non retenue.",
+        rejection_reason: reason,
         reviewed_at: new Date().toISOString(),
         reviewed_by: ctx!.userId,
       })
       .eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Email de refus (best-effort, ne bloque jamais la réponse)
+    const { email, fullName } = await getRecipient(service, req.user_id);
+    if (email) {
+      let communeName: string | null = req.proposed_name ?? null;
+      if (req.commune_id) {
+        const { data: c } = await service
+          .from("communes").select("name").eq("id", req.commune_id).maybeSingle();
+        communeName = c?.name ?? communeName;
+      }
+      const { subject, html } = buildRejectionEmail({
+        siteUrl: getSiteUrl(),
+        userName: fullName,
+        reason,
+        communeName,
+      });
+      await sendEmail({ to: email, subject, html });
+    }
+
     return NextResponse.json({ success: true });
   }
 
@@ -92,14 +143,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: cErr?.message || "Création commune échouée" }, { status: 500 });
     }
     communeId = newCommune.id;
-
-    // Aucun module activé par défaut : la commune démarre vierge.
-    // Le super-admin active manuellement les modules souhaités depuis
-    // /super-admin/communes/[id] après l'approbation.
   }
 
   if (!communeId) {
     return NextResponse.json({ error: "commune_id manquant" }, { status: 400 });
+  }
+
+  // Active les modules choisis par le super-admin pour cette commune.
+  // On ne retient que les modules réellement disponibles au catalogue.
+  if (modules.length > 0) {
+    const { data: valid } = await service
+      .from("modules")
+      .select("id")
+      .in("id", modules)
+      .eq("is_available", true);
+    const validIds = (valid ?? []).map((m) => m.id);
+    if (validIds.length > 0) {
+      const rows = validIds.map((module_id) => ({
+        commune_id: communeId!,
+        module_id,
+        activated_by: ctx!.userId,
+      }));
+      const { error: mErr } = await service
+        .from("commune_modules")
+        .upsert(rows, { onConflict: "commune_id,module_id" });
+      if (mErr) console.error("[commune-requests] activation modules:", mErr.message);
+    }
   }
 
   // Met à jour le profil de l'utilisateur
@@ -123,6 +192,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
     .eq("id", id);
   if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+
+  // Email d'approbation avec les coordonnées de la mairie (best-effort)
+  const { email, fullName } = await getRecipient(service, req.user_id);
+  if (email) {
+    const { data: c } = await service
+      .from("communes")
+      .select("name, code_postal, contact_email, website_url, phone")
+      .eq("id", communeId)
+      .maybeSingle();
+    const commune: CommuneContact | null = c
+      ? {
+          name: c.name,
+          code_postal: c.code_postal,
+          contact_email: c.contact_email,
+          website_url: c.website_url,
+          phone: (c as { phone?: string | null }).phone ?? null,
+        }
+      : null;
+    const { subject, html } = buildApprovalEmail({
+      siteUrl: getSiteUrl(),
+      userName: fullName,
+      role: finalRole,
+      commune,
+    });
+    await sendEmail({ to: email, subject, html });
+  }
 
   return NextResponse.json({ success: true, commune_id: communeId, role: finalRole });
 }

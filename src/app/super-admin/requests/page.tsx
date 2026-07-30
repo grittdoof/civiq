@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Inbox, Building2, Plus, Check, X, Mail, Clock } from "lucide-react";
+import { Inbox, Building2, Plus, Check, X, Clock, Boxes } from "lucide-react";
 
 interface CRequest {
   id: string;
@@ -20,11 +20,27 @@ interface CRequest {
   profiles?: { full_name: string | null; job_title: string | null } | null;
 }
 
+interface ModuleOption {
+  id: string;
+  name: string;
+  tagline: string | null;
+  is_available: boolean;
+  is_beta: boolean;
+}
+
 export default function RequestsPage() {
   const [tab, setTab] = useState<"pending" | "approved" | "rejected">("pending");
   const [requests, setRequests] = useState<CRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Catalogue des modules disponibles (pour la sélection à l'approbation)
+  const [modules, setModules] = useState<ModuleOption[]>([]);
+
+  // État de la modale d'approbation
+  const [approving, setApproving] = useState<CRequest | null>(null);
+  const [role, setRole] = useState<"admin" | "editor">("editor");
+  const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
 
   async function load() {
     setLoading(true);
@@ -34,24 +50,46 @@ export default function RequestsPage() {
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tab]);
 
-  async function approve(req: CRequest) {
-    const requested = req.requested_role === "admin" ? "admin" : "editor";
-    const role = window.prompt(
-      `Quel rôle attribuer à ${req.email || "cet utilisateur"} ?\n\nadmin / editor`,
-      requested
-    );
-    if (!role || !["admin", "editor"].includes(role)) return;
-    setBusy(req.id);
-    const res = await fetch(`/api/super-admin/commune-requests/${req.id}`, {
+  useEffect(() => {
+    fetch("/api/super-admin/modules")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: ModuleOption[]) => setModules(Array.isArray(d) ? d.filter((m) => m.is_available) : []))
+      .catch(() => setModules([]));
+  }, []);
+
+  function openApprove(req: CRequest) {
+    setApproving(req);
+    setRole(req.requested_role === "admin" ? "admin" : "editor");
+    // Pré-sélection : le module « surveys » par défaut s'il existe.
+    setSelectedModules(new Set(modules.some((m) => m.id === "surveys") ? ["surveys"] : []));
+  }
+
+  function toggleModule(id: string) {
+    setSelectedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmApprove() {
+    if (!approving) return;
+    setBusy(approving.id);
+    const res = await fetch(`/api/super-admin/commune-requests/${approving.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "approve", role }),
+      body: JSON.stringify({
+        action: "approve",
+        role,
+        modules: Array.from(selectedModules),
+      }),
     });
     setBusy(null);
     if (!res.ok) {
       alert((await res.json().catch(() => ({}))).error || "Erreur");
       return;
     }
+    setApproving(null);
     load();
   }
 
@@ -158,13 +196,122 @@ export default function RequestsPage() {
                   <button type="button" disabled={busy === req.id} onClick={() => reject(req)} className="civiq-btn civiq-btn-outline">
                     <X size={14} /> Refuser
                   </button>
-                  <button type="button" disabled={busy === req.id} onClick={() => approve(req)} className="civiq-btn civiq-btn-default">
+                  <button type="button" disabled={busy === req.id} onClick={() => openApprove(req)} className="civiq-btn civiq-btn-default">
                     <Check size={14} /> Valider
                   </button>
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ─── Modale d'approbation : rôle + modules ─── */}
+      {approving && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => { if (e.target === e.currentTarget) setApproving(null); }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            background: "rgba(15,23,42,0.55)", display: "flex",
+            alignItems: "center", justifyContent: "center", padding: 20,
+          }}
+        >
+          <div className="civiq-card" style={{ width: "100%", maxWidth: 480, padding: 22, maxHeight: "88vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 700, color: "var(--fg)" }}>Valider la demande</h2>
+              <button type="button" onClick={() => setApproving(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--fg-muted)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 16 }}>
+              {approving.request_type === "join"
+                ? <>Rattachement à <strong>{approving.communes?.name}</strong></>
+                : <>Création de la commune <strong>{approving.proposed_name}</strong></>}
+              {" · "}{approving.profiles?.full_name || approving.email}
+            </p>
+
+            {/* Rôle */}
+            <div style={{ marginBottom: 18 }}>
+              <div className="civiq-field-label" style={{ marginBottom: 8 }}>Rôle attribué</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["admin", "editor"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRole(r)}
+                    style={{
+                      flex: 1, padding: "10px 12px", borderRadius: "var(--radius-sm)",
+                      border: `1.5px solid ${role === r ? "var(--accent)" : "var(--border)"}`,
+                      background: role === r ? "var(--accent-light)" : "var(--card)",
+                      color: "var(--fg)", cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 13, fontWeight: 600, textAlign: "left",
+                    }}
+                  >
+                    {r === "admin" ? "Administrateur" : "Éditeur"}
+                    <div style={{ fontSize: 11, fontWeight: 400, color: "var(--fg-muted)", marginTop: 2 }}>
+                      {r === "admin" ? "Gère l'espace et l'équipe" : "Crée et édite les contenus"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Modules */}
+            <div style={{ marginBottom: 20 }}>
+              <div className="civiq-field-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Boxes size={14} /> Modules à activer
+              </div>
+              {modules.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucun module disponible au catalogue.</p>
+              ) : (
+                <div style={{ display: "grid", gap: 6 }}>
+                  {modules.map((m) => {
+                    const checked = selectedModules.has(m.id);
+                    return (
+                      <label
+                        key={m.id}
+                        style={{
+                          display: "flex", alignItems: "flex-start", gap: 10,
+                          padding: "10px 12px", borderRadius: "var(--radius-sm)",
+                          border: `1px solid ${checked ? "var(--accent)" : "var(--border)"}`,
+                          background: checked ? "var(--accent-light)" : "var(--card)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleModule(m.id)}
+                          style={{ marginTop: 2, accentColor: "var(--accent)" }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--fg)" }}>
+                            {m.name}
+                            {m.is_beta && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "var(--accent)", textTransform: "uppercase" }}>Beta</span>}
+                          </div>
+                          {m.tagline && <div style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 1 }}>{m.tagline}</div>}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 8 }}>
+                Vous pourrez modifier ces modules plus tard depuis la fiche commune.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setApproving(null)} className="civiq-btn civiq-btn-outline">
+                Annuler
+              </button>
+              <button type="button" disabled={busy === approving.id} onClick={confirmApprove} className="civiq-btn civiq-btn-default">
+                <Check size={14} /> {busy === approving.id ? "Validation…" : "Valider et activer"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
