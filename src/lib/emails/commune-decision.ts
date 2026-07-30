@@ -168,10 +168,12 @@ export function buildRejectionEmail(params: {
   userName?: string | null;
   reason?: string | null;
   communeName?: string | null;
+  commune?: CommuneContact | null;
 }): { subject: string; html: string } {
-  const { siteUrl, userName, reason, communeName } = params;
+  const { siteUrl, userName, reason, communeName, commune } = params;
   const hello = userName?.trim() ? `Bonjour ${esc(userName.trim())},` : "Bonjour,";
-  const cible = communeName ? ` à ${esc(communeName)}` : "";
+  const cibleName = commune?.name ?? communeName ?? null;
+  const cible = cibleName ? ` à ${esc(cibleName)}` : "";
 
   const reasonBlock = reason?.trim()
     ? `<div style="margin:4px 0 20px; padding:14px 16px; background:${FOOTER_BG}; border-left:3px solid ${EYEBROW}; border-radius:10px; color:${BODY_TEXT}; font-size:14px; line-height:1.55;"><strong style="color:${TITLE};">Motif :</strong> ${esc(reason.trim())}</div>`
@@ -181,6 +183,7 @@ export function buildRejectionEmail(params: {
     paragraph(hello),
     paragraph(`Après examen, votre demande de rattachement${cible} n'a pas pu être validée pour le moment.`),
     reasonBlock,
+    commune ? communeBlock(commune) : "",
     paragraph("Vous pouvez soumettre une nouvelle demande depuis votre espace, en précisant votre rôle au sein de la commune pour faciliter la validation."),
     button(`${siteUrl}/admin/onboarding`, "Soumettre une nouvelle demande"),
   ].join("");

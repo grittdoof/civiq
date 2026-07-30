@@ -93,17 +93,32 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Email de refus (best-effort, ne bloque jamais la réponse)
     const { email, fullName } = await getRecipient(service, req.user_id);
     if (email) {
+      // Cas « join » : on joint les coordonnées de la mairie visée.
+      let commune: CommuneContact | null = null;
       let communeName: string | null = req.proposed_name ?? null;
       if (req.commune_id) {
         const { data: c } = await service
-          .from("communes").select("name").eq("id", req.commune_id).maybeSingle();
-        communeName = c?.name ?? communeName;
+          .from("communes")
+          .select("name, code_postal, contact_email, website_url, phone")
+          .eq("id", req.commune_id)
+          .maybeSingle();
+        if (c) {
+          communeName = c.name;
+          commune = {
+            name: c.name,
+            code_postal: c.code_postal,
+            contact_email: c.contact_email,
+            website_url: c.website_url,
+            phone: (c as { phone?: string | null }).phone ?? null,
+          };
+        }
       }
       const { subject, html } = buildRejectionEmail({
         siteUrl: getSiteUrl(),
         userName: fullName,
         reason,
         communeName,
+        commune,
       });
       await sendEmail({ to: email, subject, html });
     }
@@ -133,6 +148,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         slug,
         code_postal: req.proposed_code_postal || null,
         contact_email: req.proposed_email || null,
+        phone: req.proposed_phone || null,
+        website_url: req.proposed_website || null,
         primary_color: "#1a2744",
         accent_color: "#c9a84c",
       })

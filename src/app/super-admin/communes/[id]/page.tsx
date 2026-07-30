@@ -14,8 +14,10 @@ interface Commune {
   id: string;
   name: string;
   slug: string;
-  code_postal?: string;
-  contact_email?: string;
+  code_postal?: string | null;
+  contact_email?: string | null;
+  phone?: string | null;
+  website_url?: string | null;
   primary_color?: string;
   created_at: string;
   archived_at?: string | null;
@@ -64,6 +66,11 @@ export default function CommuneDetailPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
 
+  // Édition des coordonnées de la mairie
+  const [editCoords, setEditCoords] = useState(false);
+  const [coords, setCoords] = useState({ name: "", code_postal: "", contact_email: "", phone: "", website_url: "" });
+  const [coordsSaved, setCoordsSaved] = useState(false);
+
   async function reload() {
     const r = await fetch(`/api/super-admin/communes/${communeId}`);
     if (!r.ok) {
@@ -87,6 +94,41 @@ export default function CommuneDetailPage() {
     if (r.ok) await reload();
     else alert((await r.json()).error || "Erreur");
     setBusy(null);
+  }
+
+  function openEditCoords() {
+    if (!data) return;
+    const c = data.commune;
+    setCoords({
+      name: c.name ?? "",
+      code_postal: c.code_postal ?? "",
+      contact_email: c.contact_email ?? "",
+      phone: c.phone ?? "",
+      website_url: c.website_url ?? "",
+    });
+    setCoordsSaved(false);
+    setEditCoords(true);
+  }
+
+  async function saveCoords() {
+    if (!coords.name.trim()) { alert("Le nom de la commune est requis."); return; }
+    setBusy("coords");
+    const r = await fetch(`/api/super-admin/communes/${communeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: coords.name,
+        code_postal: coords.code_postal,
+        contact_email: coords.contact_email,
+        phone: coords.phone,
+        website_url: coords.website_url,
+      }),
+    });
+    setBusy(null);
+    if (!r.ok) { alert((await r.json().catch(() => ({}))).error || "Erreur"); return; }
+    setCoordsSaved(true);
+    setEditCoords(false);
+    await reload();
   }
 
   async function changeRole(user_id: string, role: Role) {
@@ -172,6 +214,67 @@ export default function CommuneDetailPage() {
         <Kpi icon={<FileText size={18} />} value={survey_count} label="Sondages créés" />
         <Kpi icon={<Activity size={18} />} value={response_count} label="Réponses citoyennes" />
       </div>
+
+      {/* Coordonnées de la mairie */}
+      <section style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)" }}>Coordonnées de la mairie</h2>
+          {!editCoords && (
+            <button type="button" onClick={openEditCoords} className="civiq-btn civiq-btn-outline" style={{ padding: "6px 12px", fontSize: 13 }}>
+              Modifier
+            </button>
+          )}
+        </div>
+        <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 14 }}>
+          Ces informations figurent dans les emails envoyés aux utilisateurs de la commune.
+        </p>
+
+        {editCoords ? (
+          <div className="civiq-card" style={{ padding: 18, display: "grid", gap: 12, maxWidth: 620 }}>
+            <div>
+              <label className="civiq-field-label">Nom de la commune *</label>
+              <input className="civiq-input" value={coords.name} onChange={(e) => setCoords({ ...coords, name: e.target.value })} placeholder="Châteauneuf" />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label className="civiq-field-label">Code postal</label>
+                <input className="civiq-input" value={coords.code_postal} onChange={(e) => setCoords({ ...coords, code_postal: e.target.value })} placeholder="06390" />
+              </div>
+              <div>
+                <label className="civiq-field-label">Téléphone</label>
+                <input className="civiq-input" value={coords.phone} onChange={(e) => setCoords({ ...coords, phone: e.target.value })} placeholder="04 93 00 00 00" />
+              </div>
+            </div>
+            <div>
+              <label className="civiq-field-label">Email de contact</label>
+              <input type="email" className="civiq-input" value={coords.contact_email} onChange={(e) => setCoords({ ...coords, contact_email: e.target.value })} placeholder="mairie@commune.fr" />
+            </div>
+            <div>
+              <label className="civiq-field-label">Site web</label>
+              <input className="civiq-input" value={coords.website_url} onChange={(e) => setCoords({ ...coords, website_url: e.target.value })} placeholder="https://www.commune.fr" />
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+              <button type="button" onClick={() => setEditCoords(false)} className="civiq-btn civiq-btn-outline">Annuler</button>
+              <button type="button" disabled={busy === "coords"} onClick={saveCoords} className="civiq-btn civiq-btn-default">
+                {busy === "coords" ? "Enregistrement…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="civiq-card" style={{ padding: 18, maxWidth: 620 }}>
+            <table style={{ width: "100%", fontSize: 14 }}>
+              <tbody>
+                <CoordRow label="Nom" value={commune.name} />
+                <CoordRow label="Code postal" value={commune.code_postal} />
+                <CoordRow label="Téléphone" value={commune.phone} />
+                <CoordRow label="Email de contact" value={commune.contact_email} />
+                <CoordRow label="Site web" value={commune.website_url} />
+              </tbody>
+            </table>
+            {coordsSaved && <p style={{ fontSize: 12, color: "var(--success)", marginTop: 10 }}>✓ Coordonnées mises à jour.</p>}
+          </div>
+        )}
+      </section>
 
       {/* Modules */}
       <section style={{ marginBottom: 32 }}>
@@ -508,6 +611,17 @@ function Kpi({ icon, value, label }: { icon: React.ReactNode; value: number | st
         <div style={{ fontSize: 12, color: "var(--fg-muted)" }}>{label}</div>
       </div>
     </div>
+  );
+}
+
+function CoordRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <tr>
+      <td style={{ padding: "6px 0", color: "var(--fg-muted)", width: 140, verticalAlign: "top" }}>{label}</td>
+      <td style={{ padding: "6px 0", color: value ? "var(--fg)" : "var(--fg-xmuted)", fontWeight: value ? 600 : 400 }}>
+        {value || "—"}
+      </td>
+    </tr>
   );
 }
 

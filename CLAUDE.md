@@ -628,3 +628,37 @@ Sans ces variables, tout le flux fonctionne **sauf** l'envoi d'email (dégradati
 - **Charte email = celle de `supabase/templates/magic-link.html`.** Toute évolution du look des emails de décision doit rester alignée sur ce template (logo horizontal SVG, eyebrow bleu, titre navy, bouton pill, footer). Le logo dépend de `NEXT_PUBLIC_SITE_URL` — sans elle, fallback `https://gociviq.fr`.
 - **Copie register/onboarding remet la promesse email** (Session 12 l'avait retirée) : cohérent seulement une fois Resend configuré.
 - **Activation modules à l'approbation ≠ exclusive** : upsert idempotent, complémentaire du toggle depuis `/super-admin/communes/[id]`.
+
+---
+
+## Session 14 — Coordonnées mairie (email refus, édition super-admin, saisie à la création) + vérif modules (2026-07-30)
+
+### Prompt de départ
+> "Dans le mail rejection il faut aussi ajouter les coordonnées de la mairie. Ces informations sont toujours saisissables/modifiables par le super admin dans la route communes/ — on peut aussi les saisir lors de la création d'une commune dans le formulaire d'inscription. Sélection des modules à la validation → il faut que cela marche pour l'utilisateur, vérifie bien."
+
+### Cause racine découverte
+`communes` **n'avait pas de colonne `phone`** (le `phone` de la migration 012 est sur `profiles`). Le code d'approbation/PATCH aurait planté à l'exécution. → **Migration 033** ajoute `communes.phone`.
+
+### Livrés
+1. **Email de refus enrichi** — `buildRejectionEmail` accepte `commune: CommuneContact`. L'endpoint reject récupère les coordonnées de la commune visée (cas `join`) et les joint (même bloc que l'approbation). Cas `create` : pas de commune → seul le nom proposé apparaît dans le texte.
+2. **Édition des coordonnées par le super-admin** (`/super-admin/communes/[id]`)
+   - `PATCH /api/super-admin/communes/[id]` accepte désormais `phone` + `website_url` (en plus de name/code_postal/contact_email), trim → null, et refuse un nom vide.
+   - Nouvelle section « Coordonnées de la mairie » avec formulaire éditable (nom, CP, téléphone, email, site) + bouton Modifier/Enregistrer. La note rappelle que ces infos figurent dans les emails.
+3. **Saisie à la création** (formulaire d'inscription + onboarding)
+   - **Migration 033** : `commune_requests.proposed_phone` + `proposed_website`.
+   - `/auth/register` (onglet créer) : champs Email officiel + Téléphone + Site web → `user_metadata` (`create_commune_email/phone/website`).
+   - `resolvePostLoginRedirect` : reporte ces métadonnées dans le `commune_request` auto-créé (`proposed_email/phone/website`).
+   - `/admin/onboarding` (onglet créer) : ajout Téléphone + Site web (email déjà présent) → `POST /api/commune-requests` (qui accepte `proposed_phone/proposed_website`).
+   - **Approbation** : la commune est créée avec `phone` + `website_url` (email déjà repris via `proposed_email`). Le super-admin peut ensuite tout modifier.
+4. **Flux modules vérifié de bout en bout**
+   - Approbation upsert `commune_modules` (PK `(commune_id, module_id)`, filtre `is_available`).
+   - `admin/layout.tsx` (AdminShell) recalcule les modules effectifs du user (editor/admin) depuis `commune_modules` moins les overrides → passe les clés à `NAV_GROUPS` (ids `surveys`/`tickets`/`projects`). Page `force-dynamic` → visible dès la navigation suivante. **OK**.
+
+### Vérification
+- `npx tsc --noEmit` → exit 0 ; `npm test` → 77 ✓.
+- Aperçus emails régénérés (approbation + refus avec coordonnées) envoyés à l'utilisateur.
+
+### Points d'attention
+- **⚠ Migration 033 à appliquer dans Supabase avant de tester** : sans `communes.phone`, l'approbation d'une demande `create` (insert avec `phone`) et le PATCH des coordonnées **échouent**. Les colonnes `proposed_phone/proposed_website` sont également requises pour la saisie à la création.
+- **`website_url` / `contact_email` existent depuis la migration 001** ; seule `phone` manquait sur `communes`.
+- **Modules « catalogue sans UI »** (`budget`, `events`, `alerts`, `urbanism`) restent sélectionnables à l'approbation mais n'ajoutent aucune navigation (pas d'implémentation) — cohérent avec le toggle de la fiche commune.

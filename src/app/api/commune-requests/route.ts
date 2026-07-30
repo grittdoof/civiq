@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const body = await request.json();
-  const { request_type, commune_id, proposed_name, proposed_code_postal, proposed_email, message } = body;
+  const { request_type, commune_id, proposed_name, proposed_code_postal, proposed_email, proposed_phone, proposed_website, message } = body;
 
   if (!["join", "create"].includes(request_type)) {
     return NextResponse.json({ error: "request_type invalide" }, { status: 400 });
@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
     insert.proposed_name = proposed_name.trim();
     insert.proposed_code_postal = proposed_code_postal?.trim() || null;
     insert.proposed_email = proposed_email?.trim() || user.email || null;
+    insert.proposed_phone = proposed_phone?.trim() || null;
+    insert.proposed_website = proposed_website?.trim() || null;
     insert.requested_role = "admin";
   }
 

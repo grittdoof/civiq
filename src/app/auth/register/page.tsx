@@ -49,6 +49,9 @@ export default function RegisterPage() {
   const [joinCommuneId, setJoinCommuneId] = useState("");
   const [createCommuneName, setCreateCommuneName] = useState("");
   const [createCommuneCP, setCreateCommuneCP] = useState("");
+  const [createCommuneEmail, setCreateCommuneEmail] = useState("");
+  const [createCommunePhone, setCreateCommunePhone] = useState("");
+  const [createCommuneWebsite, setCreateCommuneWebsite] = useState("");
   const [communes, setCommunes] = useState<CommuneOption[]>([]);
   const [loadingCommunes, setLoadingCommunes] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -105,6 +108,12 @@ export default function RegisterPage() {
           create_commune_name: choice === "create" ? createCommuneName.trim() : null,
           create_commune_code_postal:
             choice === "create" ? createCommuneCP.trim() || null : null,
+          create_commune_email:
+            choice === "create" ? createCommuneEmail.trim() || null : null,
+          create_commune_phone:
+            choice === "create" ? createCommunePhone.trim() || null : null,
+          create_commune_website:
+            choice === "create" ? createCommuneWebsite.trim() || null : null,
         },
       },
     });
@@ -290,6 +299,33 @@ export default function RegisterPage() {
                   onChange={(e) => setCreateCommuneCP(e.target.value)}
                   placeholder="12345"
                   maxLength={5}
+                />
+              </div>
+              <div className="auth-field">
+                <label>Email officiel de la mairie (optionnel)</label>
+                <input
+                  type="email"
+                  value={createCommuneEmail}
+                  onChange={(e) => setCreateCommuneEmail(e.target.value)}
+                  placeholder="mairie@commune.fr"
+                />
+              </div>
+              <div className="auth-field">
+                <label>Téléphone (optionnel)</label>
+                <input
+                  type="tel"
+                  value={createCommunePhone}
+                  onChange={(e) => setCreateCommunePhone(e.target.value)}
+                  placeholder="04 93 00 00 00"
+                />
+              </div>
+              <div className="auth-field">
+                <label>Site web (optionnel)</label>
+                <input
+                  type="url"
+                  value={createCommuneWebsite}
+                  onChange={(e) => setCreateCommuneWebsite(e.target.value)}
+                  placeholder="https://www.commune.fr"
                 />
               </div>
             </>

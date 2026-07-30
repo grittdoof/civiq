@@ -41,6 +41,8 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
   const [proposedName, setProposedName] = useState("");
   const [codePostal, setCodePostal] = useState("");
   const [contactEmail, setContactEmail] = useState(userEmail || "");
+  const [phone, setPhone] = useState("");
+  const [website, setWebsite] = useState("");
   const [message, setMessage] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -56,6 +58,8 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
           proposed_name: proposedName,
           proposed_code_postal: codePostal,
           proposed_email: contactEmail,
+          proposed_phone: phone,
+          proposed_website: website,
           message,
         };
     const res = await fetch("/api/commune-requests", {
@@ -250,6 +254,16 @@ export default function OnboardingForm({ initialPending, initialCommunes, userEm
                 <div>
                   <label className="civiq-field-label">Email officiel</label>
                   <input type="email" className="civiq-input" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="mairie@…" />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label className="civiq-field-label">Téléphone</label>
+                  <input type="tel" className="civiq-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="04 93 00 00 00" />
+                </div>
+                <div>
+                  <label className="civiq-field-label">Site web</label>
+                  <input type="url" className="civiq-input" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://www.commune.fr" />
                 </div>
               </div>
               <div>

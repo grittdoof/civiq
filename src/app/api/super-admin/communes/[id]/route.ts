@@ -110,14 +110,21 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   const { id } = await params;
   const body = await request.json();
-  const { action, name, code_postal, contact_email } = body;
+  const { action, name, code_postal, contact_email, phone, website_url } = body;
 
   const updates: Record<string, unknown> = {};
   if (action === "archive") updates.archived_at = new Date().toISOString();
   if (action === "unarchive") updates.archived_at = null;
-  if (name !== undefined) updates.name = name;
-  if (code_postal !== undefined) updates.code_postal = code_postal;
-  if (contact_email !== undefined) updates.contact_email = contact_email;
+  if (name !== undefined) updates.name = name?.trim() || null;
+  if (code_postal !== undefined) updates.code_postal = code_postal?.trim() || null;
+  if (contact_email !== undefined) updates.contact_email = contact_email?.trim() || null;
+  if (phone !== undefined) updates.phone = phone?.trim() || null;
+  if (website_url !== undefined) updates.website_url = website_url?.trim() || null;
+
+  // Un nom vide casserait l'affichage : on refuse.
+  if (updates.name === null) {
+    return NextResponse.json({ error: "Le nom de la commune est requis" }, { status: 400 });
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });

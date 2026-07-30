@@ -35,6 +35,9 @@ interface SignupMetadata {
   join_commune_id?: string | null;
   create_commune_name?: string | null;
   create_commune_code_postal?: string | null;
+  create_commune_email?: string | null;
+  create_commune_phone?: string | null;
+  create_commune_website?: string | null;
 }
 
 export async function resolvePostLoginRedirect(
@@ -94,6 +97,9 @@ export async function resolvePostLoginRedirect(
       } else if (meta.commune_choice === "create" && meta.create_commune_name) {
         insert.proposed_name = meta.create_commune_name;
         insert.proposed_code_postal = meta.create_commune_code_postal ?? null;
+        insert.proposed_email = meta.create_commune_email ?? null;
+        insert.proposed_phone = meta.create_commune_phone ?? null;
+        insert.proposed_website = meta.create_commune_website ?? null;
         insert.requested_role = "admin";
       }
       // Best effort — si l'insert échoue (contrainte, autre), on
