@@ -62,7 +62,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   // ─── Approbation ───
   let communeId = req.commune_id as string | null;
-  const finalRole = role || req.requested_role || "editor";
+  // Un utilisateur rattaché est admin ou editor. On refuse tout autre
+  // rôle (viewer/legacy) : un « viewer rattaché » n'est géré nulle part.
+  const candidateRole = role || req.requested_role || "editor";
+  const finalRole = candidateRole === "admin" ? "admin" : "editor";
 
   if (req.request_type === "create") {
     // Crée la commune

@@ -101,7 +101,6 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
   const router = useRouter();
   const [activeModuleKeys] = useState<string[]>(initialActiveModuleKeys);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const isSetup = pathname === "/admin/setup";
 
   // Navigation depuis une notification push (cf. public/sw.js)
   usePushNavigationListener();
@@ -127,8 +126,6 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
   function isActive(item: NavItem) {
     return item.exact ? pathname === item.href : pathname.startsWith(item.href);
   }
-
-  if (isSetup) return <>{children}</>;
 
   const userInitial = (commune?.name?.[0] ?? "U").toUpperCase();
   const roleLabel =

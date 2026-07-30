@@ -11,7 +11,7 @@ import { createClient, createServiceClient } from "@/lib/supabase-server";
 // le font elles-mêmes via requireCommune().
 //
 // 1. Auth obligatoire (sinon /auth/login)
-// 2. Bypass sidebar pour /admin/onboarding et /admin/setup
+// 2. Bypass sidebar pour /admin/onboarding
 // 3. Sinon : AdminShell avec données pré-fetchées
 // ═══════════════════════════════════════════════════════════════
 
@@ -28,10 +28,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const isOnboarding = pathname.startsWith("/admin/onboarding");
-  const isSetup = pathname === "/admin/setup";
 
-  // Bypass shell pour onboarding / setup (sidebar inutile)
-  if (isOnboarding || isSetup) {
+  // Bypass shell pour l'onboarding (sidebar inutile)
+  if (isOnboarding) {
     return <>{children}</>;
   }
 

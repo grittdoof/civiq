@@ -66,21 +66,24 @@ export async function resolvePostLoginRedirect(
   // On ne le fait que si :
   //   • signup_intent='commune'
   //   • pas déjà rattaché à une commune
-  //   • pas déjà un request pending (le partial unique index BDD
-  //     l'imposerait de toutes façons)
+  //   • AUCUNE demande existante pour cet utilisateur (quel que soit
+  //     son statut). Le `signup_intent` reste gravé à vie dans
+  //     user_metadata : sans ce garde, une demande refusée serait
+  //     silencieusement recréée à la connexion suivante, annulant la
+  //     décision du super-admin. Après un refus, l'utilisateur
+  //     re-soumet manuellement depuis /admin/onboarding.
   if (
     meta.signup_intent === "commune" &&
     !profile?.commune_id &&
     meta.commune_choice
   ) {
-    const { data: existing } = await service
+    const { data: prior } = await service
       .from("commune_requests")
       .select("id")
       .eq("user_id", userId)
-      .eq("status", "pending")
-      .maybeSingle();
+      .limit(1);
 
-    if (!existing) {
+    if (!prior || prior.length === 0) {
       const insert: Record<string, unknown> = {
         user_id: userId,
         request_type: meta.commune_choice,

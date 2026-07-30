@@ -559,3 +559,36 @@ L'app est conçue **light-first** et truffée de couleurs claires codées en dur
 - **Le dark mode reste volontairement désactivé.** Les tokens `[data-theme="dark"]` existent mais ne sont pas câblés ; un commentaire dans `globals.css` signale qu'un **audit des couleurs codées en dur** (admin surtout) est requis avant toute activation via `prefers-color-scheme` ou un toggle.
 - **`themeColor` dark (#042F64) est conservé** (couleur de la barre d'adresse iOS uniquement, pas le contenu) — barre marine + page blanche = cohérent et on-brand, pas un problème d'accessibilité.
 - **Toute future surface qui réagit à `prefers-color-scheme: dark`** (boot, splash, meta) doit rester cohérente avec les tokens : ne pas repeindre `html/body` en sombre tant que `--fg`/`--bg` restent en clair.
+
+---
+
+## Session 12 — Cohérence du parcours d'inscription + validation super-admin (2026-07-30)
+
+### Prompt de départ
+> "Vérifie le parcours lors de l'inscription des utilisateurs avec la validation du super admin, il y a des incohérences." → puis « corrige tout ».
+
+### Incohérences trouvées (audit du flux)
+Le workflow cible : `/auth/register` → email/OTP → `resolvePostLoginRedirect` crée un `commune_request` pending → super-admin valide/refuse dans `/super-admin/requests`. Cinq incohérences le contredisaient :
+
+1. **🔴 Parcours legacy contournant la validation.** `/admin/setup` + `POST /api/auth/setup` (Session 2) créaient une commune **et** posaient `role='admin'` directement, sans approbation. L'API restait live (middleware = « authentifié » seulement) → n'importe quel compte pouvait s'auto-promouvoir admin d'une nouvelle commune.
+2. **🔴 Le refus ne « tenait » pas.** `resolvePostLoginRedirect` ne testait que l'absence d'une demande **pending** avant d'en recréer une depuis `user_metadata` (où `signup_intent='commune'` est gravé à vie). Après un refus (`rejected`), la connexion suivante réinsérait la demande identique → décision du super-admin annulée.
+3. **🟠 Email de décision promis mais jamais envoyé.** `register` et `OnboardingForm` affirmaient « vous recevrez un email dès validation » — aucun envoi n'existe côté approve/reject.
+4. **🟠 Parcours « administré » (viewer) orphelin et sans issue.** `/auth/signup` (magic-link, rôle viewer) n'était lié nulle part ; et un viewer sans commune était renvoyé login → dashboard → `/admin/onboarding` (entonnoir commune) sans espace viewer réel.
+5. **🟡 Approbation autorisant `viewer`.** Le prompt de `/super-admin/requests` proposait admin/editor/**viewer** → cas « viewer rattaché » non géré ailleurs.
+
+### Livrés
+- **#1** — Supprimés `src/app/admin/setup/page.tsx`, `src/app/api/auth/setup/route.ts`. Bypass `isSetup` retiré de `admin/layout.tsx` et `AdminShell.tsx`. Seule porte d'accès admin restante : validation super-admin.
+- **#2** — `resolvePostLoginRedirect` (`src/lib/auth-post-login.ts`) : la demande auto n'est créée que si **aucune** demande n'existe (tous statuts confondus, `.limit(1)`), au lieu de « pas de pending ». Un refus n'est plus régénéré ; l'utilisateur re-soumet manuellement depuis `/admin/onboarding`.
+- **#3** — Copie corrigée dans `register/page.tsx` et `OnboardingForm.tsx` : « la décision s'affichera à votre prochaine connexion » (plus de promesse d'email).
+- **#4** — Supprimé `src/app/auth/signup/page.tsx` (orphelin). Entrée unique : `/auth/register`.
+- **#5** — Rôle d'approbation borné à `admin|editor`, côté client (`requests/page.tsx`) **et** serveur (`commune-requests/[id]/route.ts`, clamp `candidateRole → 'admin' | 'editor'` même pour une donnée legacy `requested_role='viewer'`).
+
+### Vérification
+- `npx tsc --noEmit` → exit 0 ; `npm test` → 77 ✓ ; aucune référence morte (`admin/setup`, `api/auth/setup`, `auth/signup`, `isSetup`).
+- Flux d'auth non exerçable dans le preview sans session Supabase → validation par typecheck + tests.
+
+### Points d'attention
+- **Une seule voie pour devenir admin/editor : `commune_request` approuvée.** Ne jamais réintroduire d'écriture directe de `role='admin'` + `commune_id` hors de `/api/super-admin/commune-requests/[id]`.
+- **`signup_intent` est immuable** dans `user_metadata` : toute logique post-login qui s'en sert doit se garder contre la réexécution (idempotence via l'état en base, pas via la metadata).
+- **Aucun provider email câblé.** Si une notification de décision devient nécessaire, l'ajouter dans l'endpoint approve/reject et rétablir la copie correspondante.
+- **Rôle `viewer` = lecteur sans commune.** Il n'a pas d'espace admin ; ne pas le rattacher à une commune via l'approbation.

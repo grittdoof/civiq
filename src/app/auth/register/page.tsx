@@ -133,8 +133,9 @@ export default function RegisterPage() {
             {choice === "join"
               ? "rattachement"
               : "création d'espace commune"}{" "}
-            sera ensuite examinée par un super-administrateur. Vous
-            recevrez une notification par email dès validation.
+            sera ensuite examinée par un super-administrateur. Reconnectez-vous
+            pour suivre l'avancement : la décision s'affichera dès votre
+            prochaine connexion.
           </p>
           <Link href="/auth/login" className="auth-link-btn">
             ← Retour à la connexion

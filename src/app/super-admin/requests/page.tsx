@@ -35,11 +35,12 @@ export default function RequestsPage() {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tab]);
 
   async function approve(req: CRequest) {
+    const requested = req.requested_role === "admin" ? "admin" : "editor";
     const role = window.prompt(
-      `Quel rôle attribuer à ${req.email || "cet utilisateur"} ?\n\nadmin / editor / viewer`,
-      req.requested_role
+      `Quel rôle attribuer à ${req.email || "cet utilisateur"} ?\n\nadmin / editor`,
+      requested
     );
-    if (!role || !["admin", "editor", "viewer"].includes(role)) return;
+    if (!role || !["admin", "editor"].includes(role)) return;
     setBusy(req.id);
     const res = await fetch(`/api/super-admin/commune-requests/${req.id}`, {
       method: "POST",
