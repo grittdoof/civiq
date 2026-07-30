@@ -166,26 +166,75 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "commune_id manquant" }, { status: 400 });
   }
 
-  // Active les modules choisis par le super-admin pour cette commune.
-  // On ne retient que les modules réellement disponibles au catalogue.
-  if (modules.length > 0) {
-    const { data: valid } = await service
-      .from("modules")
-      .select("id")
-      .in("id", modules)
-      .eq("is_available", true);
-    const validIds = (valid ?? []).map((m) => m.id);
-    if (validIds.length > 0) {
-      const rows = validIds.map((module_id) => ({
-        commune_id: communeId!,
-        module_id,
-        activated_by: ctx!.userId,
-      }));
-      const { error: mErr } = await service
-        .from("commune_modules")
-        .upsert(rows, { onConflict: "commune_id,module_id" });
-      if (mErr) console.error("[commune-requests] activation modules:", mErr.message);
-    }
+  // ─── Modules autorisés par le super-admin ───
+  // Les modules sont partagés au niveau de la COMMUNE (commune_modules),
+  // mais l'autorisation d'un utilisateur se règle par UTILISATEUR
+  // (profile_module_overrides). Il faut donc :
+  //   • create : activer les modules choisis sur la NOUVELLE commune ;
+  //   • join   : ne PAS toucher aux modules de la commune (config
+  //     partagée avec les autres membres) ;
+  //   • dans les deux cas : restreindre l'utilisateur approuvé aux
+  //     seuls modules choisis (sinon, en rejoignant une commune déjà
+  //     dotée de plusieurs modules, il les hériterait tous).
+  const selected = new Set(
+    modules.length > 0
+      ? (
+          await service
+            .from("modules")
+            .select("id")
+            .in("id", modules)
+            .eq("is_available", true)
+        ).data?.map((m) => m.id) ?? []
+      : [],
+  );
+
+  // create : activer les modules choisis sur la commune vierge
+  if (req.request_type === "create" && selected.size > 0) {
+    const rows = Array.from(selected).map((module_id) => ({
+      commune_id: communeId!,
+      module_id,
+      activated_by: ctx!.userId,
+    }));
+    const { error: mErr } = await service
+      .from("commune_modules")
+      .upsert(rows, { onConflict: "commune_id,module_id" });
+    if (mErr) console.error("[commune-requests] activation modules commune:", mErr.message);
+  }
+
+  // Restriction par utilisateur : l'utilisateur ne voit QUE les modules
+  // choisis parmi ceux actifs sur la commune.
+  const { data: communeMods } = await service
+    .from("commune_modules")
+    .select("module_id")
+    .eq("commune_id", communeId);
+  const communeModIds = (communeMods ?? []).map((m) => m.module_id as string);
+  const toDisable = communeModIds.filter((id) => !selected.has(id));
+  const toEnable = communeModIds.filter((id) => selected.has(id));
+
+  if (toDisable.length > 0) {
+    const now = new Date().toISOString();
+    const { error: oErr } = await service
+      .from("profile_module_overrides")
+      .upsert(
+        toDisable.map((module_id) => ({
+          profile_id: req.user_id,
+          module_id,
+          enabled: false,
+          updated_by: ctx!.userId,
+          updated_at: now,
+        })),
+        { onConflict: "profile_id,module_id" },
+      );
+    if (oErr) console.error("[commune-requests] overrides disable:", oErr.message);
+  }
+  if (toEnable.length > 0) {
+    // Retour au défaut (actif) pour les modules choisis : on retire
+    // tout override désactivant hérité d'une décision précédente.
+    await service
+      .from("profile_module_overrides")
+      .delete()
+      .eq("profile_id", req.user_id)
+      .in("module_id", toEnable);
   }
 
   // Met à jour le profil de l'utilisateur

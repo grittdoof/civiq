@@ -41,6 +41,8 @@ export default function RequestsPage() {
   const [approving, setApproving] = useState<CRequest | null>(null);
   const [role, setRole] = useState<"admin" | "editor">("editor");
   const [selectedModules, setSelectedModules] = useState<Set<string>>(new Set());
+  // Pour un rattachement : modules actifs de la commune (null = création)
+  const [communeModuleIds, setCommuneModuleIds] = useState<string[] | null>(null);
 
   async function load() {
     setLoading(true);
@@ -57,10 +59,30 @@ export default function RequestsPage() {
       .catch(() => setModules([]));
   }, []);
 
-  function openApprove(req: CRequest) {
+  async function openApprove(req: CRequest) {
     setApproving(req);
     setRole(req.requested_role === "admin" ? "admin" : "editor");
-    // Pré-sélection : le module « surveys » par défaut s'il existe.
+    setCommuneModuleIds(null);
+
+    if (req.request_type === "join" && req.commune_id) {
+      // Rattachement : les modules disponibles sont ceux déjà actifs sur
+      // la commune. On les précoche ; le super-admin décoche pour
+      // restreindre l'accès de CET utilisateur (sans impacter les autres).
+      try {
+        const r = await fetch(`/api/super-admin/communes/${req.commune_id}`);
+        if (r.ok) {
+          const d = await r.json();
+          const active: string[] = (d.modules ?? [])
+            .filter((m: { active: boolean }) => m.active)
+            .map((m: { id: string }) => m.id);
+          setCommuneModuleIds(active);
+          setSelectedModules(new Set(active));
+          return;
+        }
+      } catch { /* repli ci-dessous */ }
+    }
+
+    // Création : catalogue complet, « surveys » précoché par défaut.
     setSelectedModules(new Set(modules.some((m) => m.id === "surveys") ? ["surveys"] : []));
   }
 
@@ -261,13 +283,21 @@ export default function RequestsPage() {
             {/* Modules */}
             <div style={{ marginBottom: 20 }}>
               <div className="civiq-field-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Boxes size={14} /> Modules à activer
+                <Boxes size={14} /> {communeModuleIds !== null ? "Modules accessibles à cet utilisateur" : "Modules à activer"}
               </div>
-              {modules.length === 0 ? (
-                <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucun module disponible au catalogue.</p>
+              {(() => {
+                // Rattachement : on ne propose QUE les modules actifs de la
+                // commune. Création : tout le catalogue disponible.
+                const shown = communeModuleIds !== null
+                  ? modules.filter((m) => communeModuleIds.includes(m.id))
+                  : modules;
+                return shown.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>
+                  {communeModuleIds !== null ? "Cette commune n'a aucun module actif." : "Aucun module disponible au catalogue."}
+                </p>
               ) : (
                 <div style={{ display: "grid", gap: 6 }}>
-                  {modules.map((m) => {
+                  {shown.map((m) => {
                     const checked = selectedModules.has(m.id);
                     return (
                       <label
@@ -297,9 +327,12 @@ export default function RequestsPage() {
                     );
                   })}
                 </div>
-              )}
+              );
+              })()}
               <p style={{ fontSize: 12, color: "var(--fg-muted)", marginTop: 8 }}>
-                Vous pourrez modifier ces modules plus tard depuis la fiche commune.
+                {communeModuleIds !== null
+                  ? "Décochez un module pour en priver cet utilisateur (les autres membres de la commune ne sont pas impactés)."
+                  : "Vous pourrez modifier ces modules plus tard depuis la fiche commune."}
               </p>
             </div>
 

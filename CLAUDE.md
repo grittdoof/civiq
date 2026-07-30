@@ -662,3 +662,31 @@ Sans ces variables, tout le flux fonctionne **sauf** l'envoi d'email (dégradati
 - **⚠ Migration 033 à appliquer dans Supabase avant de tester** : sans `communes.phone`, l'approbation d'une demande `create` (insert avec `phone`) et le PATCH des coordonnées **échouent**. Les colonnes `proposed_phone/proposed_website` sont également requises pour la saisie à la création.
 - **`website_url` / `contact_email` existent depuis la migration 001** ; seule `phone` manquait sur `communes`.
 - **Modules « catalogue sans UI »** (`budget`, `events`, `alerts`, `urbanism`) restent sélectionnables à l'approbation mais n'ajoutent aucune navigation (pas d'implémentation) — cohérent avec le toggle de la fiche commune.
+
+---
+
+## Session 15 — Restriction réelle des modules à l'approbation (2026-07-31)
+
+### Prompt de départ
+> "L'utilisateur nouvellement créé a toujours accès à tous les modules alors que le super admin a autorisé seulement le module sondage par exemple."
+
+### Cause racine
+Les modules sont **partagés au niveau commune** (`commune_modules`). À l'approbation, la Session 13 ne faisait qu'**upsert** (ajouter) les modules choisis — jamais restreindre. Donc un utilisateur qui **rejoint** une commune déjà dotée de plusieurs modules (ex. Châteauneuf : surveys + budget + tickets seedés par les migrations 003/005/011) les héritait **tous**, quel que soit le choix du super-admin. La nav, le dashboard et les pages (`isModuleActive`) étaient pourtant bien gated — mais sur `commune_modules`, pas par utilisateur.
+
+### Correctif — restriction par UTILISATEUR
+Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(profile_id, module_id, enabled=false)`. L'endpoint d'approbation (`/api/super-admin/commune-requests/[id]`) l'utilise désormais :
+- **create** : active les modules choisis sur la **nouvelle** commune (`commune_modules`).
+- **join** : ne touche **pas** aux modules de la commune (config partagée).
+- **dans les deux cas** : écrit des overrides pour que l'utilisateur approuvé ne voie **que** les modules choisis — `enabled=false` sur chaque module actif de la commune non choisi, et suppression de tout override désactivant sur les modules choisis. Les autres membres de la commune ne sont pas impactés.
+
+### UI modale d'approbation (`/super-admin/requests`)
+- **join** : `openApprove` récupère les modules actifs de la commune (`GET /api/super-admin/communes/[id]`), n'affiche **que ceux-là**, tous précochés → le super-admin décoche pour restreindre ce user. Libellé « Modules accessibles à cet utilisateur ».
+- **create** : catalogue complet, `surveys` précoché.
+
+### Vérification
+- `npx tsc --noEmit` → 0 ; `npm test` → 77 ✓.
+- Chaîne d'autorisation confirmée : overrides → `AdminShell`/`dashboard` (`commune_modules` moins overrides) + `isModuleActive`/`requireModule` (pages + API) → nav, widgets, pages et API tous restreints.
+
+### Points d'attention
+- **Le correctif est prospectif** (au moment de l'approbation). Un utilisateur déjà sur-doté doit être ajusté manuellement via les toggles par-utilisateur de `/super-admin/communes/[id]` (`toggleUserModule` → `/api/super-admin/users/[id]/modules`).
+- **Modules = niveau commune ; autorisation = niveau utilisateur.** Pour restreindre un membre sans impacter les autres, toujours passer par `profile_module_overrides`, jamais par la suppression de `commune_modules`.
