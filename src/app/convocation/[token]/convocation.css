@@ -1,0 +1,79 @@
+.cv-page {
+  min-height: 100vh;
+  background: var(--gris-bg);
+  padding: 32px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--fg);
+}
+.cv-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+}
+.cv-header { padding: 32px 28px 8px; text-align: center; }
+.cv-logo { display: block; height: 72px; width: auto; max-width: 240px; margin: 0 auto 20px; object-fit: contain; }
+.cv-commune { margin: 0 0 20px; font-size: 18px; font-weight: 800; color: var(--marine); }
+.cv-eyebrow { margin: 0; color: var(--azur); font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.cv-title { margin: 10px 0 0; color: var(--marine); font-size: 26px; line-height: 1.25; font-weight: 800; }
+.cv-hello { margin: 16px 0 0; color: var(--gris-soft); font-size: 16px; }
+.cv-infos { list-style: none; margin: 16px 28px 8px; padding: 0; display: grid; gap: 10px; }
+.cv-infos li { display: flex; gap: 10px; align-items: flex-start; font-size: 16px; font-weight: 700; color: var(--marine); }
+.cv-infos svg { flex-shrink: 0; margin-top: 2px; color: var(--azur); }
+.cv-odj, .cv-rsvp, .cv-calendar { padding: 16px 28px; }
+.cv-odj h2, .cv-rsvp h2, .cv-calendar h2 {
+  margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--azur);
+}
+.cv-odj > div {
+  padding: 14px 18px; background: var(--gris-bg); border: 1px solid var(--border);
+  border-radius: 12px; font-size: 15px; line-height: 1.6; color: var(--gris-soft);
+}
+.cv-odj > div > :first-child { margin-top: 0; }
+.cv-odj > div > :last-child { margin-bottom: 0; }
+.cv-status { margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.cv-status-accepted { background: var(--success-light); color: #067647; }
+.cv-status-declined { background: oklch(0.97 0.03 25); color: #b42318; }
+.cv-status-pending { background: var(--gris-bg); color: var(--gris-soft); }
+.cv-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 420px) { .cv-choices { grid-template-columns: 1fr; } }
+.cv-choice {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 12px; border-radius: 999px; font-size: 15px; font-weight: 700;
+  background: var(--card); border: 2px solid var(--border); color: var(--fg); cursor: pointer;
+  transition: var(--transition);
+}
+.cv-choice-accept.is-on { background: #067647; border-color: #067647; color: #fff; }
+.cv-choice-decline.is-on { background: #b42318; border-color: #b42318; color: #fff; }
+.cv-choice:focus-visible, .cv-submit:focus-visible, .cv-cal-btn:focus-visible { outline: 3px solid var(--azur); outline-offset: 2px; }
+.cv-comment-label { display: block; margin: 14px 0 6px; font-size: 14px; font-weight: 600; color: var(--gris-soft); }
+.cv-comment {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; font: inherit; font-size: 15px;
+  border: 1px solid var(--border); border-radius: 10px; resize: vertical; background: var(--card); color: var(--fg);
+}
+.cv-error { margin: 10px 0 0; color: var(--destructive); font-size: 14px; }
+.cv-submit {
+  margin-top: 14px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px; border: 0; border-radius: 999px; background: var(--marine); color: #fff;
+  font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.cv-submit:disabled { opacity: .45; cursor: not-allowed; }
+.cv-calendar { text-align: center; padding-bottom: 24px; }
+.cv-calendar-buttons { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.cv-cal-btn {
+  padding: 10px 18px; border-radius: 999px; border: 1px solid var(--border); background: var(--card);
+  color: var(--marine); font-size: 14px; font-weight: 700; text-decoration: none;
+}
+.cv-cal-btn:hover { background: var(--border-light); }
+.cv-footer {
+  display: flex; flex-direction: column; gap: 3px; padding: 20px 28px;
+  background: #f9fafc; border-top: 1px solid var(--border); font-size: 13px; color: var(--gris-soft);
+}
+.cv-footer strong { color: var(--marine); font-size: 14px; }
+.cv-gociviq { width: 96px; height: auto; margin-top: 20px; opacity: .85; }
+.cv-page .spin { animation: cv-spin 1s linear infinite; }
+@keyframes cv-spin { to { transform: rotate(360deg); } }

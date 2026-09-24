@@ -6,6 +6,7 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import NewSessionForm from "@/components/projects/NewSessionForm";
+import { listConvocationRecipients } from "@/lib/projects/convocation-send";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,10 @@ export default async function NewSessionPage({ params }: PageProps) {
     .maybeSingle();
   if (!commission || commission.commune_id !== ctx.communeId) notFound();
 
-  const { data: profiles } = await service
-    .from("profiles")
-    .select("id, full_name")
-    .eq("commune_id", ctx.communeId);
+  const [{ data: profiles }, recipients] = await Promise.all([
+    service.from("profiles").select("id, full_name").eq("commune_id", ctx.communeId),
+    listConvocationRecipients(service, id),
+  ]);
 
   return (
     <main className="civiq-main pj-detail-page">
@@ -45,12 +46,20 @@ export default async function NewSessionPage({ params }: PageProps) {
       </div>
       <h1 className="civiq-page-title">Nouvelle séance — {commission.nom}</h1>
       <p className="pj-page-subtitle">
-        La convocation sera envoyée par notification push aux membres dès la
-        création. Un rappel automatique est envoyé la veille (J-1).
+        Après validation, la convocation est envoyée par email à chaque membre
+        (avec ou sans compte GoCiviq) : ordre du jour, ajout à l&apos;agenda et
+        réponse de présence en un clic. Les membres avec compte reçoivent
+        aussi une notification push.
       </p>
       <NewSessionForm
         commissionId={id}
         profiles={(profiles ?? []) as { id: string; full_name: string | null }[]}
+        recipients={recipients.map((r) => ({
+          member_id: r.member_id,
+          name: r.name,
+          email: r.email,
+          isExternal: r.isExternal,
+        }))}
       />
     </main>
   );

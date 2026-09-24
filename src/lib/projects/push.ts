@@ -336,59 +336,9 @@ export async function notifyTicketTransformedToProject(opts: {
   }
 }
 
-/** Convocation à une séance de commission. À envoyer à la planification + J-1. */
-export async function notifyCommissionConvocation(opts: {
-  sessionId: string;
-  commissionName: string;
-  dateSeance: string;
-  lieu: string | null;
-  ordreDuJour: string | null;
-  memberUserIds: string[];
-  isReminder?: boolean;
-}): Promise<void> {
-  try {
-    if (opts.memberUserIds.length === 0) return;
-    const dateLabel = new Date(opts.dateSeance).toLocaleString("fr-FR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const url = `/admin/commissions`;
-    const title = opts.isReminder
-      ? `🔔 Rappel : ${opts.commissionName} demain`
-      : `📣 Convocation : ${opts.commissionName}`;
-    const body = `${dateLabel}${opts.lieu ? ` — ${opts.lieu}` : ""}`;
-
-    const push = sendProjectNotification({
-      profileIds: opts.memberUserIds,
-      title,
-      body,
-      url,
-      tag: `commission-session-${opts.sessionId}`,
-      category: "commission",
-    });
-
-    const emails = await getEmails(opts.memberUserIds);
-    if (emails.length > 0) {
-      sendEmail({
-        to: emails,
-        subject: `[GoCiviq] ${title}`,
-        html: `<p>Bonjour,</p>
-<p><strong>${escapeHtml(opts.commissionName)}</strong></p>
-<p>Date : ${escapeHtml(dateLabel)}<br/>
-${opts.lieu ? `Lieu : ${escapeHtml(opts.lieu)}<br/>` : ""}</p>
-${opts.ordreDuJour ? `<p><strong>Ordre du jour</strong><br/>${escapeHtml(opts.ordreDuJour).replace(/\n/g, "<br/>")}</p>` : ""}
-<p><a href="${baseUrl()}${url}">Voir la commission</a></p>`,
-      }).catch((e) => console.error("[email] commission:", e));
-    }
-
-    await push;
-  } catch (e) {
-    console.error("[push] notifyCommissionConvocation:", e);
-  }
-}
+// Convocation à une séance : voir `sendSessionConvocations`
+// (`./convocation-send.ts`) — email personnalisé à TOUS les membres
+// (internes et externes) + push aux membres avec compte.
 
 /** Compte rendu de séance validé — verrouillé et exportable. */
 export async function notifyCommissionMinutesValidated(opts: {

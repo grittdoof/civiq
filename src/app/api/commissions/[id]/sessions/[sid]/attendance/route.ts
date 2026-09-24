@@ -55,6 +55,19 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const service = await createServiceClient();
+
+  // La séance doit appartenir à la commune de l'appelant
+  const { data: sess } = await service
+    .from("commission_sessions")
+    .select("id, commission:commissions ( commune_id )")
+    .eq("id", sid)
+    .maybeSingle();
+  const sessCommune = (sess as unknown as { commission: { commune_id: string } | null } | null)
+    ?.commission?.commune_id;
+  if (!sess || (sessCommune !== guard.communeId && guard.role !== "super_admin")) {
+    return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
+  }
+
   const payload: Record<string, unknown> = {
     session_id: sid,
     conseiller_user_id: body.user_id ?? null,
@@ -64,17 +77,42 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     signe_le: body.signature_data ? new Date().toISOString() : null,
   };
 
-  // Upsert sur clé adaptée : (session, user) pour interne ; (session, member) pour externe
-  const onConflict = body.user_id
-    ? "session_id,conseiller_user_id"
-    : "session_id,commission_member_id";
-
-  const { data, error } = await service
+  // Upsert « manuel » (select puis update/insert) plutôt que
+  // `.upsert({ onConflict })` : pour les externes, l'unicité
+  // (session_id, commission_member_id) était un index PARTIEL que
+  // Postgres ne sait pas cibler en ON CONFLICT → 500 systématique.
+  // (La migration 034 le remplace par une contrainte pleine ; ce code
+  // reste correct avant comme après.)
+  const keyCol = body.user_id ? "conseiller_user_id" : "commission_member_id";
+  const keyVal = body.user_id ?? body.commission_member_id!;
+  const { data: existing, error: selErr } = await service
     .from("session_attendance")
-    .upsert(payload, { onConflict })
-    .select("*")
+    .select("id")
+    .eq("session_id", sid)
+    .eq(keyCol, keyVal)
+    .limit(1)
     .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (selErr) {
+    console.error("[attendance] select:", selErr);
+    return NextResponse.json({ error: selErr.message }, { status: 500 });
+  }
+
+  // En mise à jour, on ne touche qu'aux champs fournis : marquer la
+  // présence ne doit pas effacer une signature déjà recueillie.
+  const patch: Record<string, unknown> = {};
+  if (typeof body.present === "boolean") patch.present = body.present;
+  if (body.signature_data !== undefined) {
+    patch.signature_data = body.signature_data;
+    patch.signe_le = body.signature_data ? new Date().toISOString() : null;
+  }
+
+  const { data, error } = existing
+    ? await service.from("session_attendance").update(patch).eq("id", existing.id).select("*").maybeSingle()
+    : await service.from("session_attendance").insert(payload).select("*").maybeSingle();
+  if (error) {
+    console.error("[attendance] write:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   await writeAudit({
     action: body.signature_data ? "commission.attendance.signed" : "commission.attendance.marked",

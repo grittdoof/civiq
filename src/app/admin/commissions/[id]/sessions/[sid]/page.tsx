@@ -10,6 +10,9 @@ import MinutesEditor from "@/components/projects/MinutesEditor";
 import SessionDocumentsEditor from "@/components/projects/SessionDocumentsEditor";
 import SignedAttendanceUpload from "@/components/projects/SignedAttendanceUpload";
 import SessionSecretarySelector from "@/components/projects/SessionSecretarySelector";
+import ConvocationsPanel from "@/components/projects/ConvocationsPanel";
+import { createServiceClient } from "@/lib/supabase-server";
+import { listConvocationRecipients } from "@/lib/projects/convocation-send";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -31,6 +34,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
   const detail = await getSession(ctx.communeId, sid);
   if (!detail.session) notFound();
+
+  const service = await createServiceClient();
+  const convocations = await listConvocationRecipients(service, id, sid);
+  const convocationsClosed =
+    detail.session.compte_rendu_valide ||
+    new Date(detail.session.date_seance).getTime() < Date.now() - 12 * 3600_000;
 
   const isAdmin = ["admin", "super_admin"].includes(ctx.role ?? "");
   const isSecretaire = detail.session.secretaire_de_seance_user_id === ctx.userId;
@@ -120,6 +129,30 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
         <section className="civiq-card pj-section pj-section-wide">
           <h2 className="pj-section-title">
+            Convocations
+            <span className="pj-section-count">({convocations.filter((c) => c.convocation?.sent_at).length} / {convocations.length} envoyées)</span>
+          </h2>
+          <ConvocationsPanel
+            commissionId={id}
+            sessionId={sid}
+            canSend={canManageDocs}
+            closed={convocationsClosed}
+            rows={convocations.map((c) => ({
+              member_id: c.member_id,
+              name: c.name,
+              email: c.email,
+              isExternal: c.isExternal,
+              status: c.convocation?.status ?? null,
+              sent_at: c.convocation?.sent_at ?? null,
+              responded_at: c.convocation?.responded_at ?? null,
+              response_comment: c.convocation?.response_comment ?? null,
+              last_error: c.convocation?.last_error ?? null,
+            }))}
+          />
+        </section>
+
+        <section className="civiq-card pj-section pj-section-wide">
+          <h2 className="pj-section-title">
             Émargement <span className="pj-section-count">({presentCount} / {totalMembers} présents)</span>
           </h2>
 
@@ -188,6 +221,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
             initial={detail.session.compte_rendu ?? ""}
             validated={detail.session.compte_rendu_valide}
             canEdit={canEditMinutes}
+            canSend={canManageDocs || isSecretaire}
           />
         </section>
       </div>

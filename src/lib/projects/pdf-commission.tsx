@@ -2,6 +2,7 @@
 import path from "node:path";
 import { Document, Page, View, Text, Image, StyleSheet, Font } from "@react-pdf/renderer";
 import { PdfHeader, PdfFooter } from "./pdf-header";
+import { parseRichText, type RichRun } from "./rich-text";
 
 if (typeof window === "undefined") {
   const fontsDir = path.join(process.cwd(), "public", "fonts");
@@ -21,6 +22,11 @@ const s = StyleSheet.create({
   subtitle: { fontSize: 10, color: "#6b7280", marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginTop: 12, marginBottom: 6 },
   para: { lineHeight: 1.4, marginBottom: 4 },
+  richH2: { fontSize: 12, fontWeight: 700, marginTop: 8, marginBottom: 4, color: "#042f64" },
+  richH3: { fontSize: 11, fontWeight: 700, marginTop: 6, marginBottom: 3 },
+  richLi: { flexDirection: "row", marginBottom: 2, paddingLeft: 6 },
+  richBullet: { width: 16, lineHeight: 1.4 },
+  richLiText: { flex: 1, lineHeight: 1.4 },
   trHead: { flexDirection: "row", backgroundColor: "#f3f4f6", padding: 4 },
   tr: { flexDirection: "row", borderBottom: 0.5, borderColor: "#e5e7eb", padding: 4, minHeight: 28, alignItems: "center" },
   th: { fontSize: 9, fontWeight: 700 },
@@ -28,6 +34,56 @@ const s = StyleSheet.create({
   sigBox: { borderWidth: 0.5, borderColor: "#d1d5db", height: 28, marginTop: 2 },
   footer: { position: "absolute", bottom: 32, left: 32, right: 32, fontSize: 8, color: "#6b7280", borderTop: 0.5, borderColor: "#e5e7eb", paddingTop: 6, textAlign: "right" },
 });
+
+// ─── Texte riche (HTML assaini → blocs react-pdf) ───
+// Inter n'est embarquée qu'en Regular/Bold : l'italique utilise la
+// police standard PDF Helvetica (Oblique / BoldOblique), sans fichier.
+function runStyle(r: RichRun) {
+  return {
+    ...(r.italic
+      ? { fontFamily: "Helvetica", fontStyle: "italic" as const, fontWeight: r.bold ? 700 : 400 }
+      : r.bold
+        ? { fontWeight: 700 }
+        : {}),
+    ...(r.underline ? { textDecoration: "underline" as const } : {}),
+  };
+}
+
+function Runs({ runs }: { runs: RichRun[] }) {
+  return (
+    <>
+      {runs.map((r, i) => (
+        <Text key={i} style={runStyle(r)}>{r.text}</Text>
+      ))}
+    </>
+  );
+}
+
+export function RichTextPdf({ value }: { value: string | null | undefined }) {
+  const blocks = parseRichText(value);
+  if (blocks.length === 0) return <Text style={s.para}>—</Text>;
+  return (
+    <View>
+      {blocks.map((b, i) => {
+        if (b.type === "h2") {
+          return <Text key={i} style={s.richH2}><Runs runs={b.runs} /></Text>;
+        }
+        if (b.type === "h3") {
+          return <Text key={i} style={s.richH3}><Runs runs={b.runs} /></Text>;
+        }
+        if (b.type === "li") {
+          return (
+            <View key={i} style={s.richLi} wrap={false}>
+              <Text style={s.richBullet}>{b.ordered ? `${b.index}.` : "•"}</Text>
+              <Text style={s.richLiText}><Runs runs={b.runs} /></Text>
+            </View>
+          );
+        }
+        return <Text key={i} style={s.para}><Runs runs={b.runs} /></Text>;
+      })}
+    </View>
+  );
+}
 
 export interface MinutesPdfData {
   communeName: string;
@@ -80,12 +136,12 @@ export function MinutesPDF(props: MinutesPdfData) {
         {props.ordreDuJour && (
           <>
             <Text style={s.sectionTitle}>Ordre du jour</Text>
-            <Text style={s.para}>{props.ordreDuJour}</Text>
+            <RichTextPdf value={props.ordreDuJour} />
           </>
         )}
 
         <Text style={s.sectionTitle}>Compte rendu</Text>
-        <Text style={s.para}>{props.compteRendu}</Text>
+        <RichTextPdf value={props.compteRendu} />
 
         {props.decisions.length > 0 && (
           <>
@@ -160,7 +216,7 @@ export function AttendancePDF(props: AttendancePdfData) {
         {props.ordreDuJour && (
           <>
             <Text style={s.sectionTitle}>Ordre du jour</Text>
-            <Text style={s.para}>{props.ordreDuJour}</Text>
+            <RichTextPdf value={props.ordreDuJour} />
           </>
         )}
 

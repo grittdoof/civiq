@@ -690,3 +690,67 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 ### Points d'attention
 - **Le correctif est prospectif** (au moment de l'approbation). Un utilisateur déjà sur-doté doit être ajusté manuellement via les toggles par-utilisateur de `/super-admin/communes/[id]` (`toggleUserModule` → `/api/super-admin/users/[id]/modules`).
 - **Modules = niveau commune ; autorisation = niveau utilisateur.** Pour restreindre un membre sans impacter les autres, toujours passer par `profile_module_overrides`, jamais par la suppression de `commune_modules`.
+
+---
+
+## Session 16 — Commissions : erreur émargement + convocations email avec réponse de présence (2026-09-24)
+
+### Prompt de départ
+> "Dans /admin/commissions, la création d'une nouvelle séance génère une erreur (500 sur `/attendance`), parfois ça mouline et rien ne se passe. Les membres invités doivent recevoir un mail de convocation — ceux sans compte ne le reçoivent pas. Permettre de valider l'envoi. L'email : ordre du jour, logo de la commune, petit logo GoCiviq en footer, adresse de la mairie, ajout agenda (Apple, Microsoft, Google). Les membres valident ou déclinent leur présence depuis l'email, et c'est remonté dans le logiciel."
+
+### Causes racines (logs Vercel + code)
+1. **500 sur `POST …/attendance`** : l'unicité `(session_id, commission_member_id)` des membres externes (migration 018) est un index **partiel** (`where commission_member_id is not null`). `upsert({ onConflict })` de PostgREST génère un `ON CONFLICT` sans prédicat → Postgres 42P10. Chaque émargement d'externe échouait ; le client ignorait l'erreur (d'où les clics répétés).
+   - Bonus : en mise à jour, l'upsert réécrivait `signature_data = null` → **marquer la présence effaçait une signature**.
+2. **« Ça mouline »** : `NewSessionForm` faisait `await res.json()` sans try/catch → réponse non-JSON (timeout/502) = spinner infini.
+3. **Convocations non reçues** : envoi en *fire-and-forget* après la réponse (gelé par Vercel dès la réponse envoyée), emails via `listUsers` limité aux comptes confirmés, **externes ignorés** (`user_id` null), email brut sans charte. Le texte promettait un rappel J-1 **qui n'existe pas** (aucun cron).
+4. Les erreurs `A listener indicated an asynchronous response…` viennent d'une **extension navigateur**, pas de l'app.
+
+### Livrés
+- **Migration `034_commission_convocations.sql`** (idempotente) : contrainte unique pleine sur `session_attendance(session_id, commission_member_id)` ; `communes.address` ; table `session_convocations` (jeton personnel, statut `pending|accepted|declined`, commentaire, suivi d'envoi, RLS lecture équipe) ; `commission_sessions.convocation_sent_at`.
+- **Route attendance** : select → update/insert (fonctionne avant ET après la migration), vérif commune, ne touche qu'aux champs fournis. `AttendanceEditor` affiche les erreurs.
+- `src/lib/projects/convocation.ts` (pur, testé) : format date, ICS (TZID Europe/Paris + VTIMEZONE, UID stable par séance), liens Google / Outlook 365, texte brut de l'ODJ, jeton 192 bits.
+- `src/lib/projects/convocation-send.ts` : destinataires = **tous les membres** (email du compte via `getUserById`, sinon `external_email`), membres sans email remontés en `skipped` ; envoi **synchrone** via `sendEmailBatch` (API batch Resend, 1 requête) ; push aux membres avec compte.
+- `src/lib/emails/commission-convocation.ts` : logo commune (repli nom), date/lieu, ODJ, boutons présent/absent, agenda Apple/Google/Outlook, pied mairie (adresse, tél., email, site), petit logo GoCiviq **PNG** (`public/brand/logo-horizontal.png` — Gmail n'affiche pas le SVG).
+- API : `POST /api/commissions/:id/sessions` (`send_convocation`, `convocation_member_ids`, rapport renvoyé) ; `GET|POST …/sessions/:sid/convocations` (suivi, envoi, relance) ; publiques `POST /api/convocations/:token` (réponse) et `GET /api/convocations/:token/ics`.
+- Page publique **`/convocation/[token]`** : la réponse est présélectionnée depuis l'email puis **confirmée d'un clic** (les antivirus de messagerie pré-ouvrent les liens : un GET qui enregistre fausserait les réponses). Modifiable jusqu'à la séance.
+- `NewSessionForm` : case « Envoyer la convocation », liste des destinataires (cochables, alerte « Aucun email »), **étape de confirmation** avant envoi, rapport en cas d'échec partiel.
+- Page séance : section **Convocations** (`ConvocationsPanel`) — compteurs présents/excusés/sans réponse, statut par membre, commentaire, envoi/relance/renvoi individuel avec confirmation.
+- Adresse + téléphone de la mairie éditables dans `/admin/profile` et `/super-admin/communes/[id]`.
+- **Logo de la commune** (aucun écran n'existait) : `CommuneLogoUpload` dans `/admin/profile` (admin) et `/super-admin/communes/[id]`, API `POST|DELETE /api/communes/:id/logo` (super-admin ou admin de la commune), bucket public `commune-logos` (PNG/JPG, 2 Mo, **ni SVG ni WebP** — Gmail et react-pdf ne les lisent pas), `communes.logo_storage_path` pour nettoyer l'ancien fichier.
+- `/api/auth/me` lit `communes(*)` (robuste aux ajouts de colonnes).
+- Tests : `tests/unit/projects/convocation.test.ts` (18).
+
+### Vérification
+- `npx tsc --noEmit` → 0 (hors types `.next` périmés préexistants) ; `npm test` → 95 ✓.
+- Email rendu et contrôlé visuellement (desktop + mobile).
+- Flux complet non exécutable localement sans la migration 034 en base.
+
+### Points d'attention
+- **⚠ Appliquer la migration 034 avant de déployer** : sans elle, la création avec envoi et la page séance (lecture `session_convocations`) échouent.
+- **Convention de date `date_seance`** : heure murale stockée dans les composantes UTC (saisie `datetime-local` → timestamptz en session UTC). Les helpers de convocation lisent les composantes UTC et publient en Europe/Paris. Ne pas « corriger » un seul endroit sans migrer l'ensemble de l'affichage.
+- **Réponse de présence ≠ émargement** : `session_convocations.status` est une intention ; la présence réelle reste `session_attendance`.
+- **Pas de rappel J-1 automatique** : la relance est manuelle (« Relancer les membres sans réponse »). Un cron pourrait appeler `sendSessionConvocations({ isReminder: true })`.
+- Les emails de convocation partent en `reply_to` = `communes.contact_email`.
+
+### Itération 3 (même session) — Compte rendu : mise en forme + envoi du PDF
+> "Quand on rédige le compte rendu, permettre la mise en forme (gras, italique, souligné, titre…). La validation doit permettre l'envoi par mail du PDF aux membres. On peut envoyer plusieurs fois et choisir à qui."
+
+- **`RichTextEditor`** : + souligné, titre (h2), sous-titre (h3), texte normal ; `styleWithCSS=false` (balises sémantiques). `sanitizeRichText` réécrit désormais les balises autorisées **sans attributs** (style/class collés depuis Word).
+- **`MinutesEditor`** : éditeur riche (le texte brut legacy est converti via `toRichHtml`) ; « Valider & verrouiller… » ouvre un dialogue : envoi du PDF (coché par défaut), choix des destinataires, message d'accompagnement. Après validation : bouton « Envoyer le compte rendu par email » **répétable**, avec la date du dernier envoi par membre (présélection : ceux qui ne l'ont pas encore reçu).
+- `src/lib/projects/rich-text.ts` : `toRichHtml`, `parseRichText` (HTML → blocs pour react-pdf). **Le PDF (CR, émargement) affichait l'ordre du jour en HTML brut** : corrigé via `RichTextPdf`.
+- `src/lib/projects/minutes-pdf.ts` : génération du PDF partagée (téléchargement + email).
+- `POST|GET /api/commissions/:id/sessions/:sid/minutes/send` : 1 email par destinataire avec PDF joint (l'API batch Resend n'accepte pas les pièces jointes), espacés de 550 ms (limite 2 req/s), 60 max ; historique `session_minutes_sends` (migration 034 §6). Autorisés : admin, éditeur, super-admin, secrétaire de séance.
+- `src/lib/emails/commune-shell.ts` : enveloppe commune (logo, pied mairie, logo GoCiviq) partagée par convocation et compte rendu.
+- `sendEmail` accepte `attachments` et `text`.
+- Tests : `tests/unit/projects/rich-text.test.ts` → `npm test` 104 ✓.
+
+#### Points d'attention
+- **Italique dans le PDF** : Inter n'est embarquée qu'en Regular/Bold → l'italique utilise **Helvetica Oblique** (police standard PDF). Pour une typo homogène, ajouter `Inter-Italic.ttf` / `Inter-BoldItalic.ttf` dans `public/fonts` et les enregistrer dans `pdf-commission.tsx`.
+- La validation n'envoie plus rien automatiquement par email : l'envoi est un choix explicite (le push de validation reste).
+
+### Itération 4 (même session) — Logos dans les PDF
+> "Le PDF doit comporter le logo de la commune et le logo GoCiviq plus discret."
+
+- `pdf-header.tsx` (commun à tous les PDF projets/commissions) : logo commune agrandi en tête (46 pt de haut, 130 pt max de large) ; l'encadré texte « GoCiviq » de l'en-tête est retiré au profit d'un **petit logo PNG semi-transparent en pied de page**.
+- `pdfSafeImageUrl()` : react-pdf ne lit que PNG/JPEG → un logo SVG/WebP est ignoré au lieu de faire échouer le PDF. L'upload du logo est restreint à **PNG/JPG** (API, composant, bucket).
+- `next.config.ts` : `outputFileTracingIncludes` étendu à `/api/commissions/**` et `/api/projects/**` (polices TTF + logo PNG lus depuis `process.cwd()`).

@@ -16,7 +16,7 @@ export async function GET() {
     .from("profiles")
     .select(`
       id, full_name, role, commune_id,
-      communes(id, name, slug, primary_color, accent_color, code_postal, contact_email, website_url, logo_url)
+      communes(*)
     `)
     .eq("id", user.id)
     .single();

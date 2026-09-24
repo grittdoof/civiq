@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import { sanitizeRichText } from "@/components/projects/RichTextEditor";
 
 // PATCH /api/commissions/:id/sessions/:sid/minutes
 // Body : { compte_rendu?: string, validate?: boolean }
@@ -51,7 +52,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   const updates: Record<string, unknown> = {};
   if (typeof body.compte_rendu === "string") {
-    updates.compte_rendu = body.compte_rendu.trim() || null;
+    // Texte riche : même liste blanche que l'ordre du jour
+    updates.compte_rendu = sanitizeRichText(body.compte_rendu.trim()) || null;
   }
   if (body.validate) {
     updates.compte_rendu_valide = true;
@@ -81,16 +83,20 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .from("commission_members")
       .select("user_id")
       .eq("commission_id", commissionId);
-    const ids = (members ?? []).map((m) => m.user_id as string);
-    import("@/lib/projects/push")
-      .then(({ notifyCommissionMinutesValidated }) =>
-        notifyCommissionMinutesValidated({
-          sessionId: sid,
-          commissionName: sess.commission?.nom ?? "Commission",
-          memberUserIds: ids,
-        }),
-      )
-      .catch((e) => console.error("[push] minutes:", e));
+    // Push attendu (pas de fire-and-forget : Vercel gèle la fonction
+    // dès la réponse envoyée). L'email avec PDF est un envoi distinct,
+    // choisi par l'utilisateur (POST …/minutes/send).
+    const ids = (members ?? []).map((m) => m.user_id).filter((u): u is string => Boolean(u));
+    try {
+      const { notifyCommissionMinutesValidated } = await import("@/lib/projects/push");
+      await notifyCommissionMinutesValidated({
+        sessionId: sid,
+        commissionName: sess.commission?.nom ?? "Commission",
+        memberUserIds: ids,
+      });
+    } catch (e) {
+      console.error("[push] minutes:", e);
+    }
   }
 
   return NextResponse.json({ session: data });
