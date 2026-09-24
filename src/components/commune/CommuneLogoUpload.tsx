@@ -31,8 +31,8 @@ export default function CommuneLogoUpload({ communeId, communeName, initialUrl, 
 
   async function upload(file: File) {
     setError(null);
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setError("Format non supporté : PNG, JPG ou WebP (le SVG ne s'affiche pas dans Gmail).");
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setError("Format non supporté : PNG ou JPG (le SVG et le WebP ne s'affichent ni dans Gmail ni dans les PDF).");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -83,7 +83,7 @@ export default function CommuneLogoUpload({ communeId, communeName, initialUrl, 
       </div>
       <div className="commune-logo-side">
         <p className="commune-logo-hint">
-          PNG, JPG ou WebP, 2 Mo max. Idéalement sur fond transparent ou blanc,
+          PNG ou JPG, 2 Mo max. Idéalement sur fond transparent ou blanc,
           au moins 300 px de large. Affiché en tête des emails de convocation,
           des sondages et des PDF.
         </p>
@@ -92,7 +92,7 @@ export default function CommuneLogoUpload({ communeId, communeName, initialUrl, 
             <input
               ref={inputRef}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg"
               hidden
               onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }}
             />

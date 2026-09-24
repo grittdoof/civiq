@@ -1,22 +1,25 @@
 /* eslint-disable jsx-a11y/alt-text */
+import fs from "node:fs";
+import path from "node:path";
 import { View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 
 // ═══════════════════════════════════════════════════════════════
 // En-tête et pied de page mutualisés des PDFs.
 //
 // En-tête :
-//   • Logo de la commune (si commune.logo_url) à gauche
+//   • Logo de la commune (si commune.logo_url) à gauche, bien visible
 //   • Nom commune + sous-titre (type de document)
-//   • Mention « édité avec GoCiviq » à droite
+//   • Date d'édition à droite
 //
 // Pied de page (mentions règlementaires) :
-//   • Nom de la commune + date d'édition
+//   • Nom de la commune + type de document, pagination
 //   • Mention RGPD (les destinataires peuvent exercer leurs droits)
-//   • URL gociviq.fr
+//   • Petit logo GoCiviq, discret (PNG local : react-pdf ne rend pas
+//     le SVG ; le fichier est inclus dans les fonctions via
+//     outputFileTracingIncludes)
 //
-// Note : pas de logo SVG GoCiviq embarqué (react-pdf ne rend pas
-// les SVG nativement) — on utilise un encadré texte stylisé en
-// guise de signature.
+// react-pdf ne lit que le PNG et le JPEG : tout autre format de logo
+// (SVG, WebP…) est ignoré plutôt que de faire échouer le PDF.
 // ═══════════════════════════════════════════════════════════════
 
 const s = StyleSheet.create({
@@ -35,19 +38,11 @@ const s = StyleSheet.create({
     gap: 10,
     flex: 1,
   },
-  logo: { width: 38, height: 38, objectFit: "contain" },
+  logo: { height: 46, maxWidth: 130, objectFit: "contain" },
   communeName: { fontSize: 13, fontWeight: 700, color: "#111827" },
   documentType: { fontSize: 9, color: "#6b7280", marginTop: 2 },
   headerRight: { alignItems: "flex-end" },
-  brandBox: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#1a2744",
-    borderRadius: 4,
-  },
-  brandText: { fontSize: 7, color: "#1a2744", fontWeight: 700, letterSpacing: 0.4 },
-  brandSub: { fontSize: 7, color: "#6b7280", marginTop: 3 },
+  brandSub: { fontSize: 7, color: "#6b7280" },
 
   footer: {
     position: "absolute",
@@ -64,13 +59,37 @@ const s = StyleSheet.create({
     fontSize: 7,
     color: "#6b7280",
   },
+  footerBottom: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 12,
+    marginTop: 3,
+  },
   footerRgpd: {
+    flex: 1,
     fontSize: 6.5,
     color: "#9ca3af",
-    marginTop: 3,
     lineHeight: 1.3,
   },
+  footerBrand: { width: 44, height: 16, objectFit: "contain", opacity: 0.55 },
 });
+
+/** Logo exploitable par react-pdf (PNG / JPEG) ou null. */
+export function pdfSafeImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const clean = url.split("?")[0].toLowerCase();
+  if (clean.startsWith("data:image/png") || clean.startsWith("data:image/jpeg")) return url;
+  return /\.(png|jpe?g)$/.test(clean) ? url : null;
+}
+
+let gociviqLogoPath: string | null | undefined;
+function getGociviqLogo(): string | null {
+  if (gociviqLogoPath === undefined) {
+    const p = path.join(process.cwd(), "public", "brand", "logo-horizontal.png");
+    gociviqLogoPath = fs.existsSync(p) ? p : null;
+  }
+  return gociviqLogoPath;
+}
 
 export function PdfHeader({
   communeName,
@@ -86,8 +105,8 @@ export function PdfHeader({
   return (
     <View style={s.header} fixed>
       <View style={s.headerLeft}>
-        {communeLogoUrl && (
-          <Image src={communeLogoUrl} style={s.logo} />
+        {pdfSafeImageUrl(communeLogoUrl) && (
+          <Image src={pdfSafeImageUrl(communeLogoUrl)!} style={s.logo} />
         )}
         <View>
           <Text style={s.communeName}>{communeName}</Text>
@@ -95,9 +114,6 @@ export function PdfHeader({
         </View>
       </View>
       <View style={s.headerRight}>
-        <View style={s.brandBox}>
-          <Text style={s.brandText}>GoCiviq</Text>
-        </View>
         <Text style={s.brandSub}>Édité le {editedOn}</Text>
       </View>
     </View>
@@ -117,11 +133,14 @@ export function PdfFooter({
         <Text>{communeName} — {documentType}</Text>
         <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
       </View>
-      <Text style={s.footerRgpd}>
-        Document à usage administratif. Données personnelles traitées conformément au RGPD ;
-        les personnes concernées peuvent exercer leurs droits auprès de la commune. Plateforme GoCiviq —
-        gociviq.fr — gestion publique simplifiée pour les collectivités françaises.
-      </Text>
+      <View style={s.footerBottom}>
+        <Text style={s.footerRgpd}>
+          Document à usage administratif. Données personnelles traitées conformément au RGPD ;
+          les personnes concernées peuvent exercer leurs droits auprès de la commune. Plateforme GoCiviq —
+          gociviq.fr — gestion publique simplifiée pour les collectivités françaises.
+        </Text>
+        {getGociviqLogo() && <Image src={getGociviqLogo()!} style={s.footerBrand} />}
+      </View>
     </View>
   );
 }

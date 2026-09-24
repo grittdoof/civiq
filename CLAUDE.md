@@ -716,7 +716,7 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - `NewSessionForm` : case « Envoyer la convocation », liste des destinataires (cochables, alerte « Aucun email »), **étape de confirmation** avant envoi, rapport en cas d'échec partiel.
 - Page séance : section **Convocations** (`ConvocationsPanel`) — compteurs présents/excusés/sans réponse, statut par membre, commentaire, envoi/relance/renvoi individuel avec confirmation.
 - Adresse + téléphone de la mairie éditables dans `/admin/profile` et `/super-admin/communes/[id]`.
-- **Logo de la commune** (aucun écran n'existait) : `CommuneLogoUpload` dans `/admin/profile` (admin) et `/super-admin/communes/[id]`, API `POST|DELETE /api/communes/:id/logo` (super-admin ou admin de la commune), bucket public `commune-logos` (PNG/JPG/WebP, 2 Mo, **pas de SVG** — Gmail ne l'affiche pas), `communes.logo_storage_path` pour nettoyer l'ancien fichier.
+- **Logo de la commune** (aucun écran n'existait) : `CommuneLogoUpload` dans `/admin/profile` (admin) et `/super-admin/communes/[id]`, API `POST|DELETE /api/communes/:id/logo` (super-admin ou admin de la commune), bucket public `commune-logos` (PNG/JPG, 2 Mo, **ni SVG ni WebP** — Gmail et react-pdf ne les lisent pas), `communes.logo_storage_path` pour nettoyer l'ancien fichier.
 - `/api/auth/me` lit `communes(*)` (robuste aux ajouts de colonnes).
 - Tests : `tests/unit/projects/convocation.test.ts` (18).
 
@@ -747,3 +747,10 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 #### Points d'attention
 - **Italique dans le PDF** : Inter n'est embarquée qu'en Regular/Bold → l'italique utilise **Helvetica Oblique** (police standard PDF). Pour une typo homogène, ajouter `Inter-Italic.ttf` / `Inter-BoldItalic.ttf` dans `public/fonts` et les enregistrer dans `pdf-commission.tsx`.
 - La validation n'envoie plus rien automatiquement par email : l'envoi est un choix explicite (le push de validation reste).
+
+### Itération 4 (même session) — Logos dans les PDF
+> "Le PDF doit comporter le logo de la commune et le logo GoCiviq plus discret."
+
+- `pdf-header.tsx` (commun à tous les PDF projets/commissions) : logo commune agrandi en tête (46 pt de haut, 130 pt max de large) ; l'encadré texte « GoCiviq » de l'en-tête est retiré au profit d'un **petit logo PNG semi-transparent en pied de page**.
+- `pdfSafeImageUrl()` : react-pdf ne lit que PNG/JPEG → un logo SVG/WebP est ignoré au lieu de faire échouer le PDF. L'upload du logo est restreint à **PNG/JPG** (API, composant, bucket).
+- `next.config.ts` : `outputFileTracingIncludes` étendu à `/api/commissions/**` et `/api/projects/**` (polices TTF + logo PNG lus depuis `process.cwd()`).

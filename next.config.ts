@@ -56,10 +56,13 @@ const nextConfig: NextConfig = {
   // ressources binaires : on l'exclut du bundle Next pour qu'il soit
   // résolu au runtime côté Node serverless.
   serverExternalPackages: ["@react-pdf/renderer"],
-  // Force l'inclusion des TTF Roboto (chargés depuis process.cwd() par
-  // pdf-document.tsx) dans le bundle de la fonction PDF.
+  // Force l'inclusion des TTF (chargés depuis process.cwd() par les
+  // générateurs PDF) et du logo GoCiviq PNG (pied des PDF) dans le
+  // bundle des fonctions qui produisent des PDF.
   outputFileTracingIncludes: {
     "/api/tickets/pdf": ["./public/fonts/**/*.ttf"],
+    "/api/commissions/**/*": ["./public/fonts/**/*.ttf", "./public/brand/logo-horizontal.png"],
+    "/api/projects/**/*": ["./public/fonts/**/*.ttf", "./public/brand/logo-horizontal.png"],
   },
   images: {
     remotePatterns: [

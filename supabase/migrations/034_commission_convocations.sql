@@ -101,7 +101,7 @@ values (
   'commune-logos',
   true,                                          -- affiché dans les emails
   2097152,                                       -- 2 MB max
-  array['image/png', 'image/jpeg', 'image/webp'] -- pas de SVG : Gmail ne l'affiche pas
+  array['image/png', 'image/jpeg']               -- ni SVG ni WebP : Gmail et react-pdf ne les lisent pas
 )
 on conflict (id) do update set
   public = excluded.public,

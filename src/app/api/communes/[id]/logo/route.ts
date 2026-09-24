@@ -10,7 +10,8 @@ import { writeAudit } from "@/lib/audit";
 // Autorisé : super-admin (toute commune) ou admin de SA commune.
 // Bucket public `commune-logos` : le logo apparaît dans les emails
 // (convocations), les sondages publics et les PDF.
-// PNG / JPG / WebP uniquement — Gmail n'affiche pas le SVG.
+// PNG / JPG uniquement : Gmail n'affiche pas le SVG et le moteur PDF
+// (react-pdf) ne lit ni le SVG ni le WebP.
 // ═══════════════════════════════════════════════════════════════
 
 const BUCKET = "commune-logos";
@@ -18,7 +19,6 @@ const MAX_BYTES = 2 * 1024 * 1024;
 const MIME: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
-  "image/webp": "webp",
 };
 
 interface RouteParams { params: Promise<{ id: string }>; }
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
   const ext = MIME[file.type];
   if (!ext) {
-    return NextResponse.json({ error: "Format non supporté (PNG, JPG ou WebP)" }, { status: 400 });
+    return NextResponse.json({ error: "Format non supporté (PNG ou JPG)" }, { status: 400 });
   }
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: "Image trop volumineuse (max 2 Mo)" }, { status: 400 });
