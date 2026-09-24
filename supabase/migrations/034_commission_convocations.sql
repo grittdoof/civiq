@@ -21,6 +21,10 @@
 --
 -- 4. commission_sessions.convocation_sent_at : dernier envoi.
 --
+-- 5. Logo de la commune : bucket public `commune-logos` +
+--    communes.logo_storage_path (nettoyage de l'ancien fichier).
+--    Upload via l'API (service role) : pas de policy d'écriture.
+--
 -- Idempotente.
 -- ═══════════════════════════════════════════════════════════════
 
@@ -83,3 +87,24 @@ create policy "convocations_select" on public.session_convocations for select
 -- ─── 4. Suivi d'envoi sur la séance ─────────────────────────────
 alter table public.commission_sessions
   add column if not exists convocation_sent_at timestamptz;
+
+-- ─── 5. Logo de la commune ──────────────────────────────────────
+alter table public.communes
+  add column if not exists logo_storage_path text;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'commune-logos',
+  'commune-logos',
+  true,                                          -- affiché dans les emails
+  2097152,                                       -- 2 MB max
+  array['image/png', 'image/jpeg', 'image/webp'] -- pas de SVG : Gmail ne l'affiche pas
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "commune_logos_read" on storage.objects;
+create policy "commune_logos_read" on storage.objects for select
+  using (bucket_id = 'commune-logos');

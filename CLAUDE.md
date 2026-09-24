@@ -716,6 +716,7 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - `NewSessionForm` : case « Envoyer la convocation », liste des destinataires (cochables, alerte « Aucun email »), **étape de confirmation** avant envoi, rapport en cas d'échec partiel.
 - Page séance : section **Convocations** (`ConvocationsPanel`) — compteurs présents/excusés/sans réponse, statut par membre, commentaire, envoi/relance/renvoi individuel avec confirmation.
 - Adresse + téléphone de la mairie éditables dans `/admin/profile` et `/super-admin/communes/[id]`.
+- **Logo de la commune** (aucun écran n'existait) : `CommuneLogoUpload` dans `/admin/profile` (admin) et `/super-admin/communes/[id]`, API `POST|DELETE /api/communes/:id/logo` (super-admin ou admin de la commune), bucket public `commune-logos` (PNG/JPG/WebP, 2 Mo, **pas de SVG** — Gmail ne l'affiche pas), `communes.logo_storage_path` pour nettoyer l'ancien fichier.
 - `/api/auth/me` lit `communes(*)` (robuste aux ajouts de colonnes).
 - Tests : `tests/unit/projects/convocation.test.ts` (18).
 

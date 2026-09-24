@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
 import { Save, Loader2, Check, KeyRound, Building2, User, Shield, ShieldCheck, Edit3, Eye } from "lucide-react";
 import NotificationsSettings from "@/components/notifications/NotificationsSettings";
+import CommuneLogoUpload from "@/components/commune/CommuneLogoUpload";
 
 // `smsAvailable` est résolu côté serveur via /api/notifications/preferences
 // — on passe undefined ici pour laisser le composant le récupérer.
@@ -58,6 +59,7 @@ export default function ProfilePage() {
   const [codePostal, setCodePostal] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#1a2744");
@@ -100,6 +102,7 @@ export default function ProfilePage() {
         setCodePostal(data.commune.code_postal || "");
         setContactEmail(data.commune.contact_email || "");
         setAddress(data.commune.address || "");
+        setLogoUrl(data.commune.logo_url || null);
         setPhone(data.commune.phone || "");
         setWebsiteUrl(data.commune.website_url || "");
         setPrimaryColor(data.commune.primary_color || "#1a2744");
@@ -293,6 +296,21 @@ export default function ProfilePage() {
             />
           </div>
         </div>
+
+        {/* Logo */}
+        {communeId && (
+          <div className="profile-colors">
+            <h3>Logo de la commune</h3>
+            <CommuneLogoUpload
+              key={communeId}
+              communeId={communeId}
+              communeName={communeName}
+              initialUrl={logoUrl}
+              readOnly={role !== "admin" && role !== "super_admin"}
+              onChange={setLogoUrl}
+            />
+          </div>
+        )}
 
         {/* Colors */}
         <div className="profile-colors">

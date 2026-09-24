@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import CommuneLogoUpload from "@/components/commune/CommuneLogoUpload";
 import {
   ArrowLeft, Boxes, Users, FileText, Activity, Trash2,
   X, UserPlus, Mail, Copy, Check,
@@ -19,6 +20,7 @@ interface Commune {
   phone?: string | null;
   website_url?: string | null;
   address?: string | null;
+  logo_url?: string | null;
   primary_color?: string;
   created_at: string;
   archived_at?: string | null;
@@ -217,6 +219,19 @@ export default function CommuneDetailPage() {
         <Kpi icon={<FileText size={18} />} value={survey_count} label="Sondages créés" />
         <Kpi icon={<Activity size={18} />} value={response_count} label="Réponses citoyennes" />
       </div>
+
+      {/* Logo de la commune */}
+      <section style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 12 }}>Logo de la commune</h2>
+        <div className="civiq-card" style={{ padding: 18, maxWidth: 620 }}>
+          <CommuneLogoUpload
+            key={commune.id}
+            communeId={commune.id}
+            communeName={commune.name}
+            initialUrl={commune.logo_url ?? null}
+          />
+        </div>
+      </section>
 
       {/* Coordonnées de la mairie */}
       <section style={{ marginBottom: 32 }}>
