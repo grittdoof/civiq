@@ -75,6 +75,72 @@ export async function sendEmail({
   }
 }
 
+export interface BatchEmail {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+}
+
+export interface BatchEmailResult {
+  /** Un booléen par email, dans l'ordre d'entrée */
+  sent: boolean[];
+  error?: string;
+}
+
+// Envoi groupé (API batch Resend, 100 emails max par appel) : un seul
+// appel HTTP pour N destinataires aux contenus personnalisés — évite la
+// limite de débit (2 req/s) et garde la requête courte côté Vercel.
+// Même contrat gracieux que sendEmail : ne throw jamais.
+export async function sendEmailBatch(emails: BatchEmail[]): Promise<BatchEmailResult> {
+  if (emails.length === 0) return { sent: [] };
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) {
+    console.warn("[email] RESEND_API_KEY ou EMAIL_FROM absent — emails non envoyés.");
+    return { sent: emails.map(() => false), error: "email_not_configured" };
+  }
+
+  const sent: boolean[] = [];
+  let lastError: string | undefined;
+  for (let i = 0; i < emails.length; i += 100) {
+    const chunk = emails.slice(i, i + 100);
+    try {
+      const res = await fetch("https://api.resend.com/emails/batch", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          chunk.map((e) => ({
+            from,
+            to: [e.to],
+            subject: e.subject,
+            html: e.html,
+            ...(e.text ? { text: e.text } : {}),
+            ...(e.replyTo ? { reply_to: e.replyTo } : {}),
+          })),
+        ),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        console.error("[email] Resend batch a répondu", res.status, detail);
+        lastError = `resend_${res.status}`;
+        sent.push(...chunk.map(() => false));
+      } else {
+        sent.push(...chunk.map(() => true));
+      }
+    } catch (e) {
+      console.error("[email] échec de l'envoi groupé:", e);
+      lastError = "network";
+      sent.push(...chunk.map(() => false));
+    }
+  }
+  return { sent, ...(lastError ? { error: lastError } : {}) };
+}
+
 // URL absolue du site (liens et images des emails). Fallback en cascade :
 // variable explicite → URL Vercel de déploiement → domaine de prod.
 export function getSiteUrl(): string {

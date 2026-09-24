@@ -110,12 +110,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
   const { id } = await params;
   const body = await request.json();
-  const { action, name, code_postal, contact_email, phone, website_url } = body;
+  const { action, name, address, code_postal, contact_email, phone, website_url } = body;
 
   const updates: Record<string, unknown> = {};
   if (action === "archive") updates.archived_at = new Date().toISOString();
   if (action === "unarchive") updates.archived_at = null;
   if (name !== undefined) updates.name = name?.trim() || null;
+  if (address !== undefined) updates.address = address?.trim() || null;
   if (code_postal !== undefined) updates.code_postal = code_postal?.trim() || null;
   if (contact_email !== undefined) updates.contact_email = contact_email?.trim() || null;
   if (phone !== undefined) updates.phone = phone?.trim() || null;

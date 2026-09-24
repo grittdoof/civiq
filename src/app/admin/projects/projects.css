@@ -4550,3 +4550,35 @@ a.pj-commission-badge:hover {
   color: var(--civiq-text-light, #666);
   line-height: 1.4;
 }
+
+/* ═══ Convocations (création de séance + suivi) ═══ */
+.pj-convoc-toggle {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 14px; font-weight: 600; color: var(--fg); cursor: pointer; margin-bottom: 12px;
+}
+.pj-convoc-toggle input { margin-top: 3px; }
+.pj-convoc-list { list-style: none; margin: 0 0 8px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.pj-convoc-list li + li { border-top: 1px solid var(--border-light); }
+.pj-convoc-list label {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; font-size: 14px;
+}
+.pj-convoc-list li.is-disabled label { cursor: default; opacity: .75; }
+.pj-convoc-name { display: flex; align-items: center; gap: 6px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pj-convoc-email { color: var(--fg-muted); font-size: 13px; overflow-wrap: anywhere; display: inline-flex; align-items: center; gap: 4px; }
+.pj-convoc-list li.is-disabled .pj-convoc-email,
+.pj-convoc-warn { color: var(--warning); display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 640px) {
+  .pj-convoc-list label { grid-template-columns: auto minmax(0, 1fr); }
+  .pj-convoc-email { grid-column: 2; }
+}
+.pj-convoc-confirm { border: 1px solid var(--accent); background: var(--accent-light); border-radius: var(--radius); padding: 14px 16px; margin-top: 12px; }
+.pj-convoc-confirm p { margin: 0 0 4px; }
+.pj-convoc-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.pj-convoc-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; background: var(--border-light); color: var(--fg-muted);
+}
+.pj-convoc-chip.is-accepted { background: var(--success-light); color: var(--success); }
+.pj-convoc-chip.is-declined { background: oklch(0.97 0.03 25); color: var(--rouge-fonce); }
+.pj-convoc-ok { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--success-light); color: var(--success); font-size: 14px; margin-bottom: 12px; }

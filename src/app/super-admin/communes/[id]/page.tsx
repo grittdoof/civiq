@@ -18,6 +18,7 @@ interface Commune {
   contact_email?: string | null;
   phone?: string | null;
   website_url?: string | null;
+  address?: string | null;
   primary_color?: string;
   created_at: string;
   archived_at?: string | null;
@@ -68,7 +69,7 @@ export default function CommuneDetailPage() {
 
   // Édition des coordonnées de la mairie
   const [editCoords, setEditCoords] = useState(false);
-  const [coords, setCoords] = useState({ name: "", code_postal: "", contact_email: "", phone: "", website_url: "" });
+  const [coords, setCoords] = useState({ name: "", address: "", code_postal: "", contact_email: "", phone: "", website_url: "" });
   const [coordsSaved, setCoordsSaved] = useState(false);
 
   async function reload() {
@@ -101,6 +102,7 @@ export default function CommuneDetailPage() {
     const c = data.commune;
     setCoords({
       name: c.name ?? "",
+      address: c.address ?? "",
       code_postal: c.code_postal ?? "",
       contact_email: c.contact_email ?? "",
       phone: c.phone ?? "",
@@ -118,6 +120,7 @@ export default function CommuneDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: coords.name,
+        address: coords.address,
         code_postal: coords.code_postal,
         contact_email: coords.contact_email,
         phone: coords.phone,
@@ -235,6 +238,10 @@ export default function CommuneDetailPage() {
               <label className="civiq-field-label">Nom de la commune *</label>
               <input className="civiq-input" value={coords.name} onChange={(e) => setCoords({ ...coords, name: e.target.value })} placeholder="Châteauneuf" />
             </div>
+            <div>
+              <label className="civiq-field-label">Adresse de la mairie</label>
+              <input className="civiq-input" value={coords.address} onChange={(e) => setCoords({ ...coords, address: e.target.value })} placeholder="1 place de la Mairie" />
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label className="civiq-field-label">Code postal</label>
@@ -265,6 +272,7 @@ export default function CommuneDetailPage() {
             <table style={{ width: "100%", fontSize: 14 }}>
               <tbody>
                 <CoordRow label="Nom" value={commune.name} />
+                <CoordRow label="Adresse" value={commune.address} />
                 <CoordRow label="Code postal" value={commune.code_postal} />
                 <CoordRow label="Téléphone" value={commune.phone} />
                 <CoordRow label="Email de contact" value={commune.contact_email} />

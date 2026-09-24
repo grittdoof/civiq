@@ -57,6 +57,8 @@ export default function ProfilePage() {
   const [communeName, setCommuneName] = useState("");
   const [codePostal, setCodePostal] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState("#1a2744");
   const [accentColor, setAccentColor] = useState("#c9a84c");
@@ -97,6 +99,8 @@ export default function ProfilePage() {
         setCommuneName(data.commune.name || "");
         setCodePostal(data.commune.code_postal || "");
         setContactEmail(data.commune.contact_email || "");
+        setAddress(data.commune.address || "");
+        setPhone(data.commune.phone || "");
         setWebsiteUrl(data.commune.website_url || "");
         setPrimaryColor(data.commune.primary_color || "#1a2744");
         setAccentColor(data.commune.accent_color || "#c9a84c");
@@ -119,6 +123,8 @@ export default function ProfilePage() {
         name: communeName.trim(),
         code_postal: codePostal.trim() || null,
         contact_email: contactEmail.trim() || null,
+        address: address.trim() || null,
+        phone: phone.trim() || null,
         website_url: websiteUrl.trim() || null,
         primary_color: primaryColor,
         accent_color: accentColor,
@@ -257,6 +263,26 @@ export default function ProfilePage() {
             />
           </div>
           <div className="profile-field full">
+            <label>Adresse de la mairie</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="profile-input"
+              placeholder="1 place de la Mairie"
+            />
+          </div>
+          <div className="profile-field">
+            <label>Téléphone de la mairie</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="profile-input"
+              placeholder="04 93 00 00 00"
+            />
+          </div>
+          <div className="profile-field">
             <label>Site web de la commune</label>
             <input
               type="url"

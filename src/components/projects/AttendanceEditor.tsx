@@ -58,6 +58,7 @@ export default function AttendanceEditor({
 }: Props) {
   const router = useRouter();
   const [signingFor, setSigningFor] = useState<Member | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Lookup d'attendance : par user_id pour internes, par member_id pour externes
   const byUser = new Map<string, Attendance>();
@@ -81,12 +82,28 @@ export default function AttendanceEditor({
     } else {
       body.user_id = m.user_id;
     }
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    router.refresh();
+    await post(body);
+  }
+
+  async function post(body: Record<string, unknown>): Promise<boolean> {
+    setSaveError(null);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setSaveError(data.error ?? `Enregistrement impossible (erreur ${res.status})`);
+        return false;
+      }
+      router.refresh();
+      return true;
+    } catch {
+      setSaveError("Connexion perdue — réessayez.");
+      return false;
+    }
   }
 
   async function sign(m: Member, signatureDataUrl: string) {
@@ -99,13 +116,7 @@ export default function AttendanceEditor({
     } else {
       body.user_id = m.user_id;
     }
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setSigningFor(null);
-    router.refresh();
+    if (await post(body)) setSigningFor(null);
   }
 
   // ── Résolution du contexte « moi » pour l'aide explicite ──
@@ -116,6 +127,8 @@ export default function AttendanceEditor({
 
   return (
     <>
+      {saveError && <div className="pj-modal-error" role="alert">{saveError}</div>}
+
       {/* ─── Bandeau « Signer maintenant » mis en avant ─── */}
       {myMember && (
         <div className="pj-sign-banner">
