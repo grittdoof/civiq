@@ -221,6 +221,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
             initial={detail.session.compte_rendu ?? ""}
             validated={detail.session.compte_rendu_valide}
             canEdit={canEditMinutes}
+            canSend={canManageDocs || isSecretaire}
           />
         </section>
       </div>

@@ -1505,7 +1505,9 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
 .pj-rte-area p:last-child { margin-bottom: 0; }
 .pj-rte-area ul, .pj-rte-area ol { padding-left: 22px; margin: 4px 0 8px; }
 .pj-rte-area li { margin: 2px 0; }
+.pj-rte-area h2 { font-size: 17px; font-weight: 700; margin: 12px 0 6px; }
 .pj-rte-area h3 { font-size: 15px; font-weight: 700; margin: 8px 0 4px; }
+.pj-rte-area u, .pj-rich u { text-decoration: underline; }
 .pj-rte-placeholder {
   position: absolute;
   top: 50px;
@@ -1525,6 +1527,7 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
 .pj-rich p:last-child { margin-bottom: 0; }
 .pj-rich ul, .pj-rich ol { padding-left: 22px; margin: 4px 0 8px; }
 .pj-rich h1, .pj-rich h2, .pj-rich h3 { font-weight: 700; margin: 10px 0 6px; }
+.pj-rich h2 { font-size: 17px; }
 .pj-rich h3 { font-size: 15px; }
 .pj-rich strong { font-weight: 700; }
 .pj-rich em { font-style: italic; }
@@ -4582,3 +4585,11 @@ a.pj-commission-badge:hover {
 .pj-convoc-chip.is-accepted { background: var(--success-light); color: var(--success); }
 .pj-convoc-chip.is-declined { background: oklch(0.97 0.03 25); color: var(--rouge-fonce); }
 .pj-convoc-ok { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--success-light); color: var(--success); font-size: 14px; margin-bottom: 12px; }
+
+/* ═══ Compte rendu : envoi du PDF ═══ */
+.pj-minutes-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.pj-minutes-dialog-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--fg); }
+.pj-minutes-select-all { display: flex; gap: 4px; margin: 4px 0 6px; }
+.pj-minutes-sent { color: var(--success); }
+.pj-cr-rich { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.pj-convoc-confirm textarea { margin-bottom: 4px; }

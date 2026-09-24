@@ -18,11 +18,19 @@
 // envois échouent (ou ne partent qu'à l'adresse du compte en test).
 // ═══════════════════════════════════════════════════════════════
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 interface SendEmailParams {
   to: string;
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string;
+  /** Pièces jointes (40 Mo max au total côté Resend) */
+  attachments?: EmailAttachment[];
 }
 
 interface SendEmailResult {
@@ -34,7 +42,9 @@ export async function sendEmail({
   to,
   subject,
   html,
+  text,
   replyTo,
+  attachments,
 }: SendEmailParams): Promise<SendEmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
@@ -58,7 +68,16 @@ export async function sendEmail({
         to: [to],
         subject,
         html,
+        ...(text ? { text } : {}),
         ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(attachments?.length
+          ? {
+              attachments: attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString("base64"),
+              })),
+            }
+          : {}),
       }),
     });
 

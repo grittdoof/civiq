@@ -25,6 +25,9 @@
 --    communes.logo_storage_path (nettoyage de l'ancien fichier).
 --    Upload via l'API (service role) : pas de policy d'écriture.
 --
+-- 6. session_minutes_sends : historique des envois du compte rendu
+--    (PDF) par email, destinataire par destinataire.
+--
 -- Idempotente.
 -- ═══════════════════════════════════════════════════════════════
 
@@ -108,3 +111,35 @@ on conflict (id) do update set
 drop policy if exists "commune_logos_read" on storage.objects;
 create policy "commune_logos_read" on storage.objects for select
   using (bucket_id = 'commune-logos');
+
+-- ─── 6. Envois du compte rendu par email ────────────────────────
+-- Historique : une ligne par destinataire et par envoi (le compte
+-- rendu validé peut être envoyé plusieurs fois, à des membres choisis).
+create table if not exists public.session_minutes_sends (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.commission_sessions(id) on delete cascade,
+  commission_member_id uuid references public.commission_members(id) on delete set null,
+  recipient_name text,
+  email text not null,
+  ok boolean not null,
+  error text,
+  sent_by uuid references public.profiles(id) on delete set null,
+  sent_at timestamptz not null default now()
+);
+
+create index if not exists idx_session_minutes_sends_session
+  on public.session_minutes_sends(session_id, sent_at desc);
+
+alter table public.session_minutes_sends enable row level security;
+
+drop policy if exists "minutes_sends_select" on public.session_minutes_sends;
+create policy "minutes_sends_select" on public.session_minutes_sends for select
+  using (
+    exists (
+      select 1 from public.commission_sessions s
+      join public.commissions c on c.id = s.commission_id
+      where s.id = session_id
+        and public.user_can_access_commune(c.commune_id)
+        and public.my_role() in ('admin', 'editor', 'super_admin')
+    )
+  );

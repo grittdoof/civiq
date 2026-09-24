@@ -731,3 +731,19 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - **Réponse de présence ≠ émargement** : `session_convocations.status` est une intention ; la présence réelle reste `session_attendance`.
 - **Pas de rappel J-1 automatique** : la relance est manuelle (« Relancer les membres sans réponse »). Un cron pourrait appeler `sendSessionConvocations({ isReminder: true })`.
 - Les emails de convocation partent en `reply_to` = `communes.contact_email`.
+
+### Itération 3 (même session) — Compte rendu : mise en forme + envoi du PDF
+> "Quand on rédige le compte rendu, permettre la mise en forme (gras, italique, souligné, titre…). La validation doit permettre l'envoi par mail du PDF aux membres. On peut envoyer plusieurs fois et choisir à qui."
+
+- **`RichTextEditor`** : + souligné, titre (h2), sous-titre (h3), texte normal ; `styleWithCSS=false` (balises sémantiques). `sanitizeRichText` réécrit désormais les balises autorisées **sans attributs** (style/class collés depuis Word).
+- **`MinutesEditor`** : éditeur riche (le texte brut legacy est converti via `toRichHtml`) ; « Valider & verrouiller… » ouvre un dialogue : envoi du PDF (coché par défaut), choix des destinataires, message d'accompagnement. Après validation : bouton « Envoyer le compte rendu par email » **répétable**, avec la date du dernier envoi par membre (présélection : ceux qui ne l'ont pas encore reçu).
+- `src/lib/projects/rich-text.ts` : `toRichHtml`, `parseRichText` (HTML → blocs pour react-pdf). **Le PDF (CR, émargement) affichait l'ordre du jour en HTML brut** : corrigé via `RichTextPdf`.
+- `src/lib/projects/minutes-pdf.ts` : génération du PDF partagée (téléchargement + email).
+- `POST|GET /api/commissions/:id/sessions/:sid/minutes/send` : 1 email par destinataire avec PDF joint (l'API batch Resend n'accepte pas les pièces jointes), espacés de 550 ms (limite 2 req/s), 60 max ; historique `session_minutes_sends` (migration 034 §6). Autorisés : admin, éditeur, super-admin, secrétaire de séance.
+- `src/lib/emails/commune-shell.ts` : enveloppe commune (logo, pied mairie, logo GoCiviq) partagée par convocation et compte rendu.
+- `sendEmail` accepte `attachments` et `text`.
+- Tests : `tests/unit/projects/rich-text.test.ts` → `npm test` 104 ✓.
+
+#### Points d'attention
+- **Italique dans le PDF** : Inter n'est embarquée qu'en Regular/Bold → l'italique utilise **Helvetica Oblique** (police standard PDF). Pour une typo homogène, ajouter `Inter-Italic.ttf` / `Inter-BoldItalic.ttf` dans `public/fonts` et les enregistrer dans `pdf-commission.tsx`.
+- La validation n'envoie plus rien automatiquement par email : l'envoi est un choix explicite (le push de validation reste).
