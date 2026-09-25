@@ -48,9 +48,11 @@ update public.projects
  where id = 'e0eb96ee-c147-47c7-9881-e670d454530b' and type = 'event' and archived_at is null;
 
 -- 5. Mal typé : l'adhésion à un réseau n'est pas un investissement.
+--    La phase est ramenée au 1er jalon du gabarit « suivi » (comme le fait
+--    le changement de type dans l'interface), sinon elle serait hors gabarit.
 update public.projects
-   set type_code = 'suivi_simple'
- where id = 'a9b7ff75-9ccc-40e3-bf63-c2f61f9fdd0a' and type_code = 'investissement';
+   set type_code = 'suivi_simple', phase = 'tracking_framing'
+ where id = 'a9b7ff75-9ccc-40e3-bf63-c2f61f9fdd0a' and type_code = 'investissement' and phase = 'emergence';
 
 -- Contrôle : 28 projets actifs attendus (39 − 11 archivés) : 6 investissement, 2 evenementiel, 20 suivi_simple.
 select type_code, count(*) filter (where archived_at is null) as actifs, count(*) filter (where archived_at is not null) as archives
