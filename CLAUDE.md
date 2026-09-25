@@ -814,3 +814,11 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - **Toute évolution du calcul du plan se fait des deux côtés** : SQL `project_financement` et TS `calculerPlan`.
 - L'ancienne vue par phases (`QuotesComparator`) ne sait pas saisir le HT obligatoire : l'écran de vie est la voie normale.
 - Un événement n'affiche jamais ni plan de financement, ni FCTVA, ni contrôle 20 % (critère d'acceptation).
+
+### Lot D — subventions et financeurs (branche `claude/projets-lot-d`)
+- **042** (appliquée en prod, additive) : `aides_cache` (par commune, écrit par le service role uniquement), `aides_sync_log`, `financeurs_locaux` (édition admin), `financings.source` (`api|local|saisie_libre`) + `aide_ref` + `financeur_local_id`, `campagne_alertes` (une alerte par commune et par mois).
+- **API Aides-territoires** (doc publique : https://aides-territoires.beta.gouv.fr/data/, v1.8.4) : `POST /api/connexion/` en-tête `X-AUTH-TOKEN` → jeton Bearer 24 h ; `GET /api/aids/?perimeter_codes=<INSEE>&organization_type_slugs=commune`. Clé : variable d'env **`AIDES_TERRITOIRES_API_KEY`** (jamais en base ni côté client). Lecture tolérante du format (`lirePage`, `normaliserAide`) : `results`/`hydra:member`, `next`/`hydra:view.hydra:next`.
+- **Crons** (vercel.json) : `/api/cron/aides-territoires` (lundi 3 h, cache hebdo ; résultat vide ⇒ ancien cache conservé) ; `/api/cron/campagne-subventions` (le 1er du mois 7 h ; actif de septembre à décembre ; `?force=1` pour tester). Protégés par `CRON_SECRET`.
+- **Jamais d'appel à l'API dans le rendu** : suggestions = `suggererAides()` sur le cache (onglet Financeurs, récapitulatif de l'assistant via `GET /api/aides/suggestions`). Aucun montant ni taux affiché ; mention « Piste à explorer — … » ; attribution Licence Ouverte + date de mise à jour.
+- **Alerte de campagne** : investissements dont `echeance_souhaitee` tombe l'année suivante, sans demande déposée ni autofinancement assumé → push + email à l'élu référent et au(x) maire(s) (`profiles.job_title = 'maire'`) ; bandeau en tête de `/admin/projects` (lien `?campagne=AAAA`).
+- Écran `/admin/projects/financeurs` : état du cache, « Actualiser maintenant » (admin, 1×/h), fiches locales. `ProjectDatesEditor` : échéance (investissement) et date/lieu (événement) modifiables sur l'écran de vie.

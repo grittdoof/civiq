@@ -18,6 +18,9 @@ import ProjectCard from "@/components/projects/ProjectCard";
 import PhaseIcon from "@/components/projects/PhaseIcon";
 import ProjectsListExperience from "@/components/projects/ProjectsListExperience";
 import PortfolioActionsDrawer from "@/components/projects/PortfolioActionsDrawer";
+import AlerteBlock from "@/components/projects/AlerteBlock";
+import { campagneActive, messageCampagne } from "@/lib/aides/aides";
+import { projetsCampagne } from "@/lib/aides/campagne-server";
 
 const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 
@@ -34,11 +37,11 @@ const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string }>;
+  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string; campagne?: string }>;
 }
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
-  const { view, commission: commissionParam, gabarit: gabaritParam } = await searchParams;
+  const { view, commission: commissionParam, gabarit: gabaritParam, campagne: campagneParam } = await searchParams;
   // Vue par défaut : liste. Vue lanes (kanban par phase) en alternative.
   const viewMode: "lanes" | "list" = view === "lanes" ? "lanes" : "list";
   // Gabarit affiché en vue lanes (chaque gabarit a ses propres phases).
@@ -65,12 +68,21 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     .eq("active", true)
     .order("nom");
 
+  // Alerte de campagne (septembre → décembre) : investissements prévus
+  // l'année suivante sans demande de subvention déposée.
+  const anneeCampagne = new Date().getUTCFullYear() + 1;
+  const campagneProjets = campagneActive(new Date()) || campagneParam
+    ? await projetsCampagne(service0, ctx.communeId, anneeCampagne)
+    : [];
+  const campagneIds = new Set(campagneProjets.map((p) => p.id));
+
   // Filtrage par commission (server-side via URL ?commission=ID)
-  const projects = commissionParam
+  const projectsByCommission = commissionParam
     ? allProjects.filter((p) =>
         (p.commissions ?? []).some((c) => c.id === commissionParam),
       )
     : allProjects;
+  const projects = campagneParam ? projectsByCommission.filter((p) => campagneIds.has(p.id)) : projectsByCommission;
 
   const selectedCommission = commissionParam
     ? (communeCommissions ?? []).find((c) => c.id === commissionParam)
@@ -218,6 +230,26 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           )}
         </div>
       </div>
+
+      {campagneProjets.length > 0 && (() => {
+        const m = messageCampagne(campagneProjets.length, anneeCampagne);
+        return (
+          <div className="pj-campagne">
+            <AlerteBlock
+              registre="obligatoire"
+              alerte={{ constat: m.constat, consequence: m.consequence, actions: [] }}
+              enSavoirPlus={<p>{m.enSavoirPlus[0]}</p>}
+            />
+            <p className="pj-campagne-actions">
+              {campagneParam ? (
+                <Link href="/admin/projects" className="civiq-btn civiq-btn-ghost civiq-btn-sm">Afficher tous les projets</Link>
+              ) : (
+                <Link href={`/admin/projects?campagne=${anneeCampagne}`} className="civiq-btn civiq-btn-default civiq-btn-sm">→ Voir les projets concernés</Link>
+              )}
+            </p>
+          </div>
+        );
+      })()}
 
       {projects.length === 0 ? (
         <div className="civiq-card pj-empty">
