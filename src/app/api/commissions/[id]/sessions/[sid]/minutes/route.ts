@@ -28,6 +28,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { data: session } = await service
     .from("commission_sessions")
     .select("id, commission_id, secretaire_de_seance_user_id, compte_rendu_valide, commission:commissions ( commune_id, nom )")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
   type SessRow = {

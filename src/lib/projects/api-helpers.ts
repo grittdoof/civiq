@@ -25,6 +25,7 @@ export async function requireProjectAccess(projectId: string): Promise<ProjectAc
   const { data } = await service
     .from("projects")
     .select("id, commune_id")
+    .is("deleted_at", null)
     .eq("id", projectId)
     .maybeSingle();
 
@@ -75,6 +76,7 @@ export async function requireCommissionEdit(commissionId: string): Promise<Commi
   const { data } = await service
     .from("commissions")
     .select("id, commune_id")
+    .is("deleted_at", null)
     .eq("id", commissionId)
     .maybeSingle();
 
@@ -97,6 +99,7 @@ export async function requireSessionEdit(commissionId: string, sessionId: string
   const { data } = await service
     .from("commission_sessions")
     .select("id")
+    .is("deleted_at", null)
     .eq("id", sessionId)
     .eq("commission_id", commissionId)
     .maybeSingle();
@@ -112,6 +115,7 @@ export async function projectBelongsToCommune(projectId: string, communeId: stri
   const { data } = await service
     .from("projects")
     .select("id")
+    .is("deleted_at", null)
     .eq("id", projectId)
     .eq("commune_id", communeId)
     .maybeSingle();

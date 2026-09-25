@@ -96,6 +96,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       const { data: p } = await service
         .from("projects")
         .select("sans_subvention")
+        .is("deleted_at", null)
         .eq("id", id)
         .maybeSingle();
       if (p?.sans_subvention) {

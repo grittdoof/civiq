@@ -16,6 +16,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("project_quotes")
     .select("*")
+    .is("deleted_at", null)
     .eq("project_id", id)
     .order("created_at", { ascending: true });
   return NextResponse.json({ quotes: data ?? [] });

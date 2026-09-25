@@ -40,9 +40,16 @@ export default async function CartographiePage({ searchParams }: Props) {
     .from("project_stakeholders")
     .select(`
       id, role, phase,
-      stakeholder:stakeholders ( id, nom, organisation, type, commune_id ),
-      project:projects ( id, titre, phase, commune_id )
-    `);
+      stakeholder:contacts!inner ( id, nom, organisation, type:categorie, commune_id ),
+      project:projects!inner ( id, titre, phase, commune_id )
+    `)
+    // Filtrage commune côté serveur (auparavant : toutes les communes,
+    // puis filtre JS — fuite de volume et troncature à 1000 lignes).
+    .eq("project.commune_id", ctx.communeId)
+    .eq("stakeholder.commune_id", ctx.communeId)
+    .is("project.deleted_at", null)
+    .is("project.archived_at", null)
+    .is("stakeholder.deleted_at", null);
 
   type Row = {
     id: string;

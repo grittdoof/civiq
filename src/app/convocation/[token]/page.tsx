@@ -55,6 +55,7 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
   const { data: sessionMeta } = await service
     .from("commission_sessions")
     .select("compte_rendu_valide")
+    .is("deleted_at", null)
     .eq("id", ctx.id)
     .maybeSingle();
 

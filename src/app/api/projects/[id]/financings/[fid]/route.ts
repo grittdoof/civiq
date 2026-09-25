@@ -3,6 +3,7 @@ import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import type { FinancingStatus, FinancingEligibility } from "@/lib/projects/types";
+import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 // PATCH/DELETE une ligne de financement.
 // Sur changement de statut → audit + notification push aux abonnés.
@@ -57,6 +58,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { data: previous } = await service
     .from("financings")
     .select("statut")
+    .is("deleted_at", null)
     .eq("id", fid)
     .eq("project_id", id)
     .maybeSingle();
@@ -108,9 +110,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { error } = await service
     .from("financings")
-    .delete()
+    .update(softDeleteFields(access.userId))
     .eq("id", fid)
-    .eq("project_id", id);
+    .eq("project_id", id)
+    .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await writeAudit({

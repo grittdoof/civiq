@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { data: previous } = await service
     .from("projects")
     .select("photo_storage_path")
+    .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
 
@@ -86,6 +87,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { data: project } = await service
     .from("projects")
     .select("photo_storage_path")
+    .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
 

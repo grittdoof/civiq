@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { BudgetCategorie, BudgetSens } from "@/lib/projects/types";
+import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 interface RouteParams { params: Promise<{ id: string; bid: string }>; }
 
@@ -70,9 +71,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { error } = await service
     .from("project_budget_lines")
-    .delete()
+    .update(softDeleteFields(access.userId))
     .eq("id", bid)
-    .eq("project_id", id);
+    .eq("project_id", id)
+    .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

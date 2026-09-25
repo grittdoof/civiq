@@ -59,6 +59,14 @@ body {
   --warning:       oklch(0.68 0.130 72);
   --warning-light: oklch(0.975 0.042 72);
   --destructive:   #E00114;
+  /* Types de projet (validé 25/09/2026) — toujours doublé d'une icône
+     et d'un libellé : la couleur seule ne porte jamais l'information. */
+  --type-investment:       var(--marine);
+  --type-investment-light: oklch(0.955 0.020 258);
+  --type-event:            #B0306A;   /* 6,0:1 sur blanc */
+  --type-event-light:      #FBEAF2;   /* texte --type-event dessus : 5,2:1 */
+  --type-tracking:         var(--gris-soft);
+  --type-tracking-light:   var(--gris-bg);
   --sidebar-bg:    oklch(1 0 0);
 
   /* Shape */

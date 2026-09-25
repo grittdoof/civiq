@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Sentry build plugin token
 .env.sentry-build-plugin
+
+# exports de données (données personnelles — NE JAMAIS committer)
+/backups/

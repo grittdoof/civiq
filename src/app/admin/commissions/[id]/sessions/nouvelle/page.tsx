@@ -28,6 +28,7 @@ export default async function NewSessionPage({ params }: PageProps) {
   const { data: commission } = await service
     .from("commissions")
     .select("nom, commune_id")
+    .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
   if (!commission || commission.commune_id !== ctx.communeId) notFound();

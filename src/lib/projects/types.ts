@@ -584,12 +584,8 @@ export const SECURED_FINANCING_STATUSES: FinancingStatus[] = [
 ];
 
 // ─── Interfaces tables ───
-export interface CommuneSettings {
-  commune_id: string;
-  taux_inflation: number;
-  taux_actualisation: number;
-  updated_at: string;
-}
+/** @deprecated Utiliser CommuneParametres (lib/projects/commune-parametres). */
+export type { CommuneParametres as CommuneSettings } from "./commune-parametres";
 
 export type ProjectTiersType =
   | "entreprise"
@@ -655,7 +651,25 @@ export interface Project {
   date_creation: string;
   date_maj: string;
   created_by: string | null;
+  // ─── Lot A (migrations 036-038) ───
+  /** Référentiel types_projet : investissement | evenementiel | suivi_simple */
+  type_code?: TypeProjetCode;
+  /** Suppression logique (jamais de DELETE physique). */
+  deleted_at?: string | null;
+  /** Archivé : consultable, exclu des listes actives. */
+  archived_at?: string | null;
+  archive_motif?: string | null;
+  /** Jalons terminés / jalons, en %. null = « non renseigné » (aucun jalon). */
+  avancement_pct?: number | null;
+  avancement_manuel_pct?: number | null;
+  avancement_manuel_motif?: string | null;
+  avancement_manuel_par?: string | null;
+  avancement_manuel_le?: string | null;
 }
+
+export type TypeProjetCode = "investissement" | "evenementiel" | "suivi_simple";
+
+export type EtapeStatut = "a_faire" | "en_cours" | "termine";
 
 export interface ProjectPhaseLog {
   id: string;
@@ -733,16 +747,29 @@ export interface Financing {
   updated_at: string;
 }
 
+/** Étape d'un projet (table milestones, étendue par la migration 038). */
 export interface Milestone {
   id: string;
   project_id: string;
-  phase: ProjectPhase;
+  /** Facultative depuis la migration 038 (les étapes ne dépendent plus des phases). */
+  phase: ProjectPhase | null;
   libelle: string;
+  /** Legacy : date seule, synchronisée avec date_previsionnelle par trigger. */
   echeance: string | null;
+  /** Legacy : synchronisé avec statut === "termine" par trigger. */
   fait: boolean;
   responsable_user_id: string | null;
   created_at: string;
   updated_at: string;
+  statut?: EtapeStatut;
+  date_previsionnelle?: string | null;
+  date_reelle?: string | null;
+  est_un_jalon?: boolean;
+  remonter_au_reporting?: boolean;
+  commentaire?: string | null;
+  commentaire_note_interne?: boolean;
+  ordre?: number | null;
+  deleted_at?: string | null;
 }
 
 export interface ProjectLifecycleCost {

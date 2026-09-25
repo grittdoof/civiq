@@ -89,7 +89,7 @@ export interface ProjectPdfData {
   taux_actualisation: number;
 
   financings: Array<{ financeur: string; montant_demande: number | null; montant_obtenu: number | null; statut: FinancingStatus }>;
-  milestones: Array<{ phase: ProjectPhase; libelle: string; echeance: string | null; fait: boolean }>;
+  milestones: Array<{ phase: ProjectPhase | null; libelle: string; echeance: string | null; fait: boolean }>;
   lifecycle: Array<{ annee: number; cout_fonctionnement: number; cout_entretien: number }>;
   stakeholders: Array<{ nom: string; type: StakeholderType; role: StakeholderRole; phase: ProjectPhase | null }>;
   documents: Array<{ nom: string; type: ProjectDocumentType; uploaded_at: string }>;
@@ -232,7 +232,7 @@ export function ProjectPDF(props: ProjectPdfData) {
               {props.milestones.map((m, i) => (
                 <View key={i} style={s.tr}>
                   <Text style={[s.td, { flex: 3 }]}>{m.libelle}</Text>
-                  <Text style={[s.td, { flex: 2 }]}>{PROJECT_PHASE_LABELS[m.phase]}</Text>
+                  <Text style={[s.td, { flex: 2 }]}>{m.phase ? PROJECT_PHASE_LABELS[m.phase] : "—"}</Text>
                   <Text style={[s.td, { flex: 1 }]}>{m.echeance ?? "—"}</Text>
                   <Text style={[s.td, { flex: 1 }]}>{m.fait ? "Fait" : "À faire"}</Text>
                 </View>

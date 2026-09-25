@@ -60,6 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { data: sess } = await service
     .from("commission_sessions")
     .select("id, commission:commissions ( commune_id )")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
   const sessCommune = (sess as unknown as { commission: { commune_id: string } | null } | null)

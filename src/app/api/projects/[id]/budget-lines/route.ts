@@ -21,6 +21,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("project_budget_lines")
     .select("*")
+    .is("deleted_at", null)
     .eq("project_id", id)
     .order("sens")
     .order("created_at", { ascending: true });

@@ -60,6 +60,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   const { data: communeCommissions } = await service0
     .from("commissions")
     .select("id, nom, color, icon")
+    .is("deleted_at", null)
     .eq("commune_id", ctx.communeId)
     .eq("active", true)
     .order("nom");
@@ -81,10 +82,12 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     service
       .from("financings")
       .select("project_id, statut, montant_demande, montant_obtenu")
+      .is("deleted_at", null)
       .in("project_id", projIds),
     service
       .from("project_budget_lines")
       .select("project_id, sens, montant_prevu, montant_reel")
+      .is("deleted_at", null)
       .in("project_id", projIds),
   ]);
 

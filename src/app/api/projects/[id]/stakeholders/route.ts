@@ -3,6 +3,7 @@ import { requireProjectAccess, requireProjectEdit } from "@/lib/projects/api-hel
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import type { ProjectPhase, StakeholderRole } from "@/lib/projects/types";
+import { STAKEHOLDER_COLUMNS } from "@/lib/projects/queries";
 
 // GET  /api/projects/:id/stakeholders  — liste enrichie (RACI)
 // POST /api/projects/:id/stakeholders  — associe un stakeholder existant
@@ -17,7 +18,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { data } = await service
     .from("project_stakeholders")
-    .select("*, stakeholder:stakeholders ( * )")
+    .select(`*, stakeholder:contacts ( ${STAKEHOLDER_COLUMNS} )`)
     .eq("project_id", id);
   return NextResponse.json({ stakeholders: data ?? [] });
 }
@@ -40,6 +41,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   if (!body.role) return NextResponse.json({ error: "role requis" }, { status: 400 });
 
   const service = await createServiceClient();
+  // Le contact doit appartenir à la commune du projet.
+  const { data: contact } = await service
+    .from("contacts")
+    .select("id")
+    .eq("id", body.stakeholder_id)
+    .eq("commune_id", access.communeId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!contact) return NextResponse.json({ error: "Contact introuvable" }, { status: 404 });
+
   const { data, error } = await service
     .from("project_stakeholders")
     .insert({
@@ -48,7 +59,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       role: body.role,
       phase: body.phase ?? null,
     })
-    .select("*, stakeholder:stakeholders ( * )")
+    .select(`*, stakeholder:contacts ( ${STAKEHOLDER_COLUMNS} )`)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

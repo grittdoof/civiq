@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCommissionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { CommissionMemberRole } from "@/lib/projects/types";
+import { findOrCreateContact } from "@/lib/projects/contacts";
 
 interface RouteParams { params: Promise<{ id: string }>; }
 
@@ -43,10 +44,26 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       .maybeSingle();
     if (!member) return NextResponse.json({ error: "Utilisateur introuvable dans cette commune" }, { status: 404 });
   }
+  // Externe : rattaché à l'annuaire unique (réutilise le contact de
+  // même email). Les colonnes external_* restent renseignées pendant la
+  // transition (convocations, émargement).
+  let contactId: string | null = null;
+  if (!body.user_id && externalName) {
+    const contact = await findOrCreateContact(service, {
+      communeId: access.communeId,
+      nom: externalName,
+      email: body.external_email,
+      telephone: body.external_phone,
+      source: "commission_member",
+      createdBy: access.userId,
+    });
+    contactId = contact?.id ?? null;
+  }
   const { data, error } = await service
     .from("commission_members")
     .insert({
       commission_id: id,
+      contact_id: contactId,
       user_id: body.user_id || null,
       external_name: externalName || null,
       external_email: body.external_email?.trim() || null,

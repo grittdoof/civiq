@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
 import type { ProjectCompetence, ProjectType, ProjectPhase } from "@/lib/projects/types";
 import { PROJECT_PHASES_BY_TYPE } from "@/lib/projects/types";
+import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 // ═══════════════════════════════════════════════════════════════
 // GET    /api/projects/:id   — fiche projet complète
@@ -123,6 +124,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       const { data: current } = await service2
         .from("projects")
         .select("phase")
+        .is("deleted_at", null)
         .eq("id", id)
         .maybeSingle();
       const currentPhase = current?.phase as ProjectPhase | undefined;
@@ -175,9 +177,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { error } = await service
     .from("projects")
-    .delete()
+    .update(softDeleteFields(guard.userId))
     .eq("id", id)
-    .eq("commune_id", guard.communeId);
+    .eq("commune_id", guard.communeId)
+    .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await writeAudit({

@@ -10,7 +10,6 @@ import type {
   Commission,
   CommissionMember,
   CommissionSession,
-  CommuneSettings,
   Financing,
   Milestone,
   Project,
@@ -25,8 +24,11 @@ import type {
   SessionDecision,
   Stakeholder,
 } from "./types";
+import { DEFAULT_PARAMETRES, type CommuneParametres } from "./commune-parametres";
 
 export interface ProjectListFilters {
+  /** Inclure les projets archivés (exclus par défaut). */
+  includeArchived?: boolean;
   phase?: ProjectPhase | ProjectPhase[];
   piloteUserId?: string;
   search?: string;
@@ -43,6 +45,11 @@ export interface ProjectListItem extends Project {
   /** Commissions qui suivent ce projet (peuvent être transversales) */
   commissions?: Array<{ id: string; nom: string; color: string; icon: string }>;
 }
+
+// Colonnes d'un contact exposées sous la forme historique « Stakeholder »
+// (la catégorie de partie prenante s'appelle `type` côté interface).
+export const STAKEHOLDER_COLUMNS =
+  "id, commune_id, nom, organisation, email, telephone, type:categorie, created_at";
 
 // ─── Projets ───
 
@@ -61,9 +68,11 @@ export async function listProjects(
       pilote_agent_profile:profiles!projects_pilote_agent_fkey ( id, full_name )
     `,
     )
+    .is("deleted_at", null)
     .eq("commune_id", communeId)
     .order("date_maj", { ascending: false });
 
+  if (!filters.includeArchived) q = q.is("archived_at", null);
   if (filters.limit) q = q.limit(filters.limit);
 
   const { data: rows, error } = await q;
@@ -101,15 +110,18 @@ export async function listProjects(
     service
       .from("financings")
       .select("project_id, montant_demande, montant_obtenu")
+      .is("deleted_at", null)
       .in("project_id", ids),
     service
       .from("milestones")
       .select("project_id, fait, echeance")
+      .is("deleted_at", null)
       .in("project_id", ids),
     service
       .from("commission_projects")
-      .select("project_id, commission:commissions ( id, nom, color, icon )")
-      .in("project_id", ids),
+      .select("project_id, commission:commissions!inner ( id, nom, color, icon )")
+      .in("project_id", ids)
+      .is("commission.deleted_at", null),
   ]);
 
   const finByProj = new Map<string, { d: number; o: number }>();
@@ -197,6 +209,7 @@ export async function getProject(
       pilote_agent_profile:profiles!projects_pilote_agent_fkey ( id, full_name )
     `,
     )
+    .is("deleted_at", null)
     .eq("commune_id", communeId)
     .eq("id", projectId)
     .maybeSingle();
@@ -231,17 +244,19 @@ export async function getProject(
   ] = await Promise.all([
     service
       .from("project_stakeholders")
-      .select("*, stakeholder:stakeholders ( * )")
+      .select(`*, stakeholder:contacts ( ${STAKEHOLDER_COLUMNS} )`)
       .eq("project_id", projectId)
       .order("created_at", { ascending: true }),
     service
       .from("financings")
       .select("*")
+      .is("deleted_at", null)
       .eq("project_id", projectId)
       .order("created_at", { ascending: true }),
     service
       .from("milestones")
       .select("*")
+      .is("deleted_at", null)
       .eq("project_id", projectId)
       .order("phase")
       .order("echeance", { nullsFirst: false }),
@@ -253,6 +268,7 @@ export async function getProject(
     service
       .from("project_documents")
       .select("*")
+      .is("deleted_at", null)
       .eq("project_id", projectId)
       .order("uploaded_at", { ascending: false }),
     service
@@ -274,8 +290,9 @@ export async function getProject(
     service.rpc("project_global_cost", { p_project_id: projectId }),
     service
       .from("commission_projects")
-      .select("id, commission:commissions ( id, nom, color, icon )")
-      .eq("project_id", projectId),
+      .select("id, commission:commissions!inner ( id, nom, color, icon )")
+      .eq("project_id", projectId)
+      .is("commission.deleted_at", null),
   ]);
 
   type CommissionLinkRow = {
@@ -329,39 +346,40 @@ export async function getProject(
 export async function listStakeholders(communeId: string): Promise<Stakeholder[]> {
   const service = await createServiceClient();
   const { data } = await service
-    .from("stakeholders")
-    .select("*")
+    .from("contacts")
+    .select(STAKEHOLDER_COLUMNS)
     .eq("commune_id", communeId)
+    .is("deleted_at", null)
     .order("nom");
   return (data ?? []) as Stakeholder[];
 }
 
-// ─── Commune settings ───
+// ─── Paramètres projets de la commune (commune_settings) ───
 
-export async function getCommuneSettings(
-  communeId: string,
-): Promise<CommuneSettings | null> {
+/** Toujours un objet complet : valeurs par défaut si aucune ligne. */
+export async function getCommuneSettings(communeId: string): Promise<CommuneParametres> {
   const service = await createServiceClient();
   const { data } = await service
     .from("commune_settings")
     .select("*")
     .eq("commune_id", communeId)
     .maybeSingle();
-  return (data ?? null) as CommuneSettings | null;
-}
-
-export async function upsertCommuneSettings(
-  communeId: string,
-  taux_inflation: number,
-  taux_actualisation: number,
-): Promise<CommuneSettings | null> {
-  const service = await createServiceClient();
-  const { data } = await service
-    .from("commune_settings")
-    .upsert({ commune_id: communeId, taux_inflation, taux_actualisation })
-    .select()
-    .maybeSingle();
-  return (data ?? null) as CommuneSettings | null;
+  const row = (data ?? {}) as Partial<CommuneParametres>;
+  const num = (v: unknown, d: number) => (v === null || v === undefined ? d : Number(v));
+  return {
+    ...DEFAULT_PARAMETRES,
+    ...row,
+    commune_id: communeId,
+    seuil_delegation_maire_ht:
+      row.seuil_delegation_maire_ht === null || row.seuil_delegation_maire_ht === undefined
+        ? null
+        : Number(row.seuil_delegation_maire_ht),
+    nb_devis_exige: num(row.nb_devis_exige, DEFAULT_PARAMETRES.nb_devis_exige),
+    seuil_devis_exige_ht: num(row.seuil_devis_exige_ht, DEFAULT_PARAMETRES.seuil_devis_exige_ht),
+    taux_fctva: num(row.taux_fctva, DEFAULT_PARAMETRES.taux_fctva),
+    taux_inflation: num(row.taux_inflation, DEFAULT_PARAMETRES.taux_inflation),
+    taux_actualisation: num(row.taux_actualisation, DEFAULT_PARAMETRES.taux_actualisation),
+  };
 }
 
 // ─── Commissions ───
@@ -371,6 +389,7 @@ export async function listCommissions(communeId: string): Promise<Commission[]> 
   const { data } = await service
     .from("commissions")
     .select("*")
+    .is("deleted_at", null)
     .eq("commune_id", communeId)
     .order("nom");
   return (data ?? []) as Commission[];
@@ -392,6 +411,7 @@ export async function getCommission(
   const { data: commission } = await service
     .from("commissions")
     .select("*")
+    .is("deleted_at", null)
     .eq("commune_id", communeId)
     .eq("id", commissionId)
     .maybeSingle();
@@ -405,20 +425,24 @@ export async function getCommission(
     service
       .from("commission_members")
       .select("*, profile:profiles ( id, full_name, job_title )")
-      .eq("commission_id", commissionId),
+      .eq("commission_id", commissionId)
+      .is("deleted_at", null),
     service
       .from("commission_projects")
-      .select("id, project_id, project:projects ( id, titre, phase )")
-      .eq("commission_id", commissionId),
+      .select("id, project_id, project:projects!inner ( id, titre, phase )")
+      .eq("commission_id", commissionId)
+      .is("project.deleted_at", null),
     service
       .from("commission_sessions")
       .select("*")
+      .is("deleted_at", null)
       .eq("commission_id", commissionId)
       .gte("date_seance", now)
       .order("date_seance"),
     service
       .from("commission_sessions")
       .select("*")
+      .is("deleted_at", null)
       .eq("commission_id", commissionId)
       .lt("date_seance", now)
       .order("date_seance", { ascending: false }),
@@ -459,6 +483,7 @@ export async function getSession(
   const { data: session } = await service
     .from("commission_sessions")
     .select("*, commission:commissions ( * )")
+    .is("deleted_at", null)
     .eq("id", sessionId)
     .maybeSingle();
 
@@ -489,6 +514,7 @@ export async function getSession(
     service
       .from("session_documents")
       .select("*")
+      .is("deleted_at", null)
       .eq("session_id", sessionId)
       .order("uploaded_at", { ascending: false }),
   ]);

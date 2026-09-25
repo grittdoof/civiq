@@ -163,7 +163,7 @@ export default async function ProjectFichePage({ params }: Props) {
                 <div key={m.id} className="pj-summary-row-card">
                   <strong>{m.libelle}</strong>
                   <span>
-                    {PROJECT_PHASE_LABELS[m.phase]} · {m.echeance ? formatDate(m.echeance) : "Sans échéance"} · {m.fait ? "Fait" : "À faire"}
+                    {m.phase ? `${PROJECT_PHASE_LABELS[m.phase]} · ` : ""}{m.echeance ? formatDate(m.echeance) : "Sans échéance"} · {m.fait ? "Fait" : "À faire"}
                   </span>
                 </div>
               ))}
