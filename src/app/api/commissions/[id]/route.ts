@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getCommission } from "@/lib/projects/queries";
+import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 interface RouteParams { params: Promise<{ id: string }>; }
 
@@ -80,7 +81,8 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   }
   const { id } = await params;
   const service = await createServiceClient();
-  const { error } = await service.from("commissions").delete().eq("id", id).eq("commune_id", guard.communeId);
+  const { error } = await service.from("commissions").update(softDeleteFields(guard.userId)).eq("id", id).eq("commune_id", guard.communeId)
+    .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

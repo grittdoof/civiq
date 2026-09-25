@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("project_documents")
     .select("*")
+    .is("deleted_at", null)
     .eq("project_id", id)
     .order("uploaded_at", { ascending: false });
 

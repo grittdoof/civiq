@@ -754,3 +754,35 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - `pdf-header.tsx` (commun à tous les PDF projets/commissions) : logo commune agrandi en tête (46 pt de haut, 130 pt max de large) ; l'encadré texte « GoCiviq » de l'en-tête est retiré au profit d'un **petit logo PNG semi-transparent en pied de page**.
 - `pdfSafeImageUrl()` : react-pdf ne lit que PNG/JPEG → un logo SVG/WebP est ignoré au lieu de faire échouer le PDF. L'upload du logo est restreint à **PNG/JPG** (API, composant, bucket).
 - `next.config.ts` : `outputFileTracingIncludes` étendu à `/api/commissions/**` et `/api/projects/**` (polices TTF + logo PNG lus depuis `process.cwd()`).
+
+---
+
+## Session 17 — Audit du module Projets, correctifs sécurité P0, refonte lot A (2026-09-25)
+
+### Prompt de départ
+> Audit complet du module Projets & Commissions (livrable `docs/audit-module-projets.md`), puis refonte en lots validés un par un. Contexte : élus bénévoles sans formation juridique ; la simplicité est un critère d'acceptation ; multi-communes ; aucune perte de données (archives publiques).
+
+### Audit (Session 1 du brief) — `docs/audit-module-projets.md`
+- La complexité perçue vient du **moteur de phases à portes** appliqué à tous les types (les 3 gabarits existaient déjà depuis 028), pas de l'absence de types. Usage réel = « suivi simple » (25/39 projets, 2 budgets renseignés, 0 devis).
+- **La phase n'avançait jamais** depuis l'UI (`ProjectPhaseAdvanceDialog` jamais importé) ; `FieldSection` n'aiguillait pas `cost10y`/`financings` ; création silencieuse = 8 projets « Sans titre ».
+- Design system réel ≠ brief : Montserrat + azur `#2F6FDB` + CSS `pj-*` (pas de Fraunces/DM Sans/teal/shadcn). **Décision : garder le réel.** Couleur événement validée : `#B0306A`.
+- Décisions : étendre les tables existantes (pas de doublons FR) ; table `contacts` unique ; bureau municipal = rôle `admin` ; Google Agenda à prévoir ; seuil du maire = délibération de délégation (paramètre communal).
+
+### Correctifs P0 — PR grittdoof/civiq#4 (migration 035 appliquée en prod)
+- `make_super_admin`, `purge_*`, `log_audit` étaient **exécutables par anon** (élévation de privilège) → revoke. Storage `project-documents`/`commission-pdfs` lisibles par tout compte connecté → policies supprimées (accès service role + URLs signées). XSS `sanitizeRichText` (`<img/src=x onerror>`) → réécrit dans `lib/projects/rich-text` + ré-assaini à l'affichage. IDOR routes commissions/séances → `requireCommissionEdit` / `requireSessionEdit`.
+
+### Lot A — fondations (branche `claude/projets-lot-a`)
+- **036** (appliquée en prod) : `deleted_at`/`deleted_by` sur 13 tables, `archived_at`/`archive_motif` sur `projects`, **toutes les FK en cascade → RESTRICT**. DELETE des routes = suppression logique ; fichiers Storage jamais supprimés.
+- **037** : `commune_settings` étendue (délégation au maire + délibération, guide interne des achats, FCTVA 16,404 %, code INSEE) ; référentiel `types_projet` (jalons modèles, blocs actifs) + `projects.type_code` synchronisé avec l'enum `type` par trigger.
+- **038** : `milestones` = étapes (statut 3 états, dates prévisionnelle/réelle, `est_un_jalon`, `remonter_au_reporting`, commentaire + note interne) ; `fait`/`echeance` synchronisés par trigger ; `projects.avancement_pct` dénormalisé par trigger (NULL = « non renseigné ») + surcharge manuelle.
+- **039** : `contacts` (reprise des stakeholders avec le même id, 16 membres externes → 13 contacts dédoublonnés), `milestone_contacts`, `anonymize_contact()` (RGPD) ; `stakeholders` renommée `stakeholders_legacy` + **vue de compatibilité temporaire** `stakeholders`.
+- Données : `supabase/data/lot_a_rattachement_chateauneuf.sql` (11 archivages, 1 retypage → 28 projets actifs).
+- Écran `/admin/projects/parametres` (admin : édition ; éditeur : lecture), composant `LearnMore` (« En savoir plus » accessible), tokens `--type-investment|event|tracking`.
+- Export : `scripts/export-module-projets.mjs` (JSON + CSV + fichiers Storage + manifest SHA-256 → `backups/`, ignoré par git). Instantané en base : schéma `backup_lot_a_20260925`.
+
+### Points d'attention
+- **Toute lecture** de `projects`, `milestones`, `project_documents`, `financings`, `project_quotes`, `project_budget_lines`, `project_deliberations`, `project_authorizations`, `project_communications`, `commissions`, `commission_sessions`, `session_documents`, `commission_members`, `contacts` doit filtrer `.is("deleted_at", null)` ; les listes actives filtrent aussi `projects.archived_at`.
+- **Plus de DELETE physique** : utiliser `softDeleteFields()` (`lib/projects/soft-delete.ts`). Une FK RESTRICT qui échoue signale un historique à préserver.
+- Parties prenantes = `contacts` ; exposer la forme historique via `STAKEHOLDER_COLUMNS` (`type:categorie`).
+- **Ordre de déploiement** : 039 renomme `stakeholders` → à appliquer au moment du déploiement du code du lot A. Supprimer la vue `stakeholders` au lot B.
+- Chaque migration a son retour arrière dans `supabase/rollback/` (hors `migrations/`).

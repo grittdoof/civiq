@@ -118,6 +118,8 @@ export default async function AdminDashboardPage() {
     const { data: projs } = await service
       .from("projects")
       .select("id, phase, sans_subvention")
+      .is("deleted_at", null)
+      .is("archived_at", null)
       .eq("commune_id", ctx.communeId);
     projectsTotal = projs?.length ?? 0;
     projectsInRealisation = projs?.filter((p) => p.phase === "realisation").length ?? 0;
@@ -126,8 +128,8 @@ export default async function AdminDashboardPage() {
     if (projs && projs.length > 0) {
       const ids = projs.map((p) => p.id);
       const [{ data: lateMs }, { data: secured }] = await Promise.all([
-        service.from("milestones").select("project_id").in("project_id", ids).eq("fait", false).lt("echeance", new Date().toISOString()),
-        service.from("financings").select("project_id, statut").in("project_id", ids).in("statut", ["ar_recu", "accordee", "soldee"]),
+        service.from("milestones").select("project_id").is("deleted_at", null).in("project_id", ids).eq("fait", false).lt("echeance", new Date().toISOString()),
+        service.from("financings").select("project_id, statut").is("deleted_at", null).in("project_id", ids).in("statut", ["ar_recu", "accordee", "soldee"]),
       ]);
       const projectsWithLate = new Set((lateMs ?? []).map((r) => r.project_id as string));
       const projectsWithSecured = new Set((secured ?? []).map((r) => r.project_id as string));
@@ -146,6 +148,7 @@ export default async function AdminDashboardPage() {
     const { data: comms } = await service
       .from("commissions")
       .select("id, nom")
+      .is("deleted_at", null)
       .eq("commune_id", ctx.communeId)
       .eq("active", true);
     commissionsCount = comms?.length ?? 0;
@@ -153,6 +156,7 @@ export default async function AdminDashboardPage() {
       const { data: sess } = await service
         .from("commission_sessions")
         .select("id, commission_id, date_seance")
+        .is("deleted_at", null)
         .in("commission_id", comms.map((c) => c.id))
         .gte("date_seance", new Date().toISOString())
         .order("date_seance")

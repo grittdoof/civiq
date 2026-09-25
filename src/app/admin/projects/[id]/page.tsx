@@ -32,6 +32,7 @@ export default async function ProjectAliasPage({ params }: PageProps) {
   const { data: row } = await service
     .from("projects")
     .select("id, phase")
+    .is("deleted_at", null)
     .eq("id", id)
     .eq("commune_id", ctx.communeId)
     .maybeSingle();

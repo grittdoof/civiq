@@ -13,6 +13,7 @@ async function checkSessionAccess(sid: string, communeId: string) {
   const { data } = await service
     .from("commission_sessions")
     .select("id, commission:commissions ( commune_id )")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
   type Row = { id: string; commission: { commune_id: string } | null };
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { data: prev } = await service
     .from("commission_sessions")
     .select("signed_attendance_pdf_path")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
 
@@ -110,6 +112,7 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { data: prev } = await service
     .from("commission_sessions")
     .select("signed_attendance_pdf_path")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
 

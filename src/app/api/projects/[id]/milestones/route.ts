@@ -17,6 +17,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("milestones")
     .select("*")
+    .is("deleted_at", null)
     .eq("project_id", id)
     .order("phase")
     .order("echeance", { nullsFirst: false });

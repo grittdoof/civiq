@@ -47,6 +47,8 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarEve
   const { data: projs } = await service
     .from("projects")
     .select("id, titre")
+    .is("deleted_at", null)
+    .is("archived_at", null)
     .eq("commune_id", communeId);
   const projectsById = new Map((projs ?? []).map((p) => [p.id as string, p.titre as string]));
 
@@ -55,6 +57,7 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarEve
     const { data: ms } = await service
       .from("milestones")
       .select("id, project_id, libelle, echeance, fait")
+      .is("deleted_at", null)
       .in("project_id", [...projectsById.keys()])
       .not("echeance", "is", null);
     for (const m of ms ?? []) {
@@ -80,6 +83,7 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarEve
   const { data: comms } = await service
     .from("commissions")
     .select("id, nom, color, icon")
+    .is("deleted_at", null)
     .eq("commune_id", communeId);
   type Comm = { id: string; nom: string; color: string; icon: string };
   const commsById = new Map((comms ?? []).map((c) => [c.id as string, c as Comm]));
@@ -89,6 +93,7 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarEve
     const { data: sess } = await service
       .from("commission_sessions")
       .select("id, commission_id, date_seance, lieu")
+      .is("deleted_at", null)
       .in("commission_id", [...commsById.keys()]);
     for (const s of sess ?? []) {
       const comm = commsById.get(s.commission_id as string);
@@ -114,6 +119,7 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarEve
     const { data: pending } = await service
       .from("financings")
       .select("id, project_id, financeur, date_demande")
+      .is("deleted_at", null)
       .in("project_id", [...projectsById.keys()])
       .eq("statut", "demandee")
       .lt("date_demande", cutoff)

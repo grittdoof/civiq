@@ -64,6 +64,7 @@ export default async function DeliverableFocusPage({ params }: Props) {
   const { data: communeCommissions } = await service
     .from("commissions")
     .select("id, nom, color")
+    .is("deleted_at", null)
     .eq("commune_id", ctx.communeId)
     .eq("active", true)
     .order("nom");

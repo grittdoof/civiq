@@ -17,6 +17,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("project_deliberations")
     .select("*")
+    .is("deleted_at", null)
     .eq("project_id", id)
     .order("date_seance", { ascending: false });
   return NextResponse.json({ deliberations: data ?? [] });

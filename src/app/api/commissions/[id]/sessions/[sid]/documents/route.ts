@@ -14,6 +14,7 @@ async function checkSessionAccess(sid: string, communeId: string) {
   const { data } = await service
     .from("commission_sessions")
     .select("id, commission:commissions ( commune_id )")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
   type Row = { id: string; commission: { commune_id: string } | null };
@@ -33,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { data } = await service
     .from("session_documents")
     .select("*")
+    .is("deleted_at", null)
     .eq("session_id", sid)
     .order("uploaded_at", { ascending: false });
 

@@ -78,6 +78,7 @@ export default async function NewProjectPage({ searchParams }: Props) {
     const { data: commission } = await service
       .from("commissions")
       .select("nom")
+      .is("deleted_at", null)
       .eq("id", from_commission)
       .eq("commune_id", ctx.communeId)
       .maybeSingle();

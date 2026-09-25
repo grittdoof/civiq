@@ -75,6 +75,7 @@ export async function listConvocationRecipients(
     .from("commission_members")
     .select("id, user_id, external_name, external_email, profile:profiles ( full_name )")
     .eq("commission_id", commissionId)
+    .is("deleted_at", null)
     .order("created_at");
   const members = (membersData ?? []) as unknown as MemberRow[];
 
@@ -138,6 +139,7 @@ export async function loadSessionContext(service: SupabaseClient, sessionId: str
     .select(
       "id, commission_id, date_seance, lieu, ordre_du_jour, commission:commissions ( id, nom, commune_id, commune:communes ( name, logo_url, address, code_postal, phone, contact_email, website_url ) )",
     )
+    .is("deleted_at", null)
     .eq("id", sessionId)
     .maybeSingle();
   if (!data) return null;

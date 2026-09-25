@@ -31,12 +31,13 @@ export default async function CommissionsListPage() {
   // Compteurs (membres et projets rattachés) par commission
   const ids = commissions.map((c) => c.id);
   const [{ data: members }, { data: cprojects }, { data: nextSessions }] = await Promise.all([
-    ids.length ? service.from("commission_members").select("commission_id").in("commission_id", ids) : Promise.resolve({ data: [] }),
+    ids.length ? service.from("commission_members").select("commission_id").is("deleted_at", null).in("commission_id", ids) : Promise.resolve({ data: [] }),
     ids.length ? service.from("commission_projects").select("commission_id").in("commission_id", ids) : Promise.resolve({ data: [] }),
     ids.length
       ? service
           .from("commission_sessions")
           .select("commission_id, date_seance")
+          .is("deleted_at", null)
           .in("commission_id", ids)
           .gte("date_seance", new Date().toISOString())
           .order("date_seance")

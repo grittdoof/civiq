@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
+import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 interface RouteParams { params: Promise<{ id: string; did: string }>; }
 
@@ -10,23 +11,15 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   if (!access.ok) return access.response;
 
   const service = await createServiceClient();
-  const { data: doc } = await service
-    .from("project_documents")
-    .select("storage_path")
-    .eq("id", did)
-    .eq("project_id", id)
-    .maybeSingle();
-
   const { error } = await service
     .from("project_documents")
-    .delete()
+    .update(softDeleteFields(access.userId))
     .eq("id", did)
-    .eq("project_id", id);
+    .eq("project_id", id)
+    .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (doc?.storage_path) {
-    await service.storage.from("project-documents").remove([doc.storage_path]);
-  }
+  // Fichier Storage conservé : archive publique (suppression logique uniquement).
 
   return NextResponse.json({ ok: true });
 }

@@ -40,6 +40,7 @@ export default async function RevueMensuellePage() {
       ? service
           .from("milestones")
           .select("project_id, libelle, echeance, fait")
+          .is("deleted_at", null)
           .in("project_id", ids)
           .eq("fait", false)
           .order("echeance", { nullsFirst: false })
@@ -48,6 +49,7 @@ export default async function RevueMensuellePage() {
       ? service
           .from("financings")
           .select("project_id, statut, financeur")
+          .is("deleted_at", null)
           .in("project_id", ids)
       : Promise.resolve({ data: [] }),
   ]);

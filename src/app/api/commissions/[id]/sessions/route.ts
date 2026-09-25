@@ -47,6 +47,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const { data: commission } = await service
     .from("commissions")
     .select("id, nom, commune_id")
+    .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
   if (!commission || commission.commune_id !== guard.communeId) {

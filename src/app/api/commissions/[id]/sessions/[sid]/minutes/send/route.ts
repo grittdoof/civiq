@@ -41,6 +41,7 @@ async function guardSend(id: string, sid: string) {
   const { data } = await service
     .from("commission_sessions")
     .select("id, commission_id, secretaire_de_seance_user_id, compte_rendu_valide, commission:commissions ( commune_id )")
+    .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
   const sess = data as unknown as {

@@ -4593,3 +4593,37 @@ a.pj-commission-badge:hover {
 .pj-minutes-sent { color: var(--success); }
 .pj-cr-rich { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
 .pj-convoc-confirm textarea { margin-bottom: 4px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   Paramètres projets de la commune + « En savoir plus » (lot A)
+   ═══════════════════════════════════════════════════════════════ */
+.pj-params { display: flex; flex-direction: column; gap: 20px; max-width: 880px; }
+.pj-params-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.pj-params-card { padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.pj-params-title { font-size: 18px; font-weight: 700; color: var(--fg); margin: 0; }
+.pj-params-intro { margin: 0; color: var(--fg); line-height: 1.55; }
+.pj-params-note { margin: 0; color: var(--fg-muted); font-size: 14px; line-height: 1.5; }
+.pj-params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 4px; }
+.pj-params-note-wide { grid-column: 1 / -1; }
+.pj-params-switch { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.pj-params-switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+.pj-params-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.pj-params-status { margin: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--fg-muted); font-size: 14px; }
+
+.pj-learn-more { margin-top: 4px; }
+.pj-learn-more-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 4px 0; cursor: pointer;
+  color: var(--accent); font: inherit; font-size: 14px; font-weight: 600;
+}
+.pj-learn-more-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.pj-learn-more-chevron { transition: transform .15s ease; }
+.pj-learn-more-chevron.open { transform: rotate(180deg); }
+.pj-learn-more-body { margin-top: 8px; padding: 12px 14px; border-left: 3px solid var(--border); background: var(--bg); border-radius: 0 8px 8px 0; font-size: 14px; line-height: 1.55; color: var(--fg); }
+.pj-learn-more-body p { margin: 0 0 8px; }
+.pj-learn-more-body p:last-child { margin-bottom: 0; }
+
+@media (max-width: 640px) {
+  .pj-params-card { padding: 16px; }
+}

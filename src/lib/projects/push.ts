@@ -176,6 +176,7 @@ export async function notifyProjectPhaseChanged(opts: {
     const { data: project } = await service
       .from("projects")
       .select("titre")
+      .is("deleted_at", null)
       .eq("id", opts.projectId)
       .maybeSingle();
     const titre = project?.titre ?? "Projet";
@@ -232,6 +233,7 @@ export async function notifyFinancingStatusChange(opts: {
     const { data: project } = await service
       .from("projects")
       .select("titre")
+      .is("deleted_at", null)
       .eq("id", opts.projectId)
       .maybeSingle();
     const titre = project?.titre ?? "Projet";
