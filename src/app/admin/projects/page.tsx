@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, LayoutGrid, List, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import "./projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
@@ -148,34 +148,12 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         <div>
           <h1 className="civiq-page-title">Gestion de projet</h1>
           <p className="pj-page-subtitle">
-            Pilotez vos investissements sur le cycle de vie complet :
-            de l&apos;émergence au bilan.
+            Investissements, événements et dossiers suivis par la commune.
           </p>
         </div>
         <div className="pj-page-header-actions">
-          <div className="pj-view-toggle" role="tablist" aria-label="Affichage">
-            <Link
-              href={buildHref({ view: "" })}
-              className={`pj-view-toggle-btn${viewMode === "list" ? " is-active" : ""}`}
-              role="tab"
-              aria-selected={viewMode === "list"}
-              prefetch={false}
-              title="Vue liste avec filtres et code couleur commission"
-            >
-              <List size={14} /> <span>Liste</span>
-            </Link>
-            <Link
-              href={buildHref({ view: "lanes" })}
-              className={`pj-view-toggle-btn${viewMode === "lanes" ? " is-active" : ""}`}
-              role="tab"
-              aria-selected={viewMode === "lanes"}
-              prefetch={false}
-              title="Vue par phase (lanes)"
-            >
-              <LayoutGrid size={14} /> <span>Phases</span>
-            </Link>
-          </div>
-
+          {/* Vue « par phase » retirée du menu (lot B) : les étapes ont remplacé
+              les phases. Toujours accessible via ?view=lanes le temps de la transition. */}
           {/* Filtre commission (préserve la vue active) */}
           {(communeCommissions?.length ?? 0) > 0 && (
             <details className="pj-portfolio-commission-filter">
@@ -245,7 +223,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         <div className="civiq-card pj-empty">
           <p className="pj-empty-title">Aucun projet pour l&apos;instant</p>
           <p className="pj-empty-hint">
-            Créez votre premier projet d&apos;investissement.
+            Créez votre premier projet : un investissement, un événement ou un simple suivi.
           </p>
           {canCreate && (
             <Link href="/admin/projects/nouveau" className="civiq-btn civiq-btn-default">

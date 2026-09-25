@@ -49,7 +49,7 @@ export interface ProjectListItem extends Project {
 // Colonnes d'un contact exposées sous la forme historique « Stakeholder »
 // (la catégorie de partie prenante s'appelle `type` côté interface).
 export const STAKEHOLDER_COLUMNS =
-  "id, commune_id, nom, organisation, email, telephone, type:categorie, created_at";
+  "id, commune_id, nom, organisation, email, telephone, type:categorie, nature:type, created_at";
 
 // ─── Projets ───
 
@@ -193,6 +193,10 @@ export interface ProjectDetail {
     icon: string;
     commission_project_id: string;
   }>;
+  /** Contributeurs (profils de la commune), lot B. */
+  contributors: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  /** Contacts rattachés à chaque étape : milestone_id → contacts. */
+  milestone_contacts: Record<string, Stakeholder[]>;
 }
 
 export async function getProject(
@@ -227,6 +231,8 @@ export async function getProject(
       source_ticket: null,
       global_cost: null,
       commissions: [],
+      contributors: [],
+      milestone_contacts: {},
     };
   }
 
@@ -258,8 +264,8 @@ export async function getProject(
       .select("*")
       .is("deleted_at", null)
       .eq("project_id", projectId)
-      .order("phase")
-      .order("echeance", { nullsFirst: false }),
+      .order("ordre", { nullsFirst: false })
+      .order("date_previsionnelle", { nullsFirst: false }),
     service
       .from("project_lifecycle_costs")
       .select("*")
@@ -295,6 +301,44 @@ export async function getProject(
       .is("commission.deleted_at", null),
   ]);
 
+  // Contributeurs + contacts d'étape + URLs signées fraîches des documents
+  // (l'URL stockée à l'upload expire au bout de 7 jours).
+  const milestoneIds = ((milestones.data ?? []) as Milestone[]).map((m) => m.id);
+  const docRows = (documents.data ?? []) as ProjectDocument[];
+  const [contribRes, msContactsRes, signedRes] = await Promise.all([
+    service
+      .from("project_contributors")
+      .select("profile:profiles ( id, full_name, job_title )")
+      .eq("project_id", projectId),
+    milestoneIds.length
+      ? service
+          .from("milestone_contacts")
+          .select(`milestone_id, contact:contacts!inner ( ${STAKEHOLDER_COLUMNS} )`)
+          .in("milestone_id", milestoneIds)
+          .is("contact.deleted_at", null)
+      : Promise.resolve({ data: [] }),
+    docRows.some((d) => d.storage_path)
+      ? service.storage
+          .from("project-documents")
+          .createSignedUrls(docRows.filter((d) => d.storage_path).map((d) => d.storage_path as string), 60 * 60)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const signedByPath = new Map(
+    ((signedRes.data ?? []) as Array<{ path: string | null; signedUrl: string }>)
+      .filter((x) => x.path)
+      .map((x) => [x.path as string, x.signedUrl]),
+  );
+  const documentsSigned = docRows.map((d) =>
+    d.storage_path && signedByPath.get(d.storage_path) ? { ...d, url: signedByPath.get(d.storage_path) as string } : d,
+  );
+  const contributors = ((contribRes.data ?? []) as unknown as Array<{ profile: ProjectDetail["contributors"][number] | null }>)
+    .map((r) => r.profile)
+    .filter((x): x is ProjectDetail["contributors"][number] => !!x);
+  const milestoneContacts: Record<string, Stakeholder[]> = {};
+  for (const r of (msContactsRes.data ?? []) as unknown as Array<{ milestone_id: string; contact: Stakeholder }>) {
+    (milestoneContacts[r.milestone_id] ??= []).push(r.contact);
+  }
+
   type CommissionLinkRow = {
     id: string;
     commission: { id: string; nom: string; color: string; icon: string } | null;
@@ -324,7 +368,7 @@ export async function getProject(
     financings: (financings.data ?? []) as Financing[],
     milestones: (milestones.data ?? []) as Milestone[],
     lifecycle: (lifecycle.data ?? []) as ProjectLifecycleCost[],
-    documents: (documents.data ?? []) as ProjectDocument[],
+    documents: documentsSigned,
     subscribers: (subscribers.data ?? []) as unknown as ProjectDetail["subscribers"],
     phase_log: (phaseLog.data ?? []) as ProjectPhaseLog[],
     source_ticket: (sourceTicket.data ?? null) as ProjectDetail["source_ticket"],
@@ -338,6 +382,8 @@ export async function getProject(
         }
       : null,
     commissions: commissionsList,
+    contributors,
+    milestone_contacts: milestoneContacts,
   };
 }
 

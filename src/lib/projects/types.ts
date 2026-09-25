@@ -696,7 +696,10 @@ export interface Stakeholder {
   organisation: string | null;
   email: string | null;
   telephone: string | null;
+  /** Catégorie de partie prenante (contacts.categorie). */
   type: StakeholderType;
+  /** Nature du contact (contacts.type) : personne, entreprise, association… */
+  nature?: "personne" | "entreprise" | "collectivite" | "financeur" | "association";
   created_at: string;
 }
 
@@ -790,6 +793,10 @@ export interface ProjectDocument {
   storage_path: string | null;
   uploaded_by: string | null;
   uploaded_at: string;
+  /** Étape à laquelle la pièce est jointe (lot B). */
+  milestone_id?: string | null;
+  /** Note interne : exclue de la fiche communicable (CADA). */
+  note_interne?: boolean;
 }
 
 export interface Commission {

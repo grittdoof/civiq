@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { StakeholderType } from "@/lib/projects/types";
-import { contactTypeFromCategorie } from "@/lib/projects/contacts";
+import { CONTACT_TYPE_LABELS, contactTypeFromCategorie, type ContactType } from "@/lib/projects/contacts";
 import { STAKEHOLDER_COLUMNS } from "@/lib/projects/queries";
 
 // GET  /api/stakeholders     — annuaire commune (réutilisable)
@@ -32,6 +32,8 @@ interface CreateBody {
   email?: string | null;
   telephone?: string | null;
   type?: StakeholderType;
+  /** Nature du contact (sinon déduite de la catégorie). */
+  nature?: ContactType;
 }
 
 export async function POST(req: NextRequest) {
@@ -58,7 +60,7 @@ export async function POST(req: NextRequest) {
       email: body.email?.trim() || null,
       telephone: body.telephone?.trim() || null,
       categorie: body.type ?? "institutionnelle",
-      type: contactTypeFromCategorie(body.type ?? "institutionnelle"),
+      type: body.nature && body.nature in CONTACT_TYPE_LABELS ? body.nature : contactTypeFromCategorie(body.type ?? "institutionnelle"),
       source: "saisie",
       created_by: guard.userId,
     })

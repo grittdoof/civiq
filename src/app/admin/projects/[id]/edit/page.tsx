@@ -46,7 +46,7 @@ export default async function EditProjectPage({ params }: PageProps) {
         <h1 className="civiq-page-title">Modifier le projet</h1>
         <ProjectTypeChanger
           projectId={id}
-          currentType={p.type}
+          currentType={p.type_code ?? "suivi_simple"}
           canEdit={["admin", "editor", "super_admin"].includes(ctx.role ?? "")}
         />
       </div>
