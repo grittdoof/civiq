@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
 import type { ProjectCompetence, ProjectType } from "@/lib/projects/types";
 import { FOURCHETTES, type Fourchette } from "@/lib/projects/wizard";
+import { parseMontant } from "@/lib/projects/money-validation";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 // ═══════════════════════════════════════════════════════════════
@@ -64,6 +65,13 @@ interface PatchBody {
   blocs_supplementaires?: string[];
   avancement_manuel_pct?: number | null;
   avancement_manuel_motif?: string | null;
+  // Lot C (migration 041)
+  emprunt_prevu?: number | string | null;
+  autofinancement_invest?: number | string | null;
+  autofinancement_fonct?: number | string | null;
+  autofinancement_assume?: boolean;
+  date_consultation?: string | null;
+  categorie_achat?: "travaux" | "fournitures_services";
   phase_not_applicable?: Record<string, string>;
   phase_progress?: Record<
     string,
@@ -182,6 +190,33 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const b = Array.isArray(body.blocs_supplementaires) ? body.blocs_supplementaires.filter((x) => x === "devis") : [];
     updates.blocs_supplementaires = [...new Set(b)];
   }
+  // ─── Lot C : plan de financement ───
+  for (const key of ["emprunt_prevu", "autofinancement_invest", "autofinancement_fonct"] as const) {
+    if (!(key in body)) continue;
+    const m = parseMontant(body[key]);
+    if (m === undefined || Number.isNaN(m)) return NextResponse.json({ error: "Montant invalide" }, { status: 400 });
+    updates[key] = m;
+  }
+  if (typeof body.autofinancement_assume === "boolean") {
+    // Qui a coché, et quand : c'est ce qui lève le verrou du démarrage des travaux.
+    Object.assign(updates, {
+      autofinancement_assume: body.autofinancement_assume,
+      autofinancement_assume_par: guard.userId,
+      autofinancement_assume_le: new Date().toISOString(),
+    });
+  }
+  if ("date_consultation" in body) {
+    const d = body.date_consultation || null;
+    if (d !== null && !/^\d{4}-\d{2}-\d{2}$/.test(d)) return NextResponse.json({ error: "Date invalide" }, { status: 400 });
+    updates.date_consultation = d;
+  }
+  if ("categorie_achat" in body) {
+    if (body.categorie_achat !== "travaux" && body.categorie_achat !== "fournitures_services") {
+      return NextResponse.json({ error: "Catégorie d'achat inconnue" }, { status: 400 });
+    }
+    updates.categorie_achat = body.categorie_achat;
+  }
+
   // Avancement ajusté à la main : motif obligatoire, auteur et date tracés.
   if ("avancement_manuel_pct" in body) {
     const pct = body.avancement_manuel_pct;

@@ -241,7 +241,7 @@ export default function ProjectWizard({ types, commissions, people, associations
       ...draft,
       type_code: draft.type_code,
       jauge: draft.jauge,
-      jalons: jalons.filter((j) => j.coche).map((j) => ({ libelle: j.libelle, date_previsionnelle: j.date_previsionnelle })),
+      jalons: jalons.filter((j) => j.coche).map((j) => ({ libelle: j.libelle, date_previsionnelle: j.date_previsionnelle, verrou: j.verrou })),
     };
     const v = validateWizard(input);
     if (!v.ok) {

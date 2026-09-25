@@ -799,3 +799,18 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - **SVG + tokens** : l'attribut `fill` ne résout pas `var(--x)` → passer les couleurs recharts par CSS (`.pj-gauge …`).
 - Statuts d'étape : fonds `STATUT_COLORS` des tickets, **texte foncé** (l'orange #F59E0B des tickets est à ~2:1).
 - `milestones.phase` reste renseignée par l'ancienne interface (toutes les phases des 3 gabarits acceptées) ; les étapes du nouvel écran n'ont pas de phase.
+
+### Lot C — argent : budget, devis, seuils, plan de financement (branche `claude/projets-lot-c`)
+- **041** (⚠ à appliquer AU MOMENT du merge : contraintes que l'ancien code ne respecte pas) :
+  - `seuils_commande_publique` (table globale versionnée par date d'effet, seed du brief **à revérifier**) + `seuil_applicable()` ; écran `/super-admin/seuils` (nouvelle valeur = clôture de l'ancienne, jamais d'écrasement) + rappel annuel en janvier.
+  - Budget : `base` (HT investissement / TTC événement), `taux_tva`, `etat` prévu → engagé → payé, `section`, `chapitre_m57`, `operation` ; montants HT/TTC **générés**.
+  - Devis : `montant_ht` obligatoire (CHECK), TTC calculé par trigger, `contact_id` (entreprise), `lot`, `date_reception`, `validite` ; un seul retenu par lot (index unique partiel).
+  - Plan : `emprunt_prevu`, `autofinancement_invest|fonct`, `autofinancement_assume` (+ par/le), `date_consultation`, `categorie_achat` ; `project_financement()` (service role) calcule plan + contrôles 20 % / 80 %.
+  - **Verrou** `milestones.verrou = 'commencement_execution'` : trigger `trg_milestones_zz_commencement` (nommé « zz » pour passer après la synchro `fait`→`statut`) refuse en cours/terminé sans accusé de réception non refusé ni autofinancement assumé → API 409 `{ alerte }` (message doctrine `ALERTE_COMMENCEMENT`).
+- Logique pure : `marches.ts` (seuil à la date de consultation, 3 alertes distinctes, silence si paramètre vide), `financement.ts` (miroir 1:1 de `project_financement`), `money-validation.ts` (HT obligatoire, statuts de subvention).
+- UI : `BudgetEditor`, `DevisComparator`, `SubventionsEditor` (accusé de réception central, relance > 21 jours), `PlanFinancement` (recalcul instantané, valeur serveur après enregistrement) ; badges du bandeau (délibération nécessaire, part communale < 20 %, subvention sans accusé de réception) ; jauge « Budget consommé » = engagé / prévu.
+
+#### Points d'attention (lot C)
+- **Toute évolution du calcul du plan se fait des deux côtés** : SQL `project_financement` et TS `calculerPlan`.
+- L'ancienne vue par phases (`QuotesComparator`) ne sait pas saisir le HT obligatoire : l'écran de vie est la voie normale.
+- Un événement n'affiche jamais ni plan de financement, ni FCTVA, ni contrôle 20 % (critère d'acceptation).

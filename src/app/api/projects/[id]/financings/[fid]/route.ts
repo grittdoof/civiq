@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import type { FinancingStatus, FinancingEligibility } from "@/lib/projects/types";
+import { parseFinancing } from "@/lib/projects/money-validation";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 // PATCH/DELETE une ligne de financement.
@@ -10,49 +10,17 @@ import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 interface RouteParams { params: Promise<{ id: string; fid: string }>; }
 
-interface PatchBody {
-  financeur?: string;
-  dispositif?: string | null;
-  montant_demande?: number | null;
-  montant_obtenu?: number | null;
-  statut?: FinancingStatus;
-  date_demande?: string | null;
-  date_ar?: string | null;
-  date_decision?: string | null;
-  // Suivi détaillé éligibilité
-  definition_commencement?: string | null;
-  date_notification_marche?: string | null;
-  date_ordre_service?: string | null;
-  eligibilite?: FinancingEligibility;
-  eligibilite_note?: string | null;
-  taux?: number | null;
-  plafond?: number | null;
-  deadline_depot?: string | null;
-  notes?: string | null;
-}
-
-const ALLOWED = new Set<keyof PatchBody>([
-  "financeur", "dispositif", "montant_demande", "montant_obtenu", "statut",
-  "date_demande", "date_ar", "date_decision", "notes",
-  "definition_commencement", "date_notification_marche", "date_ordre_service",
-  "eligibilite", "eligibilite_note", "taux", "plafond", "deadline_depot",
-]);
-
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const { id, fid } = await params;
   const access = await requireProjectEdit(id);
   if (!access.ok) return access.response;
 
-  let body: PatchBody = {};
+  let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
-
-  const updates: Record<string, unknown> = {};
-  for (const k of Object.keys(body) as (keyof PatchBody)[]) {
-    if (!ALLOWED.has(k)) continue;
-    const v = body[k];
-    if (typeof v === "string") updates[k] = v.trim() || null;
-    else updates[k] = v;
-  }
+  const parsed = parseFinancing(body, false);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const updates: Record<string, unknown> = { ...parsed.value };
+  if (Object.keys(updates).length === 0) return NextResponse.json({ error: "Aucune modification" }, { status: 400 });
 
   const service = await createServiceClient();
   const { data: previous } = await service
@@ -63,11 +31,18 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .eq("project_id", id)
     .maybeSingle();
 
+  if (typeof updates.contact_id === "string") {
+    const { data: c } = await service
+      .from("contacts").select("id").eq("id", updates.contact_id).eq("commune_id", access.communeId).is("deleted_at", null).maybeSingle();
+    if (!c) return NextResponse.json({ error: "Financeur introuvable dans l'annuaire" }, { status: 404 });
+  }
+
   const { data, error } = await service
     .from("financings")
     .update(updates)
     .eq("id", fid)
     .eq("project_id", id)
+    .is("deleted_at", null)
     .select("*")
     .maybeSingle();
 
@@ -76,12 +51,12 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
   // Notif sur changement de statut (accordee / refusee notamment)
   if (
-    typeof body.statut === "string" &&
-    previous?.statut !== body.statut &&
-    (body.statut === "accordee" || body.statut === "refusee")
+    typeof parsed.value.statut === "string" &&
+    previous?.statut !== parsed.value.statut &&
+    (parsed.value.statut === "accordee" || parsed.value.statut === "refusee")
   ) {
     await writeAudit({
-      action: `project.financing.${body.statut}`,
+      action: `project.financing.${parsed.value.statut}`,
       targetType: "project",
       targetId: id,
       communeId: access.communeId,

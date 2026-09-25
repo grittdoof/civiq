@@ -2,16 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess, requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import type { BudgetCategorie, BudgetSens, ProjectPhase } from "@/lib/projects/types";
+import { parseBudgetLine } from "@/lib/projects/money-validation";
+
+// GET  /api/projects/:id/budget-lines
+// POST /api/projects/:id/budget-lines
+//
+// La base de saisie et la section budgétaire sont imposées par le type :
+//   investissement → HT, section d'investissement ;
+//   événement / suivi → TTC, section de fonctionnement.
 
 interface RouteParams { params: Promise<{ id: string }>; }
-
-const ALLOWED_SENS = new Set<BudgetSens>(["depense", "recette"]);
-const ALLOWED_CATEGORIES = new Set<BudgetCategorie>([
-  "buvette", "billetterie", "mecenat", "subvention",
-  "prestataire", "materiel", "location", "personnel",
-  "communication", "autre",
-]);
 
 export async function GET(_req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
@@ -28,41 +28,28 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ budget_lines: data ?? [] });
 }
 
-interface CreateBody {
-  phase?: ProjectPhase | null;
-  sens?: BudgetSens;
-  categorie?: BudgetCategorie | null;
-  libelle?: string;
-  montant_prevu?: number | null;
-  montant_reel?: number | null;
-  notes?: string | null;
-}
-
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const access = await requireProjectEdit(id);
   if (!access.ok) return access.response;
 
-  let body: CreateBody = {};
+  let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
-
-  const libelle = body.libelle?.trim();
-  if (!libelle) return NextResponse.json({ error: "Libellé requis" }, { status: 400 });
-  if (!body.sens || !ALLOWED_SENS.has(body.sens)) return NextResponse.json({ error: "Sens invalide (depense/recette)" }, { status: 400 });
-  if (body.categorie && !ALLOWED_CATEGORIES.has(body.categorie)) return NextResponse.json({ error: "Catégorie invalide" }, { status: 400 });
+  const parsed = parseBudgetLine(body, true);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const service = await createServiceClient();
+  const { data: project } = await service.from("projects").select("type_code").eq("id", id).maybeSingle();
+  const invest = project?.type_code === "investissement";
+
   const { data, error } = await service
     .from("project_budget_lines")
     .insert({
       project_id: id,
-      phase: body.phase ?? null,
-      sens: body.sens,
-      categorie: body.categorie ?? null,
-      libelle,
-      montant_prevu: body.montant_prevu ?? null,
-      montant_reel: body.montant_reel ?? null,
-      notes: body.notes?.trim() || null,
+      ...parsed.value,
+      base: invest ? "ht" : "ttc",
+      section: invest ? "investissement" : "fonctionnement",
+      created_by: access.userId,
     })
     .select("*")
     .single();
@@ -73,7 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     targetType: "project",
     targetId: id,
     communeId: access.communeId,
-    metadata: { budget_line_id: data.id, sens: body.sens },
+    metadata: { budget_line_id: data.id, sens: data.sens, etat: data.etat },
   });
   return NextResponse.json({ budget_line: data });
 }

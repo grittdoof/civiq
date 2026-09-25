@@ -6,25 +6,24 @@ import "../flow.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { getProject, listStakeholders } from "@/lib/projects/queries";
-import {
-  BUDGET_CATEGORIE_LABELS,
-  FINANCING_STATUS_LABELS,
-  type BudgetCategorie,
-  type FinancingStatus,
-  type TypeProjetCode,
-} from "@/lib/projects/types";
+import { getCommuneSettings, getProject, listStakeholders } from "@/lib/projects/queries";
+import type { TypeProjetCode } from "@/lib/projects/types";
 import {
   avancementAffiche, formatEtapeDate, isEnRetard, joursAvant, libelleCompteARebours,
 } from "@/lib/projects/etapes";
 import { FOURCHETTES } from "@/lib/projects/wizard";
 import { formatEuros } from "@/lib/projects/cost-calc";
+import { consommationBudget, subventionSansAr, totauxBudget, type PlanFinancement as Plan } from "@/lib/projects/financement";
+import { evaluerAlertesMarches, montantReferenceMarche, type Seuil } from "@/lib/projects/marches";
 import TypeBadge from "@/components/projects/TypeBadge";
 import Gauge from "@/components/projects/GaugeLazy";
 import EtapesEditor from "@/components/projects/EtapesEditor";
 import PartiesPrenantesEditor from "@/components/projects/PartiesPrenantesEditor";
 import DocumentsEditor from "@/components/projects/DocumentsEditor";
-import QuotesComparator from "@/components/projects/QuotesComparator";
+import DevisComparator, { type DevisRow } from "@/components/projects/DevisComparator";
+import BudgetEditor, { type BudgetRow } from "@/components/projects/BudgetEditor";
+import SubventionsEditor, { type SubventionRow } from "@/components/projects/SubventionsEditor";
+import PlanFinancement from "@/components/projects/PlanFinancement";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import ProjectTypeChanger from "@/components/projects/ProjectTypeChanger";
 import AvancementAjuster from "@/components/projects/AvancementAjuster";
@@ -37,9 +36,10 @@ import SuiviActions from "@/components/projects/SuiviActions";
 // événement) ; le reste en onglets secondaires selon le type. Bandeau
 // compact : photo, titre, type, commission, élu référent, deux jauges.
 //
-// Transition : Budget / Financeurs seront reconstruits au lot C ; ils
-// affichent ici les données existantes et renvoient vers l'ancienne vue
-// détaillée (/phase/…) pour les modifier.
+// Lot C : Budget (HT pour un investissement, TTC pour un événement),
+// Devis (seuils datés, délégation au maire), Financeurs (accusés de
+// réception) et Plan de financement (contrôles 20 % / 80 % côté serveur).
+// Un événement n'affiche jamais ni plan de financement, ni FCTVA.
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -83,12 +83,26 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   if (!p) notFound();
 
   const service = await createServiceClient();
-  const { data: budgetLines } = await service
-    .from("project_budget_lines")
-    .select("id, sens, categorie, libelle, montant_prevu, montant_reel")
-    .is("deleted_at", null)
-    .eq("project_id", id)
-    .order("created_at");
+  const [{ data: budgetData }, { data: quotesData }, { data: seuilsData }, settings, { data: planData }, { data: financingsData }] =
+    await Promise.all([
+      service.from("project_budget_lines")
+        .select("id, sens, categorie, libelle, montant_prevu, montant_reel, base, taux_tva, etat, chapitre_m57, operation, notes")
+        .is("deleted_at", null).eq("project_id", id).order("created_at"),
+      service.from("project_quotes")
+        .select("id, prestataire, contact_id, objet, lot, montant_ht, taux_tva, montant_ttc, date_reception, validite, statut, document_id, notes")
+        .is("deleted_at", null).eq("project_id", id).order("lot", { nullsFirst: true }).order("montant_ht"),
+      service.from("seuils_commande_publique").select("categorie, type, montant_ht, date_effet, date_fin, reference"),
+      getCommuneSettings(ctx.communeId),
+      service.rpc("project_financement", { p_project_id: id }),
+      service.from("financings")
+        .select("id, financeur, dispositif, statut, assiette_ht, montant_demande, montant_obtenu, date_demande, date_ar, date_decision, notes")
+        .is("deleted_at", null).eq("project_id", id).order("created_at"),
+    ]);
+  const budgetRows = (budgetData ?? []) as unknown as BudgetRow[];
+  const devisRows = (quotesData ?? []) as unknown as DevisRow[];
+  const seuils = ((seuilsData ?? []) as unknown as Seuil[]).map((x) => ({ ...x, montant_ht: Number(x.montant_ht) }));
+  const subventions = (financingsData ?? []) as unknown as SubventionRow[];
+  const serverPlan = (planData ?? null) as Plan | null;
 
   const canEdit = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
   const type = (p.type_code ?? "suivi_simple") as TypeProjetCode;
@@ -111,6 +125,46 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   const now = new Date();
   const retards = detail.milestones.filter((m) => isEnRetard(m, now)).length;
   const legacyHref = `/admin/projects/${id}/phase/${p.phase}`;
+  const extC = p as typeof p & {
+    date_consultation?: string | null;
+    categorie_achat?: "travaux" | "fournitures_services";
+    emprunt_prevu?: number | null;
+    autofinancement_invest?: number | null;
+    autofinancement_fonct?: number | null;
+    autofinancement_assume?: boolean;
+    autofinancement_assume_par?: string | null;
+    autofinancement_assume_le?: string | null;
+  };
+  const baseBudget = type === "investissement" ? "ht" : "ttc";
+  const totaux = totauxBudget(budgetRows, baseBudget);
+  const consommation = consommationBudget(totaux);
+  const parametresMarches = {
+    seuil_delegation_maire_ht: settings.seuil_delegation_maire_ht,
+    delegation_deliberation_num: settings.delegation_deliberation_num,
+    delegation_deliberation_date: settings.delegation_deliberation_date,
+    regles_internes_actives: settings.regles_internes_actives,
+    nb_devis_exige: settings.nb_devis_exige,
+    seuil_devis_exige_ht: settings.seuil_devis_exige_ht,
+  };
+  const dateConsultation = extC.date_consultation
+    ?? devisRows.map((d) => d.date_reception).filter((d): d is string => !!d).sort()[0]
+    ?? new Date().toISOString().slice(0, 10);
+  const alertesMarches = type === "evenementiel" ? [] : evaluerAlertesMarches({
+    montantHt: montantReferenceMarche(devisRows, type === "investissement" ? totaux.prevu : null).montant,
+    categorie: extC.categorie_achat ?? "travaux",
+    dateConsultation,
+    nbDevis: devisRows.length,
+    seuils,
+    parametres: parametresMarches,
+  });
+  const delegationDepassee = alertesMarches.some((a) => a.code === "delegation");
+  const partCommuneKo = type === "investissement" && serverPlan?.controle_part_commune_ok === false;
+  const subventionsSansAr = subventions.filter((s) => subventionSansAr(s, now)).length;
+  let assumePar: string | null = null;
+  if (extC.autofinancement_assume && extC.autofinancement_assume_par) {
+    const { data: prof } = await service.from("profiles").select("full_name").eq("id", extC.autofinancement_assume_par).maybeSingle();
+    assumePar = (prof?.full_name as string | null) ?? null;
+  }
   const jours = ext.evenement_debut ? joursAvant(ext.evenement_debut, now) : null;
   const archived = !!p.archived_at;
 
@@ -144,6 +198,11 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             )}
             {retards > 0 && (
               <span className="civiq-badge civiq-badge-warning">{retards} étape{retards > 1 ? "s" : ""} en retard</span>
+            )}
+            {delegationDepassee && <span className="civiq-badge civiq-badge-error">Délibération du conseil nécessaire</span>}
+            {partCommuneKo && <span className="civiq-badge civiq-badge-error">Part communale sous 20 %</span>}
+            {subventionsSansAr > 0 && (
+              <span className="civiq-badge civiq-badge-warning">Subvention sans accusé de réception</span>
             )}
           </div>
           <h1 className="pj-life-title">{p.titre}</h1>
@@ -201,7 +260,12 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             )}
           </div>
           {type !== "suivi_simple" && (
-            <Gauge label="Budget consommé" pct={null} hint="Montant engagé / budget prévu, dès que le budget sera saisi" color="var(--success)" />
+            <Gauge
+              label="Budget consommé"
+              pct={consommation}
+              hint={consommation === null ? "Dès que le budget sera saisi" : `${formatEuros(totaux.engage)} engagés sur ${formatEuros(totaux.prevu)} ${baseBudget === "ht" ? "HT" : "TTC"}`}
+              color="var(--success)"
+            />
           )}
         </div>
       </header>
@@ -255,72 +319,51 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         )}
 
         {current === "devis" && (
-          <section aria-labelledby="devis-titre">
-            <h2 id="devis-titre" className="pj-section-title">Devis</h2>
-            <QuotesComparator projectId={id} phase={p.phase} canEdit={canEdit && !archived} />
-          </section>
+          <DevisComparator
+            projectId={id}
+            initial={devisRows}
+            documents={detail.documents.map((d) => ({ id: d.id, nom: d.nom, url: d.url }))}
+            entreprises={directory.filter((c) => c.nature === "entreprise" || c.type === "technique")}
+            canEdit={canEdit && !archived}
+            seuils={seuils}
+            parametres={parametresMarches}
+            categorieAchat={extC.categorie_achat ?? "travaux"}
+            dateConsultation={extC.date_consultation ?? null}
+            estimationHt={type === "investissement" ? totaux.prevu : null}
+          />
         )}
 
         {current === "budget" && (
-          <section aria-labelledby="budget-titre">
-            <h2 id="budget-titre" className="pj-section-title">
-              {type === "evenementiel" ? "Budget de l'événement" : "Budget"}
-            </h2>
-            {(budgetLines ?? []).length === 0 ? (
-              <p className="pj-section-empty">Aucune ligne de budget pour l&apos;instant.</p>
-            ) : (
-              <div className="pj-table-wrap">
-                <table className="pj-table">
-                  <caption className="pj-sr-only">Lignes de budget</caption>
-                  <thead><tr><th scope="col">Sens</th><th scope="col">Catégorie</th><th scope="col">Libellé</th><th scope="col">Prévu</th><th scope="col">Réel</th></tr></thead>
-                  <tbody>
-                    {(budgetLines ?? []).map((b) => (
-                      <tr key={b.id}>
-                        <td>{b.sens === "recette" ? "Recette" : "Dépense"}</td>
-                        <td>{b.categorie ? BUDGET_CATEGORIE_LABELS[b.categorie as BudgetCategorie] : "—"}</td>
-                        <td>{b.libelle}</td>
-                        <td>{b.montant_prevu === null ? "—" : formatEuros(Number(b.montant_prevu))}</td>
-                        <td>{b.montant_reel === null ? "—" : formatEuros(Number(b.montant_reel))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <>
+            <BudgetEditor
+              projectId={id}
+              mode={type === "evenementiel" ? "evenementiel" : "investissement"}
+              initial={budgetRows}
+              canEdit={canEdit && !archived}
+            />
+            {type === "investissement" && (
+              <PlanFinancement
+                projectId={id}
+                serverPlan={serverPlan}
+                lignes={budgetRows}
+                subventions={subventions}
+                tauxFctva={settings.taux_fctva}
+                canEdit={canEdit && !archived}
+                initial={{
+                  emprunt_prevu: extC.emprunt_prevu ?? null,
+                  autofinancement_invest: extC.autofinancement_invest ?? null,
+                  autofinancement_fonct: extC.autofinancement_fonct ?? null,
+                  autofinancement_assume: !!extC.autofinancement_assume,
+                  autofinancement_assume_par_nom: assumePar,
+                  autofinancement_assume_le: extC.autofinancement_assume_le ?? null,
+                }}
+              />
             )}
-            <p className="pj-wiz-note">
-              La saisie du budget arrive dans une prochaine version de cet écran. En attendant, modifiez-le depuis la{" "}
-              <Link href={legacyHref}>vue détaillée</Link>.
-            </p>
-          </section>
+          </>
         )}
 
         {current === "financeurs" && (
-          <section aria-labelledby="fin-titre">
-            <h2 id="fin-titre" className="pj-section-title">Financeurs</h2>
-            {detail.financings.length === 0 ? (
-              <p className="pj-section-empty">Aucune demande de subvention enregistrée.</p>
-            ) : (
-              <ul className="pj-pp-list">
-                {detail.financings.map((f) => (
-                  <li key={f.id} className="pj-pp-item">
-                    <div>
-                      <p className="pj-pp-nom">{f.financeur}{f.dispositif ? ` — ${f.dispositif}` : ""}</p>
-                      <p className="pj-pp-meta">
-                        {FINANCING_STATUS_LABELS[f.statut as FinancingStatus]}
-                        {f.montant_demande ? ` · demandé ${formatEuros(Number(f.montant_demande))}` : ""}
-                        {f.montant_obtenu ? ` · obtenu ${formatEuros(Number(f.montant_obtenu))}` : ""}
-                        {` · accusé de réception : ${f.date_ar ? formatEtapeDate(`${f.date_ar}T00:00:00.000Z`) : "non enregistré"}`}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="pj-wiz-note">
-              Le suivi des subventions arrive dans une prochaine version de cet écran. En attendant, modifiez-le depuis la{" "}
-              <Link href={legacyHref}>vue détaillée</Link>.
-            </p>
-          </section>
+          <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !archived} />
         )}
       </div>
 

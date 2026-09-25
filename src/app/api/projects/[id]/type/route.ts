@@ -83,6 +83,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
           libelle: m.libelle,
           statut: "a_faire",
           ordre: start + i * 10,
+          verrou: m.verrou === "accuse_reception" || m.verrou === "commencement_execution" ? m.verrou : null,
           created_by: access.userId,
         })),
       );

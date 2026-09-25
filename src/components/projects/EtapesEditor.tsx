@@ -13,6 +13,8 @@ import {
   sortEtapes, sortRetroplanning, statutOf,
 } from "@/lib/projects/etapes";
 import FieldHelp from "./FieldHelp";
+import AlerteBlock from "./AlerteBlock";
+import type { Alerte } from "@/lib/projects/type-change";
 
 // ═══════════════════════════════════════════════════════════════
 // Étapes d'un projet (brief §2.4) — commun aux trois types.
@@ -66,6 +68,7 @@ export default function EtapesEditor({
   const [contacts, setContacts] = useState<Record<string, Stakeholder[]>>(contactsByEtape);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [blocage, setBlocage] = useState<{ alerte: Alerte; enSavoirPlus: string[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   // Formulaire d'ajout (une ligne)
@@ -92,7 +95,14 @@ export default function EtapesEditor({
         body: JSON.stringify(fields),
       });
       const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && json.alerte) {
+        // Refus serveur (verrou du commencement d'exécution) : message structuré.
+        setEtapes(before);
+        setBlocage({ alerte: json.alerte, enSavoirPlus: json.enSavoirPlus ?? [] });
+        return;
+      }
       if (!res.ok) throw new Error(json.error ?? "La modification n'a pas été enregistrée.");
+      setBlocage(null);
       if (json.milestone) setEtapes((l) => l.map((e) => (e.id === id ? json.milestone : e)));
       router.refresh();
     } catch (e) {
@@ -209,6 +219,14 @@ export default function EtapesEditor({
       </div>
 
       {error && <p className="pj-modal-error" role="alert">{error}</p>}
+      {blocage && (
+        <AlerteBlock
+          alerte={blocage.alerte}
+          registre="obligatoire"
+          role="alert"
+          enSavoirPlus={blocage.enSavoirPlus.length ? blocage.enSavoirPlus.map((p) => <p key={p}>{p}</p>) : undefined}
+        />
+      )}
 
       {list.length === 0 ? (
         <p className="pj-section-empty">
