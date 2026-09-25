@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { PROJECT_PHASES_BY_TYPE, type ProjectPhase } from "@/lib/projects/types";
 import { parseEtapeFields } from "@/lib/projects/etapes";
+import { ALERTE_COMMENCEMENT, ALERTE_COMMENCEMENT_SAVOIR, isErreurCommencement } from "@/lib/projects/financement";
 
 // GET  /api/projects/:id/milestones
 // POST /api/projects/:id/milestones
@@ -74,6 +75,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .select("*")
     .single();
 
+  if (isErreurCommencement(error?.message)) {
+    return NextResponse.json({ alerte: ALERTE_COMMENCEMENT, enSavoirPlus: ALERTE_COMMENCEMENT_SAVOIR }, { status: 409 });
+  }
   if (error || !data) return NextResponse.json({ error: error?.message ?? "Erreur" }, { status: 500 });
   await writeAudit({
     action: "project.milestone.created",

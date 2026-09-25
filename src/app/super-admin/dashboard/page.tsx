@@ -99,6 +99,13 @@ export default function SuperAdminDashboard() {
         </div>
       </header>
 
+      {new Date().getMonth() === 0 && (
+        <p className="civiq-card" role="status" style={{ padding: "12px 16px", margin: "0 0 16px", borderLeft: "4px solid var(--accent)" }}>
+          <strong>Rappel annuel :</strong> les seuils européens de commande publique sont révisés tous les deux ans.{" "}
+          <Link href="/super-admin/seuils">Vérifier les seuils</Link>
+        </p>
+      )}
+
       {/* KPIs */}
       <div className="sa-stats">
         <StatCard icon={<Building2 size={18} />} value={liveCommunes.length} label="Communes inscrites" sub={archivedCount ? `${archivedCount} archivée${archivedCount > 1 ? "s" : ""}` : `${activeCommunes} actives`} bg="oklch(0.95 0.04 258)" />

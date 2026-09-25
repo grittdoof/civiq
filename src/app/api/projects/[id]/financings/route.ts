@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectAccess, requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import type { FinancingStatus } from "@/lib/projects/types";
+import { parseFinancing } from "@/lib/projects/money-validation";
+import { findOrCreateContact } from "@/lib/projects/contacts";
 
 // ═══════════════════════════════════════════════════════════════
 // GET  /api/projects/:id/financings   — liste les subventions
@@ -25,58 +26,32 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ financings: data ?? [] });
 }
 
-interface CreateBody {
-  financeur?: string;
-  dispositif?: string | null;
-  montant_demande?: number | null;
-  montant_obtenu?: number | null;
-  statut?: FinancingStatus;
-  date_demande?: string | null;
-  date_ar?: string | null;
-  date_decision?: string | null;
-  definition_commencement?: string | null;
-  date_notification_marche?: string | null;
-  date_ordre_service?: string | null;
-  eligibilite_note?: string | null;
-  taux?: number | null;
-  plafond?: number | null;
-  deadline_depot?: string | null;
-  notes?: string | null;
-}
-
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
   const access = await requireProjectEdit(id);
   if (!access.ok) return access.response;
 
-  let body: CreateBody = {};
+  let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
-
-  const financeur = body.financeur?.trim();
-  if (!financeur) return NextResponse.json({ error: "Le financeur est obligatoire" }, { status: 400 });
+  const parsed = parseFinancing(body, true);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const service = await createServiceClient();
+  const fields = { ...parsed.value };
+  if (fields.contact_id) {
+    const { data: c } = await service
+      .from("contacts").select("id").eq("id", fields.contact_id).eq("commune_id", access.communeId).is("deleted_at", null).maybeSingle();
+    if (!c) return NextResponse.json({ error: "Financeur introuvable dans l'annuaire" }, { status: 404 });
+  } else if (fields.financeur) {
+    const c = await findOrCreateContact(service, {
+      communeId: access.communeId, nom: fields.financeur, type: "financeur", categorie: "financeur", source: "saisie", createdBy: access.userId,
+    });
+    if (c) fields.contact_id = c.id;
+  }
+
   const { data, error } = await service
     .from("financings")
-    .insert({
-      project_id: id,
-      financeur,
-      dispositif: body.dispositif?.trim() || null,
-      montant_demande: body.montant_demande ?? null,
-      montant_obtenu: body.montant_obtenu ?? null,
-      statut: body.statut ?? "a_demander",
-      date_demande: body.date_demande || null,
-      date_ar: body.date_ar || null,
-      date_decision: body.date_decision || null,
-      definition_commencement: body.definition_commencement?.trim() || null,
-      date_notification_marche: body.date_notification_marche || null,
-      date_ordre_service: body.date_ordre_service || null,
-      eligibilite_note: body.eligibilite_note?.trim() || null,
-      taux: body.taux ?? null,
-      plafond: body.plafond ?? null,
-      deadline_depot: body.deadline_depot || null,
-      notes: body.notes?.trim() || null,
-    })
+    .insert({ project_id: id, statut: "a_demander", ...fields })
     .select("*")
     .single();
 
@@ -87,7 +62,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     targetType: "project",
     targetId: id,
     communeId: access.communeId,
-    metadata: { financing_id: data.id, financeur, statut: data.statut },
+    metadata: { financing_id: data.id, financeur: data.financeur, statut: data.statut },
   });
 
   return NextResponse.json({ financing: data });

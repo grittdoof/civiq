@@ -39,6 +39,8 @@ export interface JalonPropose {
   conditionnel: boolean;
   aide: string | null;
   offset_jours: number | null;
+  /** Verrou serveur porté par l'étape (ex. commencement d'exécution). */
+  verrou: string | null;
 }
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -67,6 +69,7 @@ export function proposerJalons(modeles: JalonModele[], dateEvenement?: string | 
       conditionnel: !!m.conditionnel,
       aide: m.aide ?? null,
       offset_jours: offset,
+      verrou: m.verrou ?? null,
     };
   });
 }
@@ -78,9 +81,9 @@ export function formatOffset(offset: number): string {
 }
 
 // ─── Encart « Ce que la loi impose ici » (récapitulatif investissement) ───
-// Seuils de dispense de publicité en vigueur au 25/09/2026 (brief §2.7,
-// à revérifier) ; le lot C les lira dans la table versionnée
-// seuils_commande_publique au lieu de ces constantes.
+// Valeurs par défaut (en vigueur au 25/09/2026) pour l'assistant de
+// création ; l'écran de vie passe les seuils lus dans la table versionnée
+// seuils_commande_publique, à la date de la consultation (marches.ts).
 export const SEUILS_REFERENCE = {
   travaux_dispense_ht: 100_000,
   fournitures_services_dispense_ht: 60_000,
@@ -99,9 +102,12 @@ export interface EncartMarches {
 
 const fmt = (n: number) => `${n.toLocaleString("fr-FR")} €`;
 
-export function encartMarchesPublics(f: Fourchette | null | undefined): EncartMarches | null {
+export function encartMarchesPublics(
+  f: Fourchette | null | undefined,
+  seuils: typeof SEUILS_REFERENCE = SEUILS_REFERENCE,
+): EncartMarches | null {
   if (!f) return null;
-  const s = SEUILS_REFERENCE;
+  const s = seuils;
   const recommande =
     "Recommandé : demandez tout de même plusieurs devis. La commune ne doit pas confier systématiquement ses achats à la même entreprise lorsque plusieurs peuvent répondre au besoin.";
   const savoir = [
@@ -185,7 +191,7 @@ export interface WizardInput {
   lieu?: string | null;
   jauge?: number | string | null;
   partenaires?: string[];
-  jalons?: Array<{ libelle: string; date_previsionnelle: string | null }>;
+  jalons?: Array<{ libelle: string; date_previsionnelle: string | null; verrou?: string | null }>;
   source_ticket_id?: string | null;
 }
 
@@ -206,7 +212,7 @@ export interface WizardPayload {
   lieu: string | null;
   jauge: number | null;
   partenaires: string[];
-  jalons: Array<{ libelle: string; date_previsionnelle: string | null }>;
+  jalons: Array<{ libelle: string; date_previsionnelle: string | null; verrou: string | null }>;
   source_ticket_id: string | null;
 }
 
@@ -262,7 +268,11 @@ export function validateWizard(input: WizardInput): WizardValidation {
   }
 
   const jalons = (input.jalons ?? [])
-    .map((j) => ({ libelle: (j.libelle ?? "").trim(), date_previsionnelle: j.date_previsionnelle ?? null }))
+    .map((j) => ({
+      libelle: (j.libelle ?? "").trim(),
+      date_previsionnelle: j.date_previsionnelle ?? null,
+      verrou: j.verrou === "accuse_reception" || j.verrou === "commencement_execution" ? j.verrou : null,
+    }))
     .filter((j) => j.libelle)
     .slice(0, 50);
 

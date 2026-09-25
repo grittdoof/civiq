@@ -4855,3 +4855,75 @@ a.pj-commission-badge:hover {
   .pj-life-panel { padding: 14px; }
   .pj-life-head { padding: 16px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Lot C — budget, devis, plan de financement, subventions
+   ═══════════════════════════════════════════════════════════════ */
+.pj-budget, .pj-devis, .pj-plan, .pj-subv { display: flex; flex-direction: column; gap: 12px; }
+.pj-plan { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pj-budget-totaux { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pj-budget-totaux > div { background: var(--bg); border-radius: var(--radius); padding: 10px 12px; }
+.pj-budget-totaux dt { font-size: 12px; color: var(--fg-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.pj-budget-totaux dd { margin: 2px 0 0; font-size: 18px; font-weight: 800; color: var(--fg); }
+.pj-solde-positif { border-left: 4px solid var(--success); }
+.pj-solde-positif dd { color: var(--success); }
+.pj-solde-negatif { border-left: 4px solid var(--destructive); }
+.pj-solde-negatif dd { color: var(--destructive); }
+.pj-budget-section { display: flex; flex-direction: column; gap: 8px; }
+.pj-budget-section-title { margin: 8px 0 0; font-size: 15px; font-weight: 700; }
+.pj-budget-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pj-budget-item { display: flex; gap: 12px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; flex-wrap: wrap; }
+.pj-budget-item-main { flex: 1 1 200px; min-width: 0; }
+.pj-budget-libelle { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.pj-budget-meta { margin: 2px 0 0; font-size: 13px; color: var(--fg-muted); }
+.pj-budget-amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.pj-budget-amount { font-weight: 800; }
+.pj-budget-amount small { font-weight: 600; color: var(--fg-muted); font-size: 12px; }
+.pj-budget-sub { font-size: 12px; color: var(--fg-muted); }
+.pj-budget-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.pj-budget-etat { width: auto; }
+.pj-budget-reel { width: 120px; }
+.pj-budget-etat-label { font-size: 13px; font-weight: 700; }
+.pj-budget-add { border: 1px dashed var(--border); border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pj-budget-add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pj-budget-add-lib { flex: 1 1 220px; min-width: 0; }
+.pj-budget-add-m { width: 140px; }
+.pj-budget-add-row .civiq-select { width: auto; }
+.pj-budget-more summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); }
+.pj-budget-more[open] { display: flex; flex-direction: column; gap: 8px; }
+
+.pj-devis-consultation { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.pj-devis-table tr.is-retenu td { background: var(--success-light); }
+.pj-devis-moins-cher { font-size: 12px; font-weight: 600; color: var(--success); }
+.pj-devis-lot { display: flex; flex-direction: column; gap: 6px; }
+
+.pj-plan-controles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pj-plan-controle { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.pj-plan-controle-titre { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
+.pj-controle { margin: 0; display: flex; gap: 6px; align-items: flex-start; line-height: 1.45; font-size: 14px; }
+.pj-controle svg { flex: none; margin-top: 2px; }
+.pj-controle-ok { color: var(--success); }
+.pj-controle-ko { color: var(--destructive); }
+.pj-controle-ok strong, .pj-controle-ko strong { white-space: nowrap; }
+.pj-controle-neutre { color: var(--fg-muted); }
+.pj-plan-table th { text-align: left; font-weight: 600; }
+.pj-plan-table td { text-align: right; font-weight: 700; white-space: nowrap; }
+.pj-plan-reste-ko td, .pj-plan-reste-ko th { color: var(--destructive); }
+.pj-plan-reste-ok td { color: var(--success); }
+.pj-plan-assume { display: flex; flex-direction: column; gap: 6px; }
+
+.pj-subv-item { display: flex; flex-direction: column; }
+.pj-subv-sans-ar { color: var(--destructive); }
+.pj-subv-add summary { list-style: none; display: inline-flex; cursor: pointer; }
+.pj-subv-add summary::-webkit-details-marker { display: none; }
+.pj-subv-add[open] summary { margin-bottom: 8px; }
+
+@media (max-width: 760px) {
+  .pj-devis-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .pj-devis-table, .pj-devis-table tbody, .pj-devis-table tr, .pj-devis-table td { display: block; width: 100%; }
+  .pj-devis-table tr { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; padding: 8px 10px; }
+  .pj-devis-table td { border: 0; padding: 3px 0; display: flex; justify-content: space-between; gap: 12px; }
+  .pj-devis-table td[data-label]::before { content: attr(data-label); font-weight: 600; color: var(--fg-muted); font-size: 13px; }
+  .pj-budget-amounts { align-items: flex-start; }
+  .pj-plan-table td { white-space: normal; }
+}

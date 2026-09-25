@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { parseEtapeFields } from "@/lib/projects/etapes";
+import { ALERTE_COMMENCEMENT, ALERTE_COMMENCEMENT_SAVOIR, isErreurCommencement } from "@/lib/projects/financement";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 interface RouteParams { params: Promise<{ id: string; mid: string }>; }
@@ -41,6 +42,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .select("*")
     .maybeSingle();
 
+  if (isErreurCommencement(error?.message)) {
+    return NextResponse.json({ alerte: ALERTE_COMMENCEMENT, enSavoirPlus: ALERTE_COMMENCEMENT_SAVOIR }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Étape introuvable" }, { status: 404 });
 
