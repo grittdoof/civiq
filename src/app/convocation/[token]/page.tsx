@@ -7,6 +7,7 @@ import { getBaseUrl } from "@/lib/base-url";
 import { formatSessionDate, googleCalendarUrl, outlookCalendarUrl } from "@/lib/projects/convocation";
 import { calendarInputFor, loadSessionContext } from "@/lib/projects/convocation-send";
 import RsvpForm from "./RsvpForm";
+import { toRichHtml } from "@/lib/projects/rich-text";
 
 // ═══════════════════════════════════════════════════════════════
 // /convocation/:token — page publique de réponse à une convocation.
@@ -98,8 +99,8 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
         {ctx.ordre_du_jour && (
           <section className="cv-odj">
             <h2>Ordre du jour</h2>
-            {/* ordre_du_jour est assaini par sanitizeRichText à l'écriture */}
-            <div dangerouslySetInnerHTML={{ __html: ctx.ordre_du_jour }} />
+            {/* ordre_du_jour : assaini à l'écriture ET à l'affichage (page publique) */}
+            <div dangerouslySetInnerHTML={{ __html: toRichHtml(ctx.ordre_du_jour) }} />
           </section>
         )}
 

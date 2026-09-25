@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
-import { sanitizeRichText } from "@/components/projects/RichTextEditor";
+import { sanitizeRichText } from "@/lib/projects/rich-text";
 
 // PATCH /api/commissions/:id/sessions/:sid/minutes
 // Body : { compte_rendu?: string, validate?: boolean }

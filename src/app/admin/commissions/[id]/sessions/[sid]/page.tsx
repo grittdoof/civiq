@@ -13,6 +13,7 @@ import SessionSecretarySelector from "@/components/projects/SessionSecretarySele
 import ConvocationsPanel from "@/components/projects/ConvocationsPanel";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listConvocationRecipients } from "@/lib/projects/convocation-send";
+import { toRichHtml } from "@/lib/projects/rich-text";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -116,11 +117,11 @@ export default async function SessionDetailPage({ params }: PageProps) {
         <section className="civiq-card pj-section pj-section-wide">
           <h2 className="pj-section-title">Ordre du jour</h2>
           {detail.session.ordre_du_jour ? (
-            // ordre_du_jour est passé par sanitizeRichText à l'écriture →
-            // sûr à injecter en HTML
+            // ordre_du_jour : assaini à l'écriture et ré-assaini ici
+            // (toRichHtml) → sûr à injecter en HTML
             <div
               className="pj-rich"
-              dangerouslySetInnerHTML={{ __html: detail.session.ordre_du_jour }}
+              dangerouslySetInnerHTML={{ __html: toRichHtml(detail.session.ordre_du_jour) }}
             />
           ) : (
             <p className="pj-section-empty">Pas d&apos;ordre du jour renseigné.</p>

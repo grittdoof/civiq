@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isRichHtml, parseRichText, plainTextToHtml, toRichHtml } from "@/lib/projects/rich-text";
+import { isRichHtml, parseRichText, plainTextToHtml, sanitizeRichText, toRichHtml } from "@/lib/projects/rich-text";
 import { buildMinutesEmail } from "@/lib/emails/commission-minutes";
 
 describe("plainTextToHtml / toRichHtml", () => {
@@ -75,5 +75,40 @@ describe("buildMinutesEmail", () => {
     expect(html).toContain("1 place de la Mairie");
     expect(html).toContain("/brand/logo-horizontal.png");
     expect(text).toContain("Pièce jointe : compte-rendu-urbanisme-2026-10-01.pdf");
+  });
+});
+
+describe("sanitizeRichText", () => {
+  const payloads = [
+    "<img/src=x onerror=alert(1)>",
+    "<img src=x onerror=alert(1)>",
+    '<p onclick="alert(1)">x</p>',
+    "<svg><script>alert(1)</script></svg>",
+    "<a href=javascript:alert(1)>x</a>",
+    '<p title=">"<img src=x onerror=alert(1)>">x</p>',
+    "<scr<script>ipt>alert(1)</script>",
+    "<img src=x onerror=alert(1)",
+    "<IMG SRC=x OnError=alert(1)>",
+    "<details open ontoggle=alert(1)>",
+  ];
+  it.each(payloads)("neutralise %s", (p) => {
+    const out = sanitizeRichText(p);
+    // Aucune balise hors liste blanche ne subsiste, aucun attribut.
+    expect(out).not.toMatch(/<(?!\/?(p|br|strong|b|em|i|u|h[1-4]|ul|ol|li)>)/i);
+    expect(out).not.toMatch(/<[a-z0-9]+\s/i);
+  });
+  it("conserve la mise en forme autorisée en retirant les attributs", () => {
+    expect(sanitizeRichText('<p style="color:red"><strong class="x">Ordre</strong> du jour<br/></p>'))
+      .toBe("<p><strong>Ordre</strong> du jour<br></p>");
+    expect(sanitizeRichText("<H2>Titre</H2><ul><li>a</li></ul>")).toBe("<h2>Titre</h2><ul><li>a</li></ul>");
+  });
+  it("supprime les balises inconnues en gardant leur texte", () => {
+    expect(sanitizeRichText('<span style="x">texte</span>')).toBe("texte");
+  });
+  it("échappe les chevrons isolés du texte", () => {
+    expect(sanitizeRichText("<p>1 < 2 et 3 > 2</p>")).toBe("<p>1 &lt; 2 et 3 &gt; 2</p>");
+  });
+  it("toRichHtml ré-assainit un contenu déjà stocké", () => {
+    expect(toRichHtml("<p>ok<img/src=x onerror=alert(1)></p>")).toBe("<p>ok</p>");
   });
 });

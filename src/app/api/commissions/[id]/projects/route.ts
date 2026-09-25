@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { projectBelongsToCommune, requireCommissionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 
 interface RouteParams { params: Promise<{ id: string }>; }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
   const { id } = await params;
+  const access = await requireCommissionEdit(id);
+  if (!access.ok) return access.response;
   const body = (await req.json()) as { project_id?: string };
   if (!body.project_id) return NextResponse.json({ error: "project_id requis" }, { status: 400 });
+  // Le projet doit appartenir à la même commune que la commission
+  if (!(await projectBelongsToCommune(body.project_id, access.communeId))) {
+    return NextResponse.json({ error: "Projet introuvable" }, { status: 404 });
+  }
   const service = await createServiceClient();
   const { error } = await service
     .from("commission_projects")

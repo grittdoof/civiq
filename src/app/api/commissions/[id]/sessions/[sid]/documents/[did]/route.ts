@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { requireSessionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 
 interface RouteParams { params: Promise<{ id: string; sid: string; did: string }>; }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
-  const { sid, did } = await params;
+  const { id, sid, did } = await params;
+  const access = await requireSessionEdit(id, sid);
+  if (!access.ok) return access.response;
   const service = await createServiceClient();
   const { data: doc } = await service
     .from("session_documents")

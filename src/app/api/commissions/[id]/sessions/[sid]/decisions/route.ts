@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { projectBelongsToCommune, requireSessionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { SessionDecisionType } from "@/lib/projects/types";
 
@@ -20,19 +20,20 @@ interface Body {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
+  const { id, sid } = await params;
+  const access = await requireSessionEdit(id, sid);
+  if (!access.ok) return access.response;
 
-  const { sid } = await params;
   let body: Body = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
   const libelle = body.libelle?.trim();
   if (!libelle) return NextResponse.json({ error: "libelle requis" }, { status: 400 });
   if (!body.type) return NextResponse.json({ error: "type requis" }, { status: 400 });
+  // Le trigger « action → jalon » écrit dans le projet : il doit être
+  // de la même commune que la séance.
+  if (body.project_id && !(await projectBelongsToCommune(body.project_id, access.communeId))) {
+    return NextResponse.json({ error: "Projet introuvable" }, { status: 404 });
+  }
 
   const service = await createServiceClient();
   const { data, error } = await service
