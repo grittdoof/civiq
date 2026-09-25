@@ -50,7 +50,48 @@ export function plainTextToHtml(text: string): string {
 /** Normalise une valeur stockée (HTML ou texte brut legacy) en HTML. */
 export function toRichHtml(value: string | null | undefined): string {
   if (!value) return "";
-  return isRichHtml(value) ? value : plainTextToHtml(value);
+  // Ré-assainit à la lecture : défense en profondeur pour les contenus
+  // enregistrés avant le durcissement de sanitizeRichText.
+  return isRichHtml(value) ? sanitizeRichText(value) : plainTextToHtml(value);
+}
+
+// ─── Sanitization ───
+// Stratégie « tout échapper puis ré-autoriser » : seules les balises
+// de la liste blanche, réécrites SANS attributs (style/class collés
+// depuis Word, handlers on*, href…), redeviennent du HTML. Tout autre
+// « < » ou « > » est échappé → aucune balise inconnue, aucun attribut,
+// même mal formé (<img/src=x onerror=…>, guillemets absents, etc.).
+const ALLOWED_TAGS = new Set([
+  "p", "br", "strong", "b", "em", "i", "u",
+  "h1", "h2", "h3", "h4", "ul", "ol", "li",
+]);
+
+// Balise candidate : nom immédiatement suivi d'un séparateur ou de « > ».
+const TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9]*)(?=[\s/>])[^<>]*>/g;
+
+function escapeText(s: string): string {
+  return s.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function sanitizeRichText(html: string): string {
+  if (!html) return "";
+  // Le contenu de ces éléments n'est jamais du texte à conserver.
+  const stripped = html
+    .replace(/<(script|style|iframe|object|template|noscript|textarea|title)\b[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "");
+
+  let out = "";
+  let last = 0;
+  for (const m of stripped.matchAll(TAG_RE)) {
+    const idx = m.index ?? 0;
+    out += escapeText(stripped.slice(last, idx));
+    const tag = m[2].toLowerCase();
+    if (ALLOWED_TAGS.has(tag)) out += tag === "br" ? "<br>" : `<${m[1]}${tag}>`;
+    // balise hors liste blanche : supprimée (son contenu texte reste)
+    last = idx + m[0].length;
+  }
+  out += escapeText(stripped.slice(last));
+  return out;
 }
 
 function decodeEntities(s: string): string {

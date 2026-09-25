@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { requireCommissionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 
 interface RouteParams { params: Promise<{ id: string; mid: string }>; }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  // Édition membres : ouverte aux éditeurs (élus/agents)
-  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
   const { id, mid } = await params;
+  // Édition membres : ouverte aux éditeurs (élus/agents) de la commune
+  const access = await requireCommissionEdit(id);
+  if (!access.ok) return access.response;
   const service = await createServiceClient();
   const { error } = await service.from("commission_members").delete().eq("id", mid).eq("commission_id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

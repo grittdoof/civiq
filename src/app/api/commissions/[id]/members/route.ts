@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { requireCommissionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import type { CommissionMemberRole } from "@/lib/projects/types";
 
 interface RouteParams { params: Promise<{ id: string }>; }
-
-async function checkEditAccess(commissionId: string, role: string, communeId: string) {
-  // Ouverture aux éditeurs : un élu/agent peut compléter la
-  // composition d'une commission qu'il pilote.
-  if (!["admin", "editor", "super_admin"].includes(role)) return false;
-  const service = await createServiceClient();
-  const { data } = await service.from("commissions").select("commune_id").eq("id", commissionId).maybeSingle();
-  return data?.commune_id === communeId;
-}
 
 interface Body {
   /** Membre interne avec compte GoCiviq */
@@ -25,13 +16,11 @@ interface Body {
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
   const { id } = await params;
-  if (!(await checkEditAccess(id, guard.role, guard.communeId))) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
+  // Ouverture aux éditeurs : un élu/agent peut compléter la
+  // composition d'une commission qu'il pilote.
+  const access = await requireCommissionEdit(id);
+  if (!access.ok) return access.response;
   const body = (await req.json()) as Body;
 
   const externalName = body.external_name?.trim();
@@ -43,6 +32,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const service = await createServiceClient();
+  // Un membre interne doit être un compte de la même commune (il
+  // recevra les convocations et comptes rendus par email).
+  if (body.user_id) {
+    const { data: member } = await service
+      .from("profiles")
+      .select("id")
+      .eq("id", body.user_id)
+      .eq("commune_id", access.communeId)
+      .maybeSingle();
+    if (!member) return NextResponse.json({ error: "Utilisateur introuvable dans cette commune" }, { status: 404 });
+  }
   const { data, error } = await service
     .from("commission_members")
     .insert({

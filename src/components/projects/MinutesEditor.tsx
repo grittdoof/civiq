@@ -105,7 +105,7 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
           </div>
         )}
         {display ? (
-          // Contenu assaini à l'écriture (sanitizeRichText)
+          // Contenu assaini à l'écriture et ré-assaini par toRichHtml
           <div className="pj-rich pj-cr-rich" dangerouslySetInnerHTML={{ __html: display }} />
         ) : (
           <p className="pj-section-empty">Compte rendu non encore rédigé.</p>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModule } from "@/lib/module-guard";
+import { requireSessionEdit } from "@/lib/projects/api-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
-import { sanitizeRichText } from "@/components/projects/RichTextEditor";
+import { sanitizeRichText } from "@/lib/projects/rich-text";
 import type { CommissionSessionStatut } from "@/lib/projects/types";
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
@@ -15,13 +15,9 @@ interface PatchBody {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  if (!["admin", "editor", "super_admin"].includes(guard.role)) {
-    return NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 });
-  }
-  const { sid } = await params;
+  const { id, sid } = await params;
+  const access = await requireSessionEdit(id, sid);
+  if (!access.ok) return access.response;
   let body: PatchBody = {};
   try { body = await req.json(); } catch { return NextResponse.json({ error: "JSON invalide" }, { status: 400 }); }
 
@@ -45,10 +41,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
+  const { id, sid } = await params;
+  const guard = await requireSessionEdit(id, sid);
   if (!guard.ok) return guard.response;
-  if (!guard.communeId) return NextResponse.json({ error: "Aucune commune" }, { status: 403 });
-  const { sid } = await params;
 
   const service = await createServiceClient();
   // Vérifier l'état du CR : si validé, seul un super_admin peut supprimer

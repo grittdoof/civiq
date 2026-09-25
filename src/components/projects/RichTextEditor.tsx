@@ -102,37 +102,7 @@ function ToolbarBtn({
   );
 }
 
-// ─── Sanitization serveur ───
-// Liste blanche très restrictive : pas de scripts ni d'attributs
-// d'événements ; juste mise en forme texte basique.
-const ALLOWED_TAGS = new Set([
-  "p", "br", "strong", "b", "em", "i", "u",
-  "h1", "h2", "h3", "h4", "ul", "ol", "li",
-]);
-
-export function sanitizeRichText(html: string): string {
-  if (!html) return "";
-  // Suppression des balises script/style/iframe
-  let cleaned = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<embed[\s\S]*?>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    // Attributs on*= (handlers d'événements) supprimés
-    .replace(/\s+on[a-z]+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\s+on[a-z]+\s*=\s*'[^']*'/gi, "")
-    // javascript: dans href / src
-    .replace(/(href|src)\s*=\s*"javascript:[^"]*"/gi, "$1=\"#\"")
-    .replace(/(href|src)\s*=\s*'javascript:[^']*'/gi, "$1='#'");
-
-  // Filtrage des balises hors whitelist (laisse le contenu textuel)
-  // Les balises autorisées sont réécrites SANS attributs (style, class
-  // collés depuis Word/Google Docs) : rendu homogène écran / email / PDF.
-  cleaned = cleaned.replace(/<(\/?)([a-z0-9]+)(\s[^>]*)?>/gi, (_match, slash, tag) => {
-    const t = tag.toLowerCase();
-    return ALLOWED_TAGS.has(t) ? `<${slash}${t}>` : "";
-  });
-
-  return cleaned;
-}
+// ─── Sanitization ───
+// Implémentation pure dans lib/projects/rich-text (utilisable côté
+// serveur : route handlers, pages, emails). Ré-export pour compat.
+export { sanitizeRichText } from "@/lib/projects/rich-text";
