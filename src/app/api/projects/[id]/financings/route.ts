@@ -38,6 +38,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const service = await createServiceClient();
   const fields = { ...parsed.value };
+  if (fields.financeur_local_id) {
+    const { data: fl } = await service
+      .from("financeurs_locaux").select("id, contact_id").eq("id", fields.financeur_local_id)
+      .eq("commune_id", access.communeId).is("deleted_at", null).maybeSingle();
+    if (!fl) return NextResponse.json({ error: "Financeur local introuvable" }, { status: 404 });
+    fields.source = "local";
+    if (fl.contact_id && !fields.contact_id) fields.contact_id = fl.contact_id as string;
+  } else if (fields.aide_ref) {
+    fields.source = "api";
+  }
   if (fields.contact_id) {
     const { data: c } = await service
       .from("contacts").select("id").eq("id", fields.contact_id).eq("commune_id", access.communeId).is("deleted_at", null).maybeSingle();
