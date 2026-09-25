@@ -2,59 +2,69 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Lightbulb, PartyPopper, ListChecks, ChevronDown, Loader2, AlertTriangle,
-} from "lucide-react";
-import {
-  PROJECT_TYPE_META,
-  PROJECT_TYPE_LABELS,
-  type ProjectType,
-} from "@/lib/projects/types";
+import { ChevronDown, Loader2 } from "lucide-react";
+import type { TypeProjetCode } from "@/lib/projects/types";
+import type { Alerte } from "@/lib/projects/type-change";
+import { TYPE_META } from "./TypeBadge";
+import AlerteBlock from "./AlerteBlock";
 
 // ═══════════════════════════════════════════════════════════════
-// ProjectTypeChanger — petit menu kebab discret pour changer le
-// gabarit d'un projet existant. Brief : « il reste modifiable
-// (avec un message les phases vont être recalculées) ».
+// Changement de type d'un projet. Les règles sont appliquées côté
+// serveur (POST /api/projects/:id/type) : refus structuré si des
+// données financières seraient masquées, confirmation si le budget
+// change de section.
 // ═══════════════════════════════════════════════════════════════
 
 interface Props {
   projectId: string;
-  currentType: ProjectType;
+  currentType: TypeProjetCode;
   canEdit: boolean;
 }
 
-const ICONS: Record<ProjectType, typeof Lightbulb> = {
-  investment: Lightbulb,
-  event: PartyPopper,
-  tracking: ListChecks,
-};
+const TYPES: TypeProjetCode[] = ["investissement", "evenementiel", "suivi_simple"];
 
 export default function ProjectTypeChanger({ projectId, currentType, canEdit }: Props) {
   const [open, setOpen] = useState(false);
-  const [confirmFor, setConfirmFor] = useState<ProjectType | null>(null);
+  const [target, setTarget] = useState<TypeProjetCode | null>(null);
+  const [alerte, setAlerte] = useState<Alerte | null>(null);
+  const [avertissement, setAvertissement] = useState<Alerte | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const Current = TYPE_META[currentType];
 
-  const CurrentIcon = ICONS[currentType];
+  function reset() {
+    setTarget(null);
+    setAlerte(null);
+    setAvertissement(null);
+    setError(null);
+  }
 
-  async function apply(target: ProjectType) {
-    if (saving || target === currentType) return;
+  async function apply(to: TypeProjetCode, confirmer = false) {
     setSaving(true);
+    setError(null);
     try {
-      const r = await fetch(`/api/projects/${projectId}`, {
-        method: "PATCH",
+      const r = await fetch(`/api/projects/${projectId}/type`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: target }),
+        body: JSON.stringify({ type_code: to, confirmer }),
       });
-      if (!r.ok) {
-        setSaving(false);
-        return;
+      const json = await r.json().catch(() => ({}));
+      if (r.status === 409 && json.alerte) {
+        setAlerte(json.alerte);
+      } else if (r.status === 409 && json.avertissement) {
+        setAvertissement(json.avertissement);
+      } else if (!r.ok) {
+        setError(json.error ?? "Le changement a échoué.");
+      } else {
+        setOpen(false);
+        reset();
+        startTransition(() => router.refresh());
       }
-      setOpen(false);
-      setConfirmFor(null);
-      startTransition(() => router.refresh());
     } catch {
+      setError("Connexion impossible. Réessayez.");
+    } finally {
       setSaving(false);
     }
   }
@@ -64,37 +74,36 @@ export default function ProjectTypeChanger({ projectId, currentType, canEdit }: 
       <button
         type="button"
         className="pj-type-changer-btn"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { setOpen((o) => !o); reset(); }}
         disabled={!canEdit}
-        aria-haspopup="menu"
         aria-expanded={open}
       >
-        <CurrentIcon size={14} />
-        <span>Type : {PROJECT_TYPE_LABELS[currentType]}</span>
-        {canEdit && <ChevronDown size={13} />}
+        <Current.Icon size={14} aria-hidden="true" />
+        <span>Type : {Current.label}</span>
+        {canEdit && <ChevronDown size={13} aria-hidden="true" />}
       </button>
 
       {open && canEdit && (
-        <div className="pj-type-changer-menu" role="menu">
-          {confirmFor === null ? (
+        <div className="pj-type-changer-menu">
+          {!target ? (
             <>
-              <p className="pj-type-changer-help">Changer de gabarit ?</p>
-              {(Object.keys(PROJECT_TYPE_META) as ProjectType[]).map((t) => {
-                const meta = PROJECT_TYPE_META[t];
-                const Icon = ICONS[t];
+              <p className="pj-type-changer-help">Changer de type ? Rien n&apos;est perdu.</p>
+              {TYPES.map((t) => {
+                const meta = TYPE_META[t];
                 const isCurrent = t === currentType;
                 return (
                   <button
                     key={t}
                     type="button"
                     className={`pj-type-changer-item${isCurrent ? " is-current" : ""}`}
-                    onClick={() => !isCurrent && setConfirmFor(t)}
+                    onClick={() => { setTarget(t); void apply(t); }}
                     disabled={isCurrent || saving}
+                    aria-current={isCurrent ? "true" : undefined}
                   >
-                    <Icon size={14} />
+                    <meta.Icon size={14} aria-hidden="true" />
                     <span className="pj-type-changer-item-text">
                       <strong>{meta.label}</strong>
-                      <em>{meta.tagline}</em>
+                      {isCurrent ? <em>Type actuel</em> : null}
                     </span>
                   </button>
                 );
@@ -102,37 +111,22 @@ export default function ProjectTypeChanger({ projectId, currentType, canEdit }: 
             </>
           ) : (
             <div className="pj-type-changer-confirm">
-              <div className="pj-type-changer-confirm-head">
-                <AlertTriangle size={14} />
-                <strong>Confirmer le changement</strong>
-              </div>
-              <p>
-                Vous passez de <strong>{PROJECT_TYPE_LABELS[currentType]}</strong>{" "}
-                à <strong>{PROJECT_TYPE_LABELS[confirmFor]}</strong>.
-              </p>
-              <p className="pj-type-changer-warn">
-                Les phases vont être recalculées sur le nouveau gabarit. La phase
-                actuelle sera remplacée par la première phase du nouveau gabarit
-                si elle n'existe pas. Les progressions saisies sur des phases
-                d'un autre gabarit restent en base mais ne s'affichent plus.
-              </p>
+              {saving && !alerte && !avertissement && (
+                <p><Loader2 size={12} className="civiq-spin" aria-hidden="true" /> Vérification…</p>
+              )}
+              {alerte && <AlerteBlock alerte={alerte} registre="obligatoire" role="alert" />}
+              {avertissement && <AlerteBlock alerte={avertissement} registre="recommande" />}
+              {error && <p className="pj-modal-error" role="alert">{error}</p>}
               <div className="pj-type-changer-confirm-actions">
-                <button
-                  type="button"
-                  className="civiq-btn civiq-btn-ghost civiq-btn-sm"
-                  onClick={() => setConfirmFor(null)}
-                  disabled={saving}
-                >
-                  Annuler
+                <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" onClick={reset} disabled={saving}>
+                  {alerte ? "Fermer" : "Annuler"}
                 </button>
-                <button
-                  type="button"
-                  className="civiq-btn civiq-btn-sm"
-                  onClick={() => apply(confirmFor)}
-                  disabled={saving}
-                >
-                  {saving ? <><Loader2 size={12} className="spin" /> Recalcul…</> : "Confirmer"}
-                </button>
+                {avertissement && (
+                  <button type="button" className="civiq-btn civiq-btn-sm" onClick={() => apply(target, true)} disabled={saving}>
+                    {saving ? <Loader2 size={12} className="civiq-spin" aria-hidden="true" /> : null}
+                    Changer en {TYPE_META[target].label.toLowerCase()}
+                  </button>
+                )}
               </div>
             </div>
           )}

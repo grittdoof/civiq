@@ -786,3 +786,16 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Parties prenantes = `contacts` ; exposer la forme historique via `STAKEHOLDER_COLUMNS` (`type:categorie`).
 - **Ordre de déploiement** : 039 renomme `stakeholders` → à appliquer au moment du déploiement du code du lot A. Supprimer la vue `stakeholders` au lot B.
 - Chaque migration a son retour arrière dans `supabase/rollback/` (hors `migrations/`).
+
+### Lot B — parcours de création + écran de vie (branche `claude/projets-lot-b`)
+- **040** (appliquée en prod) : `projects.commission_pilote_id` (reprise : 27 projets), `fourchette_estimation`, `echeance_souhaitee`, `evenement_debut|fin`, `lieu`, `jauge`, `blocs_supplementaires` ; table `project_contributors` ; RPC `create_project_from_wizard(jsonb)` (service role uniquement, vérifie l'appartenance à la commune de chaque référence) ; suppression de la vue de compatibilité `stakeholders`.
+- **Plus de création silencieuse** : `/admin/projects/nouveau` = `ProjectWizard` (une question par écran, brouillon localStorage, 3 parcours). Suivi simple = 1 écran (titre, commission, élu référent). Événement = rétroplanning calculé à rebours (`proposerJalons`). Investissement = encart marchés publics par fourchette (`encartMarchesPublics`, seuils en constantes jusqu'au lot C).
+- **Écran de vie** `/admin/projects/[id]` (n'est plus une redirection vers /phase) : bandeau (photo, type, commission, élu référent, compte à rebours), jauges (avancement + budget « non renseigné » jusqu'au lot C), onglets par type ; `EtapesEditor` (ajout sur une ligne, statut 3 états, retards, pièce jointe/partie prenante/commentaire + note interne, réordonnancement, FAB mobile). Budget/Financeurs en lecture + lien « Vue détaillée (ancienne) » jusqu'au lot C.
+- Changement de type : `POST /api/projects/:id/type` (règles `decideTypeChange`, refus/avertissement structurés) ; `PATCH` n'accepte plus `type`. Suivi simple : « Ajouter des devis » / « Ce projet prend de l'ampleur ».
+- Composants doctrine : `AlerteBlock` (constat → conséquence → actions, registre), `FieldHelp` (aide repliée après 3 affichages), `LearnMore`, `TypeBadge`, `GaugeLazy` (recharts chargé en différé : 370 → 268 ko sur l'écran de vie).
+- Upload documents : type réel déduit de l'extension (liste blanche), rattachement à une étape, note interne ; URLs signées fraîches dans `getProject`.
+
+#### Points d'attention (lot B)
+- **SVG + tokens** : l'attribut `fill` ne résout pas `var(--x)` → passer les couleurs recharts par CSS (`.pj-gauge …`).
+- Statuts d'étape : fonds `STATUT_COLORS` des tickets, **texte foncé** (l'orange #F59E0B des tickets est à ~2:1).
+- `milestones.phase` reste renseignée par l'ancienne interface (toutes les phases des 3 gabarits acceptées) ; les étapes du nouvel écran n'ont pas de phase.

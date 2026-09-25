@@ -1153,6 +1153,9 @@ function StakeholderSection({
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [directory, setDirectory] = useState<Stakeholder[]>([]);
   const [stakeholderId, setStakeholderId] = useState("");
+  // Annuaire unique (contacts) : filtre par catégorie pour ne pas lister
+  // tous les contacts de la commune (membres externes compris).
+  const [categorieFiltre, setCategorieFiltre] = useState<StakeholderType | "">("");
   const [role, setRole] = useState<StakeholderRole>("consulte");
   const [type, setType] = useState<StakeholderType>("institutionnelle");
   const [nom, setNom] = useState("");
@@ -1238,6 +1241,22 @@ function StakeholderSection({
       </div>
 
       {mode === "existing" ? (
+        <div className="pj-deliv-grid">
+        <div className="pj-deliv-field">
+          <label htmlFor="d-st-filter">Catégorie</label>
+          <select
+            id="d-st-filter"
+            className="pj-deliv-input"
+            value={categorieFiltre}
+            onChange={(e) => { setCategorieFiltre(e.target.value as StakeholderType | ""); setStakeholderId(""); }}
+            disabled={!canEdit}
+          >
+            <option value="">Toutes les catégories</option>
+            {STAKEHOLDER_TYPES.map((t) => (
+              <option key={t} value={t}>{STAKEHOLDER_TYPE_LABELS[t]}</option>
+            ))}
+          </select>
+        </div>
         <div className="pj-deliv-field">
           <label htmlFor="d-stakeholder">Partie prenante</label>
           <select
@@ -1248,12 +1267,13 @@ function StakeholderSection({
             disabled={!canEdit}
           >
             <option value="">Sélectionner dans l'annuaire</option>
-            {directory.map((s) => (
+            {directory.filter((s) => !categorieFiltre || s.type === categorieFiltre).map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nom}{s.organisation ? ` (${s.organisation})` : ""}
               </option>
             ))}
           </select>
+        </div>
         </div>
       ) : (
         <div className="pj-deliv-grid">

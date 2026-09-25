@@ -3,8 +3,8 @@ import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
-import type { ProjectCompetence, ProjectType, ProjectPhase } from "@/lib/projects/types";
-import { PROJECT_PHASES_BY_TYPE } from "@/lib/projects/types";
+import type { ProjectCompetence, ProjectType } from "@/lib/projects/types";
+import { FOURCHETTES, type Fourchette } from "@/lib/projects/wizard";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,8 +51,19 @@ interface PatchBody {
   tiers_contact?: string | null;
   accompagne_sans_financer?: boolean;
   in_ppi?: boolean;
-  // Migration 028
+  // Migration 028 — le type se change via POST /api/projects/:id/type
   type?: ProjectType;
+  // Lot B (migration 040)
+  commission_pilote_id?: string | null;
+  fourchette_estimation?: Fourchette | null;
+  echeance_souhaitee?: string | null;
+  evenement_debut?: string | null;
+  evenement_fin?: string | null;
+  lieu?: string | null;
+  jauge?: number | null;
+  blocs_supplementaires?: string[];
+  avancement_manuel_pct?: number | null;
+  avancement_manuel_motif?: string | null;
   phase_not_applicable?: Record<string, string>;
   phase_progress?: Record<
     string,
@@ -79,9 +90,12 @@ const PATCH_ALLOWED = new Set<keyof PatchBody>([
   "tiers_contact",
   "accompagne_sans_financer",
   "in_ppi",
-  "type",
   "phase_not_applicable",
   "phase_progress",
+  "echeance_souhaitee",
+  "evenement_debut",
+  "evenement_fin",
+  "lieu",
 ]);
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -115,22 +129,76 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     updates.titre = t;
   }
 
-  // Changement de type → rebase la phase courante sur la 1ère phase du nouveau gabarit
-  // si la phase actuelle n'appartient plus au gabarit choisi.
-  if (body.type) {
-    const newPhases = PROJECT_PHASES_BY_TYPE[body.type];
-    if (newPhases) {
-      const service2 = await createServiceClient();
-      const { data: current } = await service2
-        .from("projects")
-        .select("phase")
-        .is("deleted_at", null)
-        .eq("id", id)
-        .maybeSingle();
-      const currentPhase = current?.phase as ProjectPhase | undefined;
-      if (currentPhase && !newPhases.includes(currentPhase)) {
-        updates.phase = newPhases[0];
-      }
+  if (body.type !== undefined) {
+    return NextResponse.json(
+      { error: "Le changement de type passe par POST /api/projects/:id/type (règles de conservation des données)." },
+      { status: 400 },
+    );
+  }
+
+  // ─── Champs du lot B ───
+  for (const key of ["echeance_souhaitee", "evenement_debut", "evenement_fin"] as const) {
+    const v = updates[key];
+    if (typeof v === "string" && Number.isNaN(Date.parse(v))) {
+      return NextResponse.json({ error: "Date invalide" }, { status: 400 });
+    }
+  }
+  const service0 = await createServiceClient();
+  if ("commission_pilote_id" in body) {
+    const cid = body.commission_pilote_id || null;
+    if (cid) {
+      const { data: com } = await service0
+        .from("commissions").select("id").eq("id", cid).eq("commune_id", guard.communeId).is("deleted_at", null).maybeSingle();
+      if (!com) return NextResponse.json({ error: "Commission introuvable" }, { status: 404 });
+      // La commission pilote suit aussi le projet (lien N-N existant).
+      await service0.from("commission_projects").upsert(
+        { commission_id: cid, project_id: id },
+        { onConflict: "commission_id,project_id", ignoreDuplicates: true },
+      );
+    }
+    updates.commission_pilote_id = cid;
+  }
+  for (const key of ["pilote_elu", "pilote_agent"] as const) {
+    const pid = updates[key];
+    if (typeof pid === "string") {
+      const { data: prof } = await service0
+        .from("profiles").select("id").eq("id", pid).eq("commune_id", guard.communeId).maybeSingle();
+      if (!prof) return NextResponse.json({ error: "Personne introuvable dans la commune" }, { status: 404 });
+    }
+  }
+  if ("fourchette_estimation" in body) {
+    const f = body.fourchette_estimation ?? null;
+    if (f !== null && !FOURCHETTES.some((x) => x.code === f)) {
+      return NextResponse.json({ error: "Fourchette inconnue" }, { status: 400 });
+    }
+    updates.fourchette_estimation = f;
+  }
+  if ("jauge" in body) {
+    const n = body.jauge === null || body.jauge === undefined || body.jauge === ("" as unknown) ? null : Number(body.jauge);
+    if (n !== null && (!Number.isInteger(n) || n < 0)) return NextResponse.json({ error: "Jauge invalide" }, { status: 400 });
+    updates.jauge = n;
+  }
+  if ("blocs_supplementaires" in body) {
+    const b = Array.isArray(body.blocs_supplementaires) ? body.blocs_supplementaires.filter((x) => x === "devis") : [];
+    updates.blocs_supplementaires = [...new Set(b)];
+  }
+  // Avancement ajusté à la main : motif obligatoire, auteur et date tracés.
+  if ("avancement_manuel_pct" in body) {
+    const pct = body.avancement_manuel_pct;
+    if (pct === null) {
+      Object.assign(updates, {
+        avancement_manuel_pct: null, avancement_manuel_motif: null,
+        avancement_manuel_par: guard.userId, avancement_manuel_le: new Date().toISOString(),
+      });
+    } else {
+      const n = Number(pct);
+      const motif = typeof body.avancement_manuel_motif === "string" ? body.avancement_manuel_motif.trim() : "";
+      if (!Number.isFinite(n) || n < 0 || n > 100) return NextResponse.json({ error: "Un pourcentage entre 0 et 100." }, { status: 400 });
+      if (!motif) return NextResponse.json({ error: "Expliquez en une phrase pourquoi vous ajustez l'avancement." }, { status: 400 });
+      Object.assign(updates, {
+        avancement_manuel_pct: Math.round(n), avancement_manuel_motif: motif.slice(0, 500),
+        avancement_manuel_par: guard.userId, avancement_manuel_le: new Date().toISOString(),
+      });
     }
   }
 

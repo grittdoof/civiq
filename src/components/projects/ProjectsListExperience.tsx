@@ -8,22 +8,21 @@ import {
   X,
   Handshake,
   Building2,
+  Search,
   SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import RightDrawer from "./RightDrawer";
-import {
-  PROJECT_PHASES,
-  PROJECT_PHASE_LABELS,
-  type ProjectPhase,
-} from "@/lib/projects/types";
+import type { TypeProjetCode } from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
-import PhaseIcon from "./PhaseIcon";
+import { avancementAffiche } from "@/lib/projects/etapes";
+import TypeBadge, { TYPE_META } from "./TypeBadge";
 import ProjectsStatsDrawer from "./ProjectsStatsDrawer";
 import type { ProjectListItem } from "@/lib/projects/queries";
 
 // ═══════════════════════════════════════════════════════════════
 // ProjectsListExperience — orchestration client de la vue Liste :
-//   - filtres (phase, commission, tiers)
+//   - recherche texte, filtres (type, commission)
 //   - bouton Statistiques qui ouvre le drawer off-canvas
 //   - liste filtrée des projets
 //
@@ -46,13 +45,7 @@ interface Props {
   budgetTotalsByProject?: Record<string, { depense: number; recette: number }>;
 }
 
-const TIERS_FILTERS = [
-  { value: "all", label: "Tous" },
-  { value: "commune", label: "Commune" },
-  { value: "tiers", label: "Tiers" },
-] as const;
-
-type TiersFilter = (typeof TIERS_FILTERS)[number]["value"];
+const TYPES: TypeProjetCode[] = ["investissement", "evenementiel", "suivi_simple"];
 
 export default function ProjectsListExperience({
   projects,
@@ -62,13 +55,11 @@ export default function ProjectsListExperience({
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
-  const [phasesSelected, setPhasesSelected] = useState<Set<ProjectPhase>>(
-    new Set(),
-  );
+  const [typesSelected, setTypesSelected] = useState<Set<TypeProjetCode>>(new Set());
+  const [search, setSearch] = useState("");
   const [commissionsSelected, setCommissionsSelected] = useState<Set<string>>(
     new Set(),
   );
-  const [tiersFilter, setTiersFilter] = useState<TiersFilter>("all");
 
   // Liste des commissions présentes dans le portefeuille
   // (dérivée des projets pour ne proposer que des filtres utiles).
@@ -85,25 +76,25 @@ export default function ProjectsListExperience({
   }, [projects]);
 
   const filteredProjects = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return projects.filter((p) => {
-      if (phasesSelected.size > 0 && !phasesSelected.has(p.phase as ProjectPhase)) {
+      if (typesSelected.size > 0 && !typesSelected.has((p.type_code ?? "suivi_simple") as TypeProjetCode)) {
         return false;
       }
+      if (q && !`${p.titre} ${p.description ?? ""}`.toLowerCase().includes(q)) return false;
       if (commissionsSelected.size > 0) {
         const ids = (p.commissions ?? []).map((c) => c.id);
         if (!ids.some((id) => commissionsSelected.has(id))) return false;
       }
-      if (tiersFilter === "tiers" && !p.concerne_tiers) return false;
-      if (tiersFilter === "commune" && p.concerne_tiers) return false;
       return true;
     });
-  }, [projects, phasesSelected, commissionsSelected, tiersFilter]);
+  }, [projects, typesSelected, commissionsSelected, search]);
 
-  const togglePhase = (phase: ProjectPhase) => {
-    setPhasesSelected((prev) => {
+  const toggleType = (t: TypeProjetCode) => {
+    setTypesSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(phase)) next.delete(phase);
-      else next.add(phase);
+      if (next.has(t)) next.delete(t);
+      else next.add(t);
       return next;
     });
   };
@@ -118,15 +109,12 @@ export default function ProjectsListExperience({
   };
 
   const resetFilters = () => {
-    setPhasesSelected(new Set());
+    setTypesSelected(new Set());
     setCommissionsSelected(new Set());
-    setTiersFilter("all");
+    setSearch("");
   };
 
-  const activeFilterCount =
-    phasesSelected.size +
-    commissionsSelected.size +
-    (tiersFilter !== "all" ? 1 : 0);
+  const activeFilterCount = typesSelected.size + commissionsSelected.size + (search.trim() ? 1 : 0);
 
   return (
     <>
@@ -152,7 +140,13 @@ export default function ProjectsListExperience({
             </button>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="pj-list-toolbar-actions">
+          <div className="pj-list-search">
+            <Search size={14} aria-hidden="true" />
+            <label htmlFor="pj-search" className="pj-sr-only">Rechercher un projet</label>
+            <input id="pj-search" type="search" className="civiq-input" placeholder="Rechercher un projet…"
+              value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
           <button
             type="button"
             className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
@@ -196,13 +190,11 @@ export default function ProjectsListExperience({
         }
       >
         <FiltersBar
-          phasesSelected={phasesSelected}
-          onTogglePhase={togglePhase}
+          typesSelected={typesSelected}
+          onToggleType={toggleType}
           commissions={allCommissions}
           commissionsSelected={commissionsSelected}
           onToggleCommission={toggleCommission}
-          tiersFilter={tiersFilter}
-          onTiersFilterChange={setTiersFilter}
         />
       </RightDrawer>
 
@@ -247,45 +239,41 @@ export default function ProjectsListExperience({
 // ─────────────────────────────────────────────────────────────────
 
 function FiltersBar({
-  phasesSelected,
-  onTogglePhase,
+  typesSelected,
+  onToggleType,
   commissions,
   commissionsSelected,
   onToggleCommission,
-  tiersFilter,
-  onTiersFilterChange,
 }: {
-  phasesSelected: Set<ProjectPhase>;
-  onTogglePhase: (p: ProjectPhase) => void;
+  typesSelected: Set<TypeProjetCode>;
+  onToggleType: (t: TypeProjetCode) => void;
   commissions: CommissionDescriptor[];
   commissionsSelected: Set<string>;
   onToggleCommission: (id: string) => void;
-  tiersFilter: TiersFilter;
-  onTiersFilterChange: (v: TiersFilter) => void;
 }) {
   return (
     <div className="pj-filters">
       <div className="pj-filters-group">
-        <span className="pj-filters-label">Étape</span>
+        <span className="pj-filters-label">Type de projet</span>
         <div className="pj-filters-chips">
-          {PROJECT_PHASES.map((phase) => {
-            const active = phasesSelected.has(phase);
+          {TYPES.map((t) => {
+            const active = typesSelected.has(t);
+            const meta = TYPE_META[t];
             return (
               <button
-                key={phase}
+                key={t}
                 type="button"
                 className={`pj-filter-chip${active ? " is-active" : ""}`}
-                onClick={() => onTogglePhase(phase)}
+                onClick={() => onToggleType(t)}
                 aria-pressed={active}
               >
-                <PhaseIcon phase={phase} size={12} strokeWidth={2} />
-                <span>{PROJECT_PHASE_LABELS[phase]}</span>
+                <meta.Icon size={12} aria-hidden="true" />
+                <span>{meta.label}</span>
               </button>
             );
           })}
         </div>
       </div>
-
       {commissions.length > 0 && (
         <div className="pj-filters-group">
           <span className="pj-filters-label">
@@ -322,26 +310,6 @@ function FiltersBar({
         </div>
       )}
 
-      <div className="pj-filters-group">
-        <span className="pj-filters-label">
-          <Handshake size={11} aria-hidden /> Porteur
-        </span>
-        <div className="pj-filters-segment">
-          {TIERS_FILTERS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`pj-filters-segment-btn${
-                tiersFilter === opt.value ? " is-active" : ""
-              }`}
-              onClick={() => onTiersFilterChange(opt.value)}
-              aria-pressed={tiersFilter === opt.value}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -409,6 +377,10 @@ function CleanProjectList({
                 <div className="pj-list-titre-cell">
                   <strong className="pj-list-titre">{p.titre}</strong>
                   <div className="pj-list-meta">
+                    <span className="pj-list-referent">
+                      <UserRound size={11} aria-hidden="true" />{" "}
+                      {p.pilote_elu_profile?.full_name ?? "Élu référent à désigner"}
+                    </span>
                     {p.concerne_tiers && (
                       <span className="pj-list-pill pj-list-pill-tiers">
                         <Handshake size={11} aria-hidden /> Tiers
@@ -423,11 +395,12 @@ function CleanProjectList({
               </div>
 
               <div className="pj-list-phase-cell">
-                <div className="pj-list-phase-badge">
-                  <PhaseIcon phase={p.phase as ProjectPhase} size={14} strokeWidth={2} />
-                </div>
+                <TypeBadge type={(p.type_code ?? "suivi_simple") as TypeProjetCode} size="sm" />
                 <span className="pj-list-phase-label">
-                  {PROJECT_PHASE_LABELS[p.phase as ProjectPhase]}
+                  {(() => {
+                    const a = avancementAffiche(p);
+                    return a.pct === null ? "Avancement non renseigné" : `Avancement ${Math.round(a.pct)} %`;
+                  })()}
                 </span>
               </div>
 
