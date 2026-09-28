@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { parseFinancing } from "@/lib/projects/money-validation";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // PATCH/DELETE une ligne de financement.
 // Sur changement de statut → audit + notification push aux abonnés.
@@ -74,6 +75,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
       .catch((e) => console.error("[push] financing:", e));
   }
 
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ financing: data });
 }
 
@@ -98,5 +100,6 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     communeId: access.communeId,
     metadata: { financing_id: fid },
   });
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ ok: true });
 }

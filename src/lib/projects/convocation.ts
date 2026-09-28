@@ -12,6 +12,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { randomBytes } from "crypto";
+import { escapeIcs, foldIcsLine, utcStamp, VTIMEZONE_PARIS, wallIso, wallStamp } from "@/lib/calendar/ics";
 
 export const SESSION_TIMEZONE = "Europe/Paris";
 export const DEFAULT_SESSION_DURATION_MIN = 120;
@@ -35,24 +36,6 @@ export interface SessionCalendarInput {
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
-}
-
-/** Date murale (composantes UTC) → « 20261001T183000 » */
-function wallStamp(d: Date): string {
-  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(
-    d.getUTCHours(),
-  )}${pad(d.getUTCMinutes())}00`;
-}
-
-/** Date murale → « 2026-10-01T18:30:00 » (sans fuseau) */
-function wallIso(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(
-    d.getUTCHours(),
-  )}:${pad(d.getUTCMinutes())}:00`;
-}
-
-function utcStamp(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
 export function sessionStart(dateSeance: string): Date | null {
@@ -111,54 +94,11 @@ export function generateConvocationToken(): string {
 
 // ─── Agenda ───
 
-function escapeIcs(text: string): string {
-  return text
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
-}
-
-/** Pliage des lignes à 75 caractères (RFC 5545). */
-function foldIcsLine(line: string): string {
-  if (line.length <= 75) return line;
-  const parts: string[] = [line.slice(0, 75)];
-  let rest = line.slice(75);
-  while (rest.length > 74) {
-    parts.push(` ${rest.slice(0, 74)}`);
-    rest = rest.slice(74);
-  }
-  if (rest.length) parts.push(` ${rest}`);
-  return parts.join("\r\n");
-}
-
 function fullDescription(input: SessionCalendarInput): string {
   return [input.description, input.url ? `Répondre / détails : ${input.url}` : null]
     .filter(Boolean)
     .join("\n\n");
 }
-
-// Définition Europe/Paris embarquée : Outlook desktop l'exige pour
-// interpréter un TZID ; Apple et Google la tolèrent.
-const VTIMEZONE_PARIS = [
-  "BEGIN:VTIMEZONE",
-  "TZID:Europe/Paris",
-  "BEGIN:DAYLIGHT",
-  "TZOFFSETFROM:+0100",
-  "TZOFFSETTO:+0200",
-  "TZNAME:CEST",
-  "DTSTART:19700329T020000",
-  "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
-  "END:DAYLIGHT",
-  "BEGIN:STANDARD",
-  "TZOFFSETFROM:+0200",
-  "TZOFFSETTO:+0100",
-  "TZNAME:CET",
-  "DTSTART:19701025T030000",
-  "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
-  "END:STANDARD",
-  "END:VTIMEZONE",
-];
 
 /** Fichier .ics (Apple Calendrier, Outlook desktop, tout agenda). */
 export function buildSessionIcs(input: SessionCalendarInput): string | null {

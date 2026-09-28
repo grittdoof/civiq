@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { PROJECT_PHASES_BY_TYPE, type ProjectPhase } from "@/lib/projects/types";
 import { parseEtapeFields } from "@/lib/projects/etapes";
 import { ALERTE_COMMENCEMENT, ALERTE_COMMENCEMENT_SAVOIR, isErreurCommencement } from "@/lib/projects/financement";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // GET  /api/projects/:id/milestones
 // POST /api/projects/:id/milestones
@@ -86,5 +87,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     communeId: access.communeId,
     metadata: { milestone_id: data.id },
   });
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ milestone: data });
 }

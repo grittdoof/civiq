@@ -4945,3 +4945,88 @@ a.pj-commission-badge:hover {
 .pj-pistes-attribution { margin: 0; font-size: 12px; color: var(--fg-muted); }
 .pj-campagne { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .pj-campagne-actions { margin: 0; }
+
+/* ═══ Lot E — calendrier : type (fond + icône), commission (pastille) ═══ */
+.pj-cal-reg-investment { --cal-fg: var(--type-investment); --cal-bg: var(--type-investment-light); }
+.pj-cal-reg-event      { --cal-fg: var(--type-event);      --cal-bg: var(--type-event-light); }
+.pj-cal-reg-tracking   { --cal-fg: var(--type-tracking);   --cal-bg: var(--type-tracking-light); }
+.pj-cal-reg-session    { --cal-fg: var(--fg-muted);        --cal-bg: var(--card); }
+
+.pj-cal-legend { margin-bottom: 14px; }
+.pj-cal-legend-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--fg-muted); margin: 0 0 6px; }
+.pj-cal-legend-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.pj-cal-legend-item {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg);
+  background: var(--cal-bg, transparent); border: 1px solid var(--border); border-left: 4px solid var(--cal-fg, var(--border));
+  border-radius: var(--radius-sm); padding: 4px 10px 4px 8px;
+}
+.pj-cal-legend-plain { border-left-width: 1px; background: var(--card); }
+.pj-cal-legend-late { color: var(--destructive); }
+.pj-cal-type-icon {
+  flex: none; width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--cal-fg); background: var(--card); border: 1px solid var(--border);
+}
+.pj-cal-legend-item .pj-cal-type-icon { width: 22px; height: 22px; }
+.pj-cal-comm-dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1px var(--card), 0 0 0 2px var(--border); }
+
+.pj-cal-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-bottom: 6px; }
+.pj-cal-filters .civiq-field { flex: 1 1 170px; min-width: 0; margin: 0; }
+.pj-cal-filters .civiq-field-label { font-size: 13px; margin-bottom: 4px; }
+.pj-cal-filters-reset { flex: none; }
+.pj-cal-count { font-size: 13px; color: var(--fg-muted); margin: 0 0 12px; }
+
+/* Liste */
+.pj-cal-event { background: var(--cal-bg, var(--card)); border-left: 4px solid var(--cal-fg, var(--border)); }
+.pj-cal-event.is-overdue { background: var(--cal-bg, var(--card)); border-color: var(--destructive); border-left-color: var(--cal-fg); box-shadow: inset 0 0 0 1px var(--destructive); }
+.pj-cal-event-body { align-items: center; }
+.pj-cal-event-main { flex: 1; min-width: 0; }
+.pj-cal-event-title { display: flex; align-items: center; gap: 6px; color: var(--fg); }
+.pj-cal-event-sub { color: var(--fg-muted); }
+.pj-cal-jalon { color: var(--fg-muted); flex: none; }
+.pj-cal-event-badges { flex: none; display: flex; gap: 6px; }
+.pj-cal-badge-late, .pj-cal-badge-statut {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  border-radius: 999px; padding: 2px 8px; color: var(--fg);
+}
+.pj-cal-badge-late { color: var(--destructive); background: var(--card); border: 1px solid var(--destructive); }
+
+/* Mois */
+.pj-cal-month-current { margin: 0; }
+.pj-cal-day-head abbr { text-decoration: none; }
+.pj-cal-day-events { list-style: none; margin: 0; padding: 0; }
+.pj-cal-day-event { background: var(--cal-bg, var(--card)); border-left: 3px solid var(--cal-fg, var(--border)); border-radius: 4px; }
+.pj-cal-day-event.is-overdue { box-shadow: inset 0 0 0 1px var(--destructive); }
+.pj-cal-day-event-title { display: flex; align-items: center; gap: 3px; color: var(--fg); }
+.pj-cal-day-event-text { overflow: hidden; text-overflow: ellipsis; }
+.pj-cal-type-icon-sm { flex: none; display: inline-flex; color: var(--cal-fg); }
+.pj-cal-day-event .pj-cal-comm-dot { width: 7px; height: 7px; box-shadow: none; }
+.pj-cal-late-icon { flex: none; color: var(--destructive); }
+.pj-cal-day-more .pj-link-btn { font-size: 11px; padding: 0 4px; }
+
+@media (max-width: 560px) {
+  .pj-cal-event { flex-wrap: wrap; gap: 6px 10px; }
+  .pj-cal-event-date { min-width: 0; text-align: left; width: 100%; }
+  .pj-cal-event-body { flex: 1 1 100%; flex-wrap: wrap; row-gap: 6px; }
+  .pj-cal-event-main { flex: 1 1 calc(100% - 40px); }
+  .pj-cal-event-badges { flex-basis: 100%; padding-left: 36px; }
+  .pj-cal-event-badges:empty { display: none; }
+  .pj-cal-filters .civiq-field { flex-basis: calc(50% - 6px); }
+  /* Mois : icône seule, le détail est dans la liste. */
+  .pj-cal-day-event-text, .pj-cal-day-event-sub { display: none; }
+  .pj-cal-day-event { padding: 1px 2px; }
+}
+
+/* Abonnement agenda */
+.pj-agenda { margin-bottom: 18px; padding: 0; }
+.pj-agenda-heading { margin: 0; font-size: 16px; }
+.pj-agenda-toggle {
+  width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer;
+  font: inherit; font-weight: 700; color: var(--fg); padding: 16px 20px; text-align: left;
+}
+.pj-agenda-toggle span { flex: 1; }
+.pj-agenda-body { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+.pj-agenda-block { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--border-light); padding-top: 14px; }
+.pj-agenda-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pj-agenda-copy { display: flex; gap: 8px; }
+.pj-agenda-copy .civiq-input { flex: 1; min-width: 0; font-size: 13px; }
+.pj-agenda-hint { display: block; margin-top: 2px; }

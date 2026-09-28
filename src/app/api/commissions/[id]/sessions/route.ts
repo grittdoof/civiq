@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { sanitizeRichText } from "@/lib/projects/rich-text";
 import { sendSessionConvocations, type SendConvocationsResult } from "@/lib/projects/convocation-send";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // POST /api/commissions/:id/sessions
 // Crée une séance puis, si `send_convocation` est vrai (validé par
@@ -96,5 +97,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     },
   });
 
+  synchroniserAgendasApres(guard.communeId);
   return NextResponse.json({ session, convocation, convocation_error: convocationError });
 }

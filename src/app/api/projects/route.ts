@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { listProjects } from "@/lib/projects/queries";
 import type { ProjectPhase } from "@/lib/projects/types";
 import { validateWizard, type WizardInput } from "@/lib/projects/wizard";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // ═══════════════════════════════════════════════════════════════
 // GET  /api/projects             — liste des projets de la commune
@@ -72,5 +73,6 @@ export async function POST(req: NextRequest) {
     metadata: { type_code: result.payload.type_code, jalons: result.payload.jalons.length },
   });
 
+  synchroniserAgendasApres(guard.communeId);
   return NextResponse.json({ id });
 }

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { parseEtapeFields } from "@/lib/projects/etapes";
 import { ALERTE_COMMENCEMENT, ALERTE_COMMENCEMENT_SAVOIR, isErreurCommencement } from "@/lib/projects/financement";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 interface RouteParams { params: Promise<{ id: string; mid: string }>; }
 
@@ -48,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Étape introuvable" }, { status: 404 });
 
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ milestone: data });
 }
 
@@ -63,5 +65,6 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     .eq("project_id", id)
     .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ ok: true });
 }

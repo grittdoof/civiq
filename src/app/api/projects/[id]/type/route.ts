@@ -5,6 +5,7 @@ import { writeAudit } from "@/lib/audit";
 import { decideTypeChange } from "@/lib/projects/type-change";
 import { PROJECT_PHASES_BY_TYPE, type ProjectType, type TypeProjetCode } from "@/lib/projects/types";
 import type { JalonModele } from "@/lib/projects/wizard";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // ═══════════════════════════════════════════════════════════════
 // POST /api/projects/:id/type
@@ -99,5 +100,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     metadata: { from, to, jalons_ajoutes: added },
   });
 
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ ok: true, jalons_ajoutes: added });
 }
