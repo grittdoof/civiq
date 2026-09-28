@@ -7,7 +7,7 @@ import {
   BarChart3,
   Users,
   CalendarDays,
-  TrendingUp, Settings } from "lucide-react";
+  TrendingUp, Settings, HandCoins } from "lucide-react";
 import RightDrawer from "./RightDrawer";
 
 // ═══════════════════════════════════════════════════════════════
@@ -54,6 +54,12 @@ export default function PortfolioActionsDrawer() {
       label: "PPI",
       description: "Plan Pluriannuel d'Investissement.",
       icon: <TrendingUp size={18} />,
+    },
+    {
+      href: "/admin/projects/financeurs",
+      label: "Financeurs",
+      description: "Aides publiques de votre territoire et fiches des financeurs locaux.",
+      icon: <HandCoins size={18} />,
     },
     {
       href: "/admin/projects/parametres",

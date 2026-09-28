@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/reopen-tickets",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/aides-territoires",
+      "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/campagne-subventions",
+      "schedule": "0 7 1 * *"
     }
   ]
 }

@@ -18,6 +18,7 @@ import { formatEtapeDate } from "@/lib/projects/etapes";
 import { TYPE_META } from "./TypeBadge";
 import FieldHelp from "./FieldHelp";
 import LearnMore from "./LearnMore";
+import PistesFinancement, { type PisteAide } from "./PistesFinancement";
 
 // ═══════════════════════════════════════════════════════════════
 // Assistant de création d'un projet (brief §2.2 – 2.3).
@@ -119,6 +120,7 @@ export default function ProjectWizard({ types, commissions, people, associations
   const [restored, setRestored] = useState(false);
   const [partners, setPartners] = useState<Stakeholder[]>(associations);
   const [newPartner, setNewPartner] = useState("");
+  const [pistes, setPistes] = useState<{ aides: PisteAide[]; miseAJour: string | null } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
 
@@ -143,6 +145,19 @@ export default function ProjectWizard({ types, commissions, people, associations
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ owner: currentUserId, draft, step }));
     } catch { /* stockage indisponible */ }
   }, [draft, step, currentUserId]);
+
+  // Récapitulatif d'un investissement : pistes de financement (cache
+  // Aides-territoires, lu côté serveur — aucun appel externe ici).
+  useEffect(() => {
+    if (step !== "recap" || draft.type_code !== "investissement" || !draft.titre.trim()) return;
+    const q = new URLSearchParams({ titre: draft.titre, description: draft.description });
+    let alive = true;
+    fetch(`/api/aides/suggestions?${q}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive && j) setPistes({ aides: j.suggestions ?? [], miseAJour: j.mis_a_jour_le ?? null }); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [step, draft.type_code, draft.titre, draft.description]);
 
   // Focus sur le titre de chaque écran (lecteurs d'écran, clavier).
   useEffect(() => {
@@ -562,6 +577,10 @@ export default function ProjectWizard({ types, commissions, people, associations
                 ))}
               </ul>
             </fieldset>
+          )}
+
+          {pistes && pistes.aides.length > 0 && (
+            <PistesFinancement aides={pistes.aides} locaux={[]} miseAJour={pistes.miseAJour} canEdit={false} compact />
           )}
 
           {encart && (

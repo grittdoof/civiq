@@ -24,6 +24,9 @@ import DevisComparator, { type DevisRow } from "@/components/projects/DevisCompa
 import BudgetEditor, { type BudgetRow } from "@/components/projects/BudgetEditor";
 import SubventionsEditor, { type SubventionRow } from "@/components/projects/SubventionsEditor";
 import PlanFinancement from "@/components/projects/PlanFinancement";
+import PistesFinancement from "@/components/projects/PistesFinancement";
+import ProjectDatesEditor from "@/components/projects/ProjectDatesEditor";
+import { suggererAides, type AideCache } from "@/lib/aides/aides";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import ProjectTypeChanger from "@/components/projects/ProjectTypeChanger";
 import AvancementAjuster from "@/components/projects/AvancementAjuster";
@@ -95,7 +98,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
       getCommuneSettings(ctx.communeId),
       service.rpc("project_financement", { p_project_id: id }),
       service.from("financings")
-        .select("id, financeur, dispositif, statut, assiette_ht, montant_demande, montant_obtenu, date_demande, date_ar, date_decision, notes")
+        .select("id, financeur, dispositif, statut, assiette_ht, montant_demande, montant_obtenu, date_demande, date_ar, date_decision, notes, aide_ref")
         .is("deleted_at", null).eq("project_id", id).order("created_at"),
     ]);
   const budgetRows = (budgetData ?? []) as unknown as BudgetRow[];
@@ -160,6 +163,25 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   const delegationDepassee = alertesMarches.some((a) => a.code === "delegation");
   const partCommuneKo = type === "investissement" && serverPlan?.controle_part_commune_ok === false;
   const subventionsSansAr = subventions.filter((s) => subventionSansAr(s, now)).length;
+  // Pistes de financement : lues dans le cache (jamais l'API en direct),
+  // uniquement quand l'onglet Financeurs est affiché.
+  const pistes: { aides: AideCache[]; locaux: Array<{ id: string; nom: string; periode_depot: string | null; lien: string | null; notes: string | null }>; miseAJour: string | null } =
+    { aides: [], locaux: [], miseAJour: null };
+  if (current === "financeurs") {
+    const [{ data: cache }, { data: locaux }, { data: sync }] = await Promise.all([
+      service.from("aides_cache").select("*").eq("commune_id", ctx.communeId),
+      service.from("financeurs_locaux").select("id, nom, periode_depot, lien, notes, types_projet")
+        .eq("commune_id", ctx.communeId).is("deleted_at", null).order("nom"),
+      service.from("aides_sync_log").select("finished_at").eq("commune_id", ctx.communeId).eq("ok", true)
+        .order("finished_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const deja = new Set(subventions.map((f) => (f as unknown as { aide_ref?: string | null }).aide_ref).filter(Boolean));
+    pistes.aides = suggererAides((cache ?? []) as unknown as AideCache[], { titre: p.titre, description: p.description }, now.toISOString().slice(0, 10))
+      .filter((a) => !deja.has(a.aide_id));
+    pistes.locaux = ((locaux ?? []) as Array<{ id: string; nom: string; periode_depot: string | null; lien: string | null; notes: string | null; types_projet: string[] }>)
+      .filter((f) => f.types_projet.includes(type));
+    pistes.miseAJour = (sync?.finished_at as string | null) ?? null;
+  }
   let assumePar: string | null = null;
   if (extC.autofinancement_assume && extC.autofinancement_assume_par) {
     const { data: prof } = await service.from("profiles").select("full_name").eq("id", extC.autofinancement_assume_par).maybeSingle();
@@ -223,6 +245,16 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             )}
             {type === "evenementiel" && ext.lieu && <li><MapPin size={14} aria-hidden="true" /> {ext.lieu}{ext.jauge ? ` · ${ext.jauge} personnes attendues` : ""}</li>}
           </ul>
+          {canEdit && !archived && (type === "investissement" || type === "evenementiel") && (
+            <ProjectDatesEditor
+              projectId={id}
+              type={type}
+              echeance={ext.echeance_souhaitee ?? null}
+              debut={ext.evenement_debut ?? null}
+              fin={ext.evenement_fin ?? null}
+              lieu={ext.lieu ?? null}
+            />
+          )}
           {p.description && <p className="pj-life-desc">{p.description}</p>}
           <div className="pj-life-actions">
             {canEdit && !archived && (
@@ -363,7 +395,16 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         )}
 
         {current === "financeurs" && (
-          <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !archived} />
+          <>
+            <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !archived} />
+            <PistesFinancement
+              projectId={id}
+              aides={pistes.aides}
+              locaux={pistes.locaux}
+              miseAJour={pistes.miseAJour}
+              canEdit={canEdit && !archived}
+            />
+          </>
         )}
       </div>
 

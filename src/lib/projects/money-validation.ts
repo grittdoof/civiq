@@ -173,6 +173,9 @@ export interface FinancingFields {
   date_ar?: string | null;
   date_decision?: string | null;
   notes?: string | null;
+  source?: "api" | "local" | "saisie_libre";
+  aide_ref?: string | null;
+  financeur_local_id?: string | null;
 }
 
 export function parseFinancing(body: Record<string, unknown>, creation: boolean): Parsed<FinancingFields> {
@@ -213,6 +216,18 @@ export function parseFinancing(body: Record<string, unknown>, creation: boolean)
   for (const k of ["dispositif", "notes"] as const) {
     const v = text(body[k], k === "notes" ? 2000 : 200);
     if (v !== undefined) f[k] = v;
+  }
+  if ("source" in body) {
+    if (!["api", "local", "saisie_libre"].includes(String(body.source))) return { ok: false, error: "Origine inconnue." };
+    f.source = body.source as FinancingFields["source"];
+  }
+  const ref = text(body.aide_ref, 80);
+  if (ref !== undefined) f.aide_ref = ref;
+  if ("financeur_local_id" in body) {
+    const v = body.financeur_local_id;
+    if (v === null || v === "") f.financeur_local_id = null;
+    else if (typeof v === "string" && UUID_RE.test(v)) f.financeur_local_id = v;
+    else return { ok: false, error: "Référence invalide." };
   }
   return { ok: true, value: f };
 }

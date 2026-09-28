@@ -4927,3 +4927,21 @@ a.pj-commission-badge:hover {
   .pj-budget-amounts { align-items: flex-start; }
   .pj-plan-table td { white-space: normal; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Lot D — pistes de financement, alerte de campagne
+   ═══════════════════════════════════════════════════════════════ */
+.pj-pistes { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
+.pj-pistes-avertissement { margin: 0; font-size: 14px; color: var(--fg-muted); font-style: italic; }
+.pj-pistes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pj-piste { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.pj-piste-main { flex: 1 1 260px; min-width: 0; }
+.pj-piste-nom { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.pj-piste-meta { margin: 2px 0 0; font-size: 13px; color: var(--fg-muted); }
+.pj-piste-meta strong { color: var(--fg); }
+.pj-piste-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--fg-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+.pj-piste-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pj-piste-ok { font-size: 13px; font-weight: 700; color: var(--success); }
+.pj-pistes-attribution { margin: 0; font-size: 12px; color: var(--fg-muted); }
+.pj-campagne { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.pj-campagne-actions { margin: 0; }
