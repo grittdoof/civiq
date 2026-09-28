@@ -7,6 +7,7 @@ import type { ProjectCompetence, ProjectType } from "@/lib/projects/types";
 import { FOURCHETTES, type Fourchette } from "@/lib/projects/wizard";
 import { parseMontant } from "@/lib/projects/money-validation";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // ═══════════════════════════════════════════════════════════════
 // GET    /api/projects/:id   — fiche projet complète
@@ -257,6 +258,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     metadata: { fields: Object.keys(updates) },
   });
 
+  synchroniserAgendasApres(guard.communeId);
   return NextResponse.json({ ok: true });
 }
 
@@ -293,5 +295,6 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     communeId: guard.communeId,
   });
 
+  synchroniserAgendasApres(guard.communeId);
   return NextResponse.json({ ok: true });
 }

@@ -4,10 +4,11 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { listCalendarEvents } from "@/lib/projects/calendar-queries";
 import CalendarView from "@/components/projects/CalendarView";
+import AgendaAbonnement from "@/components/projects/AgendaAbonnement";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendrierPage() {
+export default async function CalendrierPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
   const ctx = await requireCommune();
   if (ctx.role !== "super_admin" && ctx.communeId) {
     const active = await isModuleActive("projects");
@@ -15,7 +16,7 @@ export default async function CalendrierPage() {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const events = await listCalendarEvents(ctx.communeId);
+  const [{ events, commissions, referents }, { google }] = await Promise.all([listCalendarEvents(ctx.communeId), searchParams]);
 
   return (
     <main className="civiq-main pj-detail-page">
@@ -23,13 +24,13 @@ export default async function CalendrierPage() {
         <div>
           <h1 className="civiq-page-title">Calendrier</h1>
           <p className="pj-page-subtitle">
-            Vue chronologique des dates clés de vos projets et des
-            séances de commission.
+            Toutes les dates des projets (investissements, événements, suivis) et les séances de commission.
           </p>
         </div>
       </header>
 
-      <CalendarView events={events} />
+      <AgendaAbonnement retourGoogle={google ?? null} />
+      <CalendarView events={events} commissions={commissions} referents={referents} />
     </main>
   );
 }

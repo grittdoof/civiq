@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/campagne-subventions",
       "schedule": "0 7 1 * *"
+    },
+    {
+      "path": "/api/cron/google-agenda",
+      "schedule": "30 4 * * *"
     }
   ]
 }

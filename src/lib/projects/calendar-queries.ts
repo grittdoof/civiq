@@ -1,147 +1,132 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase-server";
+import {
+  construireEvenements,
+  restreindreAuProfil,
+  type CalendarEvent,
+  type CalendarRaw,
+} from "./calendar";
 
 // ═══════════════════════════════════════════════════════════════
-// Queries pour la page Calendrier — toutes les dates clés du
-// module projet (étapes clés + séances + relances subv).
+// Lecture des dates du calendrier général (serveur, service role).
+// Une requête par table, jamais de requête par projet (pas de cascade).
+// Projets archivés ou supprimés exclus, les trois types confondus.
 // ═══════════════════════════════════════════════════════════════
 
-export type CalendarEventKind = "milestone" | "session" | "financing_ar_pending";
+export type { CalendarEvent };
 
-export interface CalendarEvent {
-  id: string;
-  date: string;            // ISO
-  kind: CalendarEventKind;
-  title: string;
-  subtitle?: string;
-  href: string;
-  overdue?: boolean;
+export async function chargerCalendrierBrut(service: SupabaseClient, communeId: string): Promise<CalendarRaw> {
+  const [projs, comms] = await Promise.all([
+    service
+      .from("projects")
+      .select("id, titre, type_code, commission_pilote_id, pilote_elu, pilote_agent, evenement_debut, evenement_fin, lieu, date_maj")
+      .eq("commune_id", communeId)
+      .is("deleted_at", null)
+      .is("archived_at", null),
+    service
+      .from("commissions")
+      .select("id, nom, color, icon, responsable_user_id")
+      .eq("commune_id", communeId)
+      .is("deleted_at", null),
+  ]);
+  const projects = (projs.data ?? []) as CalendarRaw["projects"];
+  const commissions = (comms.data ?? []) as CalendarRaw["commissions"];
+  const projectIds = projects.map((p) => p.id);
+  const commissionIds = commissions.map((c) => c.id);
+  const none = Promise.resolve({ data: [] as never[] });
 
-  /** Couleur d'affichage (issue de la commission pour session, defaults pour autres) */
-  color: string;
-  /** Identifiant Lucide pour l'icône (cf. CommissionIcon ou un fallback) */
-  icon: string;
-  /** Nom de la commission pour l'événement de type session */
-  commissionName?: string;
-  /** Nom du projet associé (pour milestone & financing) */
-  projectName?: string;
+  const [ms, sess, fin, contrib, members, profs] = await Promise.all([
+    projectIds.length
+      ? service
+          .from("milestones")
+          .select("id, project_id, libelle, statut, fait, echeance, date_previsionnelle, date_reelle, est_un_jalon, responsable_user_id, updated_at")
+          .in("project_id", projectIds)
+          .is("deleted_at", null)
+      : none,
+    commissionIds.length
+      ? service
+          .from("commission_sessions")
+          .select("id, commission_id, date_seance, lieu, statut, secretaire_de_seance_user_id, updated_at")
+          .in("commission_id", commissionIds)
+          .is("deleted_at", null)
+      : none,
+    projectIds.length
+      ? service
+          .from("financings")
+          .select("id, project_id, financeur, statut, date_demande, date_ar")
+          .in("project_id", projectIds)
+          .eq("statut", "demandee")
+          .is("deleted_at", null)
+      : none,
+    projectIds.length ? service.from("project_contributors").select("project_id, profile_id").in("project_id", projectIds) : none,
+    commissionIds.length
+      ? service.from("commission_members").select("commission_id, user_id").in("commission_id", commissionIds).is("deleted_at", null)
+      : none,
+    service.from("profiles").select("id, full_name").eq("commune_id", communeId),
+  ]);
+
+  return {
+    projects,
+    commissions,
+    milestones: (ms.data ?? []) as CalendarRaw["milestones"],
+    sessions: (sess.data ?? []) as CalendarRaw["sessions"],
+    financings: (fin.data ?? []) as CalendarRaw["financings"],
+    contributors: (contrib.data ?? []) as CalendarRaw["contributors"],
+    commissionMembers: (members.data ?? []) as CalendarRaw["commissionMembers"],
+    profiles: (profs.data ?? []) as CalendarRaw["profiles"],
+  };
 }
 
-// Couleurs par défaut pour les événements non rattachés à une commission
-const DEFAULT_COLORS: Record<CalendarEventKind, string> = {
-  milestone: "#5A8DEE",
-  session: "#5A8DEE",          // sera écrasée par la couleur de commission
-  financing_ar_pending: "#E74C3C",
-};
-const DEFAULT_ICONS: Record<CalendarEventKind, string> = {
-  milestone: "Flag",
-  session: "Gavel",
-  financing_ar_pending: "Wallet",
-};
+export interface CalendarPageData {
+  events: CalendarEvent[];
+  commissions: Array<{ id: string; nom: string; color: string | null }>;
+  referents: Array<{ id: string; nom: string }>;
+}
 
-export async function listCalendarEvents(communeId: string): Promise<CalendarEvent[]> {
+export async function listCalendarEvents(communeId: string): Promise<CalendarPageData> {
   const service = await createServiceClient();
-  const events: CalendarEvent[] = [];
-  const now = new Date();
+  const raw = await chargerCalendrierBrut(service, communeId);
+  const events = construireEvenements(raw);
+  const referentIds = new Set(raw.projects.map((p) => p.pilote_elu).filter((x): x is string => !!x));
+  return {
+    events,
+    commissions: raw.commissions
+      .map((c) => ({ id: c.id, nom: c.nom, color: c.color }))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr")),
+    referents: raw.profiles
+      .filter((p) => referentIds.has(p.id))
+      .map((p) => ({ id: p.id, nom: p.full_name ?? "Sans nom" }))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr")),
+  };
+}
 
-  // ─── Projets de la commune ───
-  const { data: projs } = await service
-    .from("projects")
-    .select("id, titre")
-    .is("deleted_at", null)
-    .is("archived_at", null)
-    .eq("commune_id", communeId);
-  const projectsById = new Map((projs ?? []).map((p) => [p.id as string, p.titre as string]));
+/** Événements destinés à l'agenda externe d'un utilisateur (iCal, Google). */
+export async function evenementsPourProfil(
+  service: SupabaseClient,
+  communeId: string,
+  profileId: string,
+  perimetre: "tout" | "mes",
+): Promise<CalendarEvent[]> {
+  const raw = await chargerCalendrierBrut(service, communeId);
+  return construireEvenements(perimetre === "mes" ? restreindreAuProfil(raw, profileId) : raw);
+}
 
-  // ─── Étapes clés ───
-  if (projectsById.size > 0) {
-    const { data: ms } = await service
-      .from("milestones")
-      .select("id, project_id, libelle, echeance, fait")
-      .is("deleted_at", null)
-      .in("project_id", [...projectsById.keys()])
-      .not("echeance", "is", null);
-    for (const m of ms ?? []) {
-      const projTitre = projectsById.get(m.project_id as string) ?? "Projet";
-      const eche = m.echeance as string;
-      const overdue = !m.fait && new Date(eche) < now;
-      events.push({
-        id: `m-${m.id}`,
-        date: eche,
-        kind: "milestone",
-        title: m.libelle as string,
-        subtitle: projTitre,
-        projectName: projTitre,
-        href: `/admin/projects/${m.project_id}`,
-        overdue,
-        color: DEFAULT_COLORS.milestone,
-        icon: DEFAULT_ICONS.milestone,
-      });
-    }
-  }
-
-  // ─── Commissions (avec color/icon) ───
-  const { data: comms } = await service
-    .from("commissions")
-    .select("id, nom, color, icon")
-    .is("deleted_at", null)
-    .eq("commune_id", communeId);
-  type Comm = { id: string; nom: string; color: string; icon: string };
-  const commsById = new Map((comms ?? []).map((c) => [c.id as string, c as Comm]));
-
-  // ─── Séances de commission ───
-  if (commsById.size > 0) {
-    const { data: sess } = await service
-      .from("commission_sessions")
-      .select("id, commission_id, date_seance, lieu")
-      .is("deleted_at", null)
-      .in("commission_id", [...commsById.keys()]);
-    for (const s of sess ?? []) {
-      const comm = commsById.get(s.commission_id as string);
-      events.push({
-        id: `s-${s.id}`,
-        date: s.date_seance as string,
-        kind: "session",
-        // Titre = "Séance" (cf. règle pj-cal-event-title pour les séances)
-        title: "Séance",
-        // Sous-titre = nom de la commission
-        subtitle: comm?.nom ?? "Commission",
-        commissionName: comm?.nom,
-        href: `/admin/commissions/${s.commission_id}/sessions/${s.id}`,
-        color: comm?.color ?? DEFAULT_COLORS.session,
-        icon: comm?.icon ?? DEFAULT_ICONS.session,
-      });
-    }
-  }
-
-  // ─── Subventions en attente AR > 30 jours ───
-  if (projectsById.size > 0) {
-    const cutoff = new Date(now.getTime() - 30 * 86400000).toISOString().slice(0, 10);
-    const { data: pending } = await service
-      .from("financings")
-      .select("id, project_id, financeur, date_demande")
-      .is("deleted_at", null)
-      .in("project_id", [...projectsById.keys()])
-      .eq("statut", "demandee")
-      .lt("date_demande", cutoff)
-      .not("date_demande", "is", null);
-    for (const f of pending ?? []) {
-      const projTitre = projectsById.get(f.project_id as string) ?? "Projet";
-      events.push({
-        id: `f-${f.id}`,
-        date: f.date_demande as string,
-        kind: "financing_ar_pending",
-        title: `Relance subvention ${f.financeur}`,
-        subtitle: `${projTitre} — accusé de réception non reçu`,
-        projectName: projTitre,
-        href: `/admin/projects/${f.project_id}`,
-        overdue: true,
-        color: DEFAULT_COLORS.financing_ar_pending,
-        icon: DEFAULT_ICONS.financing_ar_pending,
-      });
-    }
-  }
-
-  // Tri chronologique ASC (la vue chrono fait son propre tri par défaut)
-  events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  return events;
+/**
+ * Un lien d'abonnement ne vaut que tant que son titulaire a encore accès
+ * au module Projets (même règle que requireModule, sans session).
+ */
+export async function profilAccesProjets(
+  service: SupabaseClient,
+  profileId: string,
+): Promise<{ ok: true; communeId: string; role: string } | { ok: false }> {
+  const { data: profile } = await service.from("profiles").select("role, commune_id").eq("id", profileId).maybeSingle();
+  if (!profile?.commune_id || !["admin", "editor", "super_admin"].includes(profile.role as string)) return { ok: false };
+  const communeId = profile.commune_id as string;
+  if (profile.role === "super_admin") return { ok: true, communeId, role: "super_admin" };
+  const [{ data: cm }, { data: override }] = await Promise.all([
+    service.from("commune_modules").select("module_id").eq("commune_id", communeId).eq("module_id", "projects").maybeSingle(),
+    service.from("profile_module_overrides").select("enabled").eq("profile_id", profileId).eq("module_id", "projects").maybeSingle(),
+  ]);
+  if (!cm || override?.enabled === false) return { ok: false };
+  return { ok: true, communeId, role: profile.role as string };
 }

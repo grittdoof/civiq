@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { parseFinancing } from "@/lib/projects/money-validation";
 import { findOrCreateContact } from "@/lib/projects/contacts";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // ═══════════════════════════════════════════════════════════════
 // GET  /api/projects/:id/financings   — liste les subventions
@@ -75,5 +76,6 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     metadata: { financing_id: data.id, financeur: data.financeur, statut: data.statut },
   });
 
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ financing: data });
 }

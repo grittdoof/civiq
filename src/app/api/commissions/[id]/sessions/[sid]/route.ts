@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { sanitizeRichText } from "@/lib/projects/rich-text";
 import type { CommissionSessionStatut } from "@/lib/projects/types";
 import { softDeleteFields } from "@/lib/projects/soft-delete";
+import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
 
@@ -38,6 +39,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
+  synchroniserAgendasApres(access.communeId);
   return NextResponse.json({ session: data });
 }
 
@@ -77,5 +79,6 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
   const { error } = await service.from("commission_sessions").update(softDeleteFields(guard.userId)).eq("id", sid)
     .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  synchroniserAgendasApres(guard.communeId);
   return NextResponse.json({ ok: true });
 }
