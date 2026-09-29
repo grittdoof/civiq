@@ -2,6 +2,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getSession } from "@/lib/projects/queries";
 import { MinutesPDF } from "@/lib/projects/pdf-commission";
+import { listeEmargement, repartition, type LigneSource, type MembreSource } from "./emargement";
 
 // ═══════════════════════════════════════════════════════════════
 // Génération du PDF de compte rendu de séance.
@@ -40,20 +41,10 @@ export async function buildMinutesPdf(communeId: string, sid: string): Promise<M
     secretaireNom = sec?.full_name ?? null;
   }
 
-  const byUser = new Map<string, typeof detail.attendance[number]>();
-  const byMember = new Map<string, typeof detail.attendance[number]>();
-  for (const a of detail.attendance) {
-    if (a.conseiller_user_id) byUser.set(a.conseiller_user_id, a);
-    if (a.commission_member_id) byMember.set(a.commission_member_id, a);
-  }
-  const presents: string[] = [];
-  const absents: string[] = [];
-  for (const m of detail.members) {
-    const name = m.profile?.full_name ?? m.external_name ?? "—";
-    const a = m.user_id ? byUser.get(m.user_id) : byMember.get(m.id);
-    if (a?.present === true) presents.push(name);
-    else if (a?.present === false) absents.push(name);
-  }
+  // Tous les membres figurent : présents, excusés, absents, non renseignés.
+  const { presents, excuses, absents, nonRenseignes } = repartition(
+    listeEmargement(detail.members as unknown as MembreSource[], detail.attendance as unknown as LigneSource[]),
+  );
 
   // Récupérer les responsables des décisions (pour libelles)
   const decisionUserIds = detail.decisions
@@ -81,6 +72,8 @@ export async function buildMinutesPdf(communeId: string, sid: string): Promise<M
       ordreDuJour: detail.session.ordre_du_jour,
       secretaireNom,
       presents,
+      excuses,
+      nonRenseignes,
       absents,
       compteRendu: detail.session.compte_rendu ?? "",
       decisions: detail.decisions.map((d) => ({

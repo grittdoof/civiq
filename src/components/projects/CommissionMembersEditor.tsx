@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, UserCheck } from "lucide-react";
 import type { CommissionMember, CommissionMemberRole } from "@/lib/projects/types";
@@ -27,6 +27,8 @@ interface Props {
 export default function CommissionMembersEditor({ commissionId, initial, directory, canEdit }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
+  // Toujours refléter les données du serveur (rafraîchissement, changement de commission).
+  useEffect(() => { setRows(initial); }, [initial]);
   const [adding, setAdding] = useState(false);
   const [noAccount, setNoAccount] = useState(false);
 

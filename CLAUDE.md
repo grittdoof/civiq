@@ -858,3 +858,27 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Couleurs recharts : classes `.pj-stats-serie-*` (l'attribut SVG `fill` ne lit pas les variables CSS).
 - Vitest : `esbuild.jsx = "automatic"` pour tester les modules `.tsx` serveur.
 - **Code mort à valider nominativement au lot G** : `ProjectsStatsDrawer.tsx`, `DonutChart.tsx` (remplacés par l'onglet Statistiques), ancienne fiche par phases `/api/projects/[id]/pdf` + `pdf-document.tsx` + `/admin/projects/[id]/fiche`.
+
+## Session 19 — Émargement : tous les membres, présent / excusé / absent (2026-09-29)
+
+### Prompt de départ
+> « J'ai créé une séance sans convoquer les membres (invitation déjà envoyée par mail) : aucun membre n'est renseigné. Quoi qu'il arrive, tous les membres (présent, excusé ou absent) doivent figurer pour l'émargement et pour le compte rendu. »
+
+### Causes
+- Seuls les **administrateurs** pouvaient pointer les présences : les éditeurs (quasi tous les élus) voyaient « — » partout.
+- Le **compte rendu PDF** ne listait que les membres déjà pointés → aucun membre si personne n'a pointé.
+- Pas de statut **« excusé »** (booléen présent/absent seulement) ; un membre retiré de la commission disparaissait de l'historique de ses séances.
+
+### Livrés
+- **Migration 046** (appliquée en prod après dry run) : `session_attendance.statut` (`present|excuse|absent`, NULL = non renseigné) synchronisé par trigger avec l'ancien `present` ; `ensure_session_attendance(session)` crée une ligne par membre actif — appelée à la création de la séance et à chaque ouverture tant que le compte rendu n'est pas validé ; rattrapage des séances ouvertes (la séance du 29/09 retrouve ses 6 membres).
+- `lib/projects/emargement.ts` (pur, testé) : `listeEmargement` (membres actifs ∪ inscrits à la séance, anciens membres conservés), `repartition`, `peutPointer`.
+- Écran de séance : trois boutons Présent / Excusé / Absent, résumé chiffré ; pointage par admin, éditeur, super-admin **ou secrétaire de séance**, et par chaque élu pour lui-même ; signature d'un élu = lui seul, d'un externe = recueillie par un gestionnaire.
+- Feuille d'émargement PDF : tous les membres avec statut (« Non renseigné » sinon). Compte rendu PDF : Présents, Excusés, Absents, Présence non renseignée.
+
+### Point d'attention
+- Une séance dont le compte rendu est **validé** garde sa liste figée (pas de complément automatique).
+
+### Correctif (même session) — membres de commission invisibles
+- **Cause** : la migration 036 (lot A) a ajouté `commission_members.deleted_by → profiles`. L'embed PostgREST `profile:profiles(...)` devenait **ambigu** (deux FK vers `profiles`) → réponse **HTTP 300 / PGRST201**, données `null` **sans erreur visible** → liste des membres vide sur la page commission, l'écran de séance, les destinataires de convocation (depuis le 25/09) et la page publique de réponse. Prouvé dans les logs `edge_logs` Supabase.
+- **Correctif** : embeds désambiguïsés `profiles!commission_members_user_id_fkey` (5 requêtes), journalisation des erreurs de lecture des membres, éditeurs membres / projets de commission resynchronisés sur les données serveur.
+- **Point d'attention** : toute table qui reçoit une nouvelle FK vers `profiles` (ex. `deleted_by`, `created_by`) rend ambigus les embeds `profiles(...)` existants : **toujours nommer la FK** (`profiles!<table>_<colonne>_fkey`). Tables concernées aujourd'hui : commission_members, commission_sessions, commissions, contacts, financeurs_locaux, milestones, profile_module_overrides, project_budget_lines, project_documents, project_quotes, projects, session_documents, ticket_assignees, tickets.

@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       external_phone: body.external_phone?.trim() || null,
       role: body.role ?? "membre",
     })
-    .select("*, profile:profiles ( id, full_name, job_title )")
+    .select("*, profile:profiles!commission_members_user_id_fkey ( id, full_name, job_title )")
     .maybeSingle();
   if (error && error.code !== "23505") return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ member: data });

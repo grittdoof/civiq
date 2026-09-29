@@ -94,7 +94,11 @@ export interface MinutesPdfData {
   ordreDuJour: string | null;
   secretaireNom: string | null;
   presents: string[];
+  /** Excusés (ont prévenu de leur absence) — migration 046. */
+  excuses?: string[];
   absents: string[];
+  /** Membres sans présence saisie : ils figurent quand même. */
+  nonRenseignes?: string[];
   compteRendu: string;
   decisions: Array<{ libelle: string; type: string; responsable: string | null; echeance: string | null }>;
   generatedAt: string;
@@ -126,10 +130,24 @@ export function MinutesPDF(props: MinutesPdfData) {
         <Text style={s.sectionTitle}>Présents ({props.presents.length})</Text>
         <Text style={s.para}>{props.presents.length > 0 ? props.presents.join(", ") : "—"}</Text>
 
+        {(props.excuses ?? []).length > 0 && (
+          <>
+            <Text style={s.sectionTitle}>Excusés ({props.excuses!.length})</Text>
+            <Text style={s.para}>{props.excuses!.join(", ")}</Text>
+          </>
+        )}
+
         {props.absents.length > 0 && (
           <>
-            <Text style={s.sectionTitle}>Excusés / absents ({props.absents.length})</Text>
+            <Text style={s.sectionTitle}>Absents ({props.absents.length})</Text>
             <Text style={s.para}>{props.absents.join(", ")}</Text>
+          </>
+        )}
+
+        {(props.nonRenseignes ?? []).length > 0 && (
+          <>
+            <Text style={s.sectionTitle}>Présence non renseignée ({props.nonRenseignes!.length})</Text>
+            <Text style={s.para}>{props.nonRenseignes!.join(", ")}</Text>
           </>
         )}
 
@@ -185,6 +203,8 @@ export interface AttendancePdfData {
     full_name: string;
     role: string;
     present: boolean | null;
+    /** « Présent », « Excusé », « Absent » ; prioritaire sur `present`. */
+    statutLabel?: string | null;
     signature_data: string | null;
     signe_le: string | null;
   }>;
@@ -236,7 +256,7 @@ export function AttendancePDF(props: AttendancePdfData) {
                 : "Membre"}
             </Text>
             <Text style={[s.td, { flex: 1 }]}>
-              {m.present === true ? "Présent" : m.present === false ? "Absent" : "—"}
+              {m.statutLabel ?? (m.present === true ? "Présent" : m.present === false ? "Absent" : "Non renseigné")}
             </Text>
             <View style={[{ flex: 3 }, s.sigBox]}>
               {m.signature_data && (

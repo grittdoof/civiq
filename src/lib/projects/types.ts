@@ -885,6 +885,8 @@ export interface SessionAttendance {
   /** Rattachement à commission_members (pour les externes) */
   commission_member_id: string | null;
   present: boolean | null;
+  /** Présent / excusé / absent (null = non renseigné) — migration 046. */
+  statut?: "present" | "excuse" | "absent" | null;
   signature_data: string | null;
   signe_le: string | null;
   created_at: string;
