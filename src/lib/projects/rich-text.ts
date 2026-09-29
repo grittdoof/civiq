@@ -23,7 +23,30 @@ export interface RichBlock {
   ordered?: boolean;
   /** Pour li numéroté : position (1-based) */
   index?: number;
+  /**
+   * Pour li : marqueur à afficher (« 1. », « • ») ou null quand la liste
+   * porte déjà des numéros / tirets saisis à la main (texte collé d'un
+   * courriel : une ligne = un élément). Même règle qu'à l'écran.
+   */
+  marker?: string | null;
+  /** Identifiant de la liste d'appartenance (interne au calcul des marqueurs). */
+  listId?: number;
   runs: RichRun[];
+}
+
+/** « 1. », « 2) », « a. », « - », « + », « • »… saisis en début d'élément. */
+export const MARQUEUR_MANUEL = /^\s*(?:\d{1,3}[.)]|[a-zA-Z][.)]|[-–—+•·*▪◦])\s/;
+
+/**
+ * Listes dont un élément commence par un marqueur saisi à la main :
+ * classe `pj-rich-manuel` (pas de numéro ni de puce automatique).
+ * À appliquer sur du HTML déjà assaini (toRichHtml).
+ */
+export function marquerListesManuelles(html: string): string {
+  return html.replace(/<(ol|ul)>([\s\S]*?)<\/\1>/g, (m, tag: string, inner: string) => {
+    const items = [...inner.matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => x[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " "));
+    return items.some((t) => MARQUEUR_MANUEL.test(t)) ? `<${tag} class="pj-rich-manuel">${inner}</${tag}>` : m;
+  });
 }
 
 const RICH_TAG = /<\/?(p|br|strong|b|em|i|u|h[1-4]|ul|ol|li)\b[^>]*>/i;
@@ -52,7 +75,9 @@ export function toRichHtml(value: string | null | undefined): string {
   if (!value) return "";
   // Ré-assainit à la lecture : défense en profondeur pour les contenus
   // enregistrés avant le durcissement de sanitizeRichText.
-  return isRichHtml(value) ? sanitizeRichText(value) : plainTextToHtml(value);
+  // Listes aux numéros saisis à la main : pas de marqueur automatique
+  // (même règle dans le PDF, cf. parseRichText).
+  return isRichHtml(value) ? marquerListesManuelles(sanitizeRichText(value)) : plainTextToHtml(value);
 }
 
 // ─── Sanitization ───
@@ -110,7 +135,8 @@ export function parseRichText(value: string | null | undefined): RichBlock[] {
   const html = toRichHtml(value);
   const blocks: RichBlock[] = [];
   const style = { bold: 0, italic: 0, underline: 0 };
-  const lists: { ordered: boolean; count: number }[] = [];
+  const lists: { ordered: boolean; count: number; id: number }[] = [];
+  let nextListId = 0;
   let current: RichBlock | null = null;
 
   const ensureBlock = (): RichBlock => {
@@ -158,7 +184,14 @@ export function parseRichText(value: string | null | undefined): RichBlock[] {
         style.underline += closing ? -1 : 1;
         break;
       case "br":
-        ensureBlock().runs.push({ text: "\n", bold: false, italic: false, underline: false });
+        // Dans un élément de liste : retour à la ligne. Ailleurs : nouveau
+        // paragraphe (un saut de ligne entre deux polices — italique puis
+        // gras — faisait disparaître le texte italique dans react-pdf).
+        if (current && (current as RichBlock).type === "li") {
+          ensureBlock().runs.push({ text: "\n", bold: false, italic: false, underline: false });
+        } else {
+          closeBlock();
+        }
         break;
       case "h1":
       case "h2":
@@ -182,16 +215,16 @@ export function parseRichText(value: string | null | undefined): RichBlock[] {
       case "ol":
         closeBlock();
         if (closing) lists.pop();
-        else lists.push({ ordered: name === "ol", count: 0 });
+        else lists.push({ ordered: name === "ol", count: 0, id: ++nextListId });
         break;
       case "li": {
         if (closing) {
           closeBlock();
           break;
         }
-        const list = lists[lists.length - 1] ?? { ordered: false, count: 0 };
+        const list = lists[lists.length - 1] ?? { ordered: false, count: 0, id: 0 };
         list.count += 1;
-        openBlock({ type: "li", ordered: list.ordered, index: list.count, runs: [] });
+        openBlock({ type: "li", ordered: list.ordered, index: list.count, listId: list.id, runs: [] });
         break;
       }
       default:
@@ -204,7 +237,7 @@ export function parseRichText(value: string | null | undefined): RichBlock[] {
   }
 
   // Nettoyage : trim des bords de bloc, suppression des blocs vides
-  return blocks
+  const nettoyes = blocks
     .map((b) => {
       const runs = b.runs.filter((r) => r.text.length > 0);
       if (runs.length) {
@@ -215,4 +248,15 @@ export function parseRichText(value: string | null | undefined): RichBlock[] {
       return { ...b, runs: runs.filter((r) => r.text.length > 0) };
     })
     .filter((b) => b.runs.length > 0);
+
+  // Marqueurs : aucun automatique si la liste en porte déjà à la main.
+  const manuelles = new Set<number>();
+  for (const b of nettoyes) {
+    if (b.type === "li" && MARQUEUR_MANUEL.test(b.runs.map((r) => r.text).join(""))) manuelles.add(b.listId ?? 0);
+  }
+  return nettoyes.map((b) =>
+    b.type === "li"
+      ? { ...b, marker: manuelles.has(b.listId ?? 0) ? null : b.ordered ? `${b.index}.` : "•" }
+      : b,
+  );
 }

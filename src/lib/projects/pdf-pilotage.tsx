@@ -18,6 +18,9 @@ if (typeof window === "undefined") {
     fonts: [
       { src: path.join(fontsDir, "Inter-Regular.ttf"), fontWeight: 400 },
       { src: path.join(fontsDir, "Inter-Bold.ttf"), fontWeight: 700 },
+      // Italique : Inter (OFL, @fontsource/inter, sous-ensemble latin — voir public/fonts/OFL-Inter.txt).
+      { src: path.join(fontsDir, "Inter-Italic.woff"), fontWeight: 400, fontStyle: "italic" },
+      { src: path.join(fontsDir, "Inter-BoldItalic.woff"), fontWeight: 700, fontStyle: "italic" },
     ],
   });
 }
@@ -38,8 +41,8 @@ const s = StyleSheet.create({
   headMain: { flex: 1 },
   typeTag: { alignSelf: "flex-start", fontSize: 7.5, fontWeight: 700, color: "#fff", paddingVertical: 2, paddingHorizontal: 6, borderRadius: 3, marginBottom: 4 },
   title: { fontSize: 16, fontWeight: 700, color: MARINE, marginBottom: 4 },
-  facts: { fontSize: 8.5, color: MUTED, lineHeight: 1.45 },
-  desc: { fontSize: 9, lineHeight: 1.45, marginBottom: 8 },
+  facts: { fontSize: 8.5, color: MUTED },
+  desc: { fontSize: 9, marginBottom: 8 },
   gaugeWrap: { marginBottom: 10 },
   gaugeLabel: { fontSize: 8, fontWeight: 700, marginBottom: 3 },
   gaugeTrack: { height: 6, backgroundColor: "#eef1f6", borderRadius: 3 },
@@ -69,8 +72,8 @@ const s = StyleSheet.create({
   b3: { width: 4, height: 4, backgroundColor: "#374151" },
   jalon: { width: 5, height: 5, backgroundColor: MARINE, transform: "rotate(45deg)", marginRight: 4, marginTop: 3 },
   l1Text: { flex: 1, fontSize: 10, fontWeight: 700 },
-  l2Text: { flex: 1, fontSize: 9, lineHeight: 1.35 },
-  l3Text: { flex: 1, fontSize: 8.5, lineHeight: 1.35, color: "#374151" },
+  l2Text: { flex: 1, fontSize: 9 },
+  l3Text: { flex: 1, fontSize: 8.5, color: "#374151" },
 });
 
 interface Enveloppe {

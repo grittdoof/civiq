@@ -69,7 +69,6 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: 6.5,
     color: "#9ca3af",
-    lineHeight: 1.3,
   },
   footerBrand: { width: 44, height: 16, objectFit: "contain", opacity: 0.55 },
 });

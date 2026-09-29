@@ -41,9 +41,9 @@ describe("parseRichText", () => {
     ]);
   });
   it("texte hors bloc (contenteditable) + <br> + entités", () => {
+    // Hors liste, <br> ouvre un nouveau paragraphe (voir « PDF : listes… »).
     const blocks = parseRichText("Ligne 1<br>Ligne&nbsp;2 &amp; fin<p>Suite</p>");
-    expect(blocks[0].runs.map((r) => r.text).join("")).toBe("Ligne 1\nLigne 2 & fin");
-    expect(blocks[1].runs[0].text).toBe("Suite");
+    expect(blocks.map((b) => b.runs.map((r) => r.text).join(""))).toEqual(["Ligne 1", "Ligne 2 & fin", "Suite"]);
   });
   it("un <p> collé dans un <li> ne casse pas l'item", () => {
     const blocks = parseRichText("<ul><li><p>Point</p></li></ul>");
@@ -110,5 +110,35 @@ describe("sanitizeRichText", () => {
   });
   it("toRichHtml ré-assainit un contenu déjà stocké", () => {
     expect(toRichHtml("<p>ok<img/src=x onerror=alert(1)></p>")).toBe("<p>ok</p>");
+  });
+});
+
+import { marquerListesManuelles, parseRichText as parse2 } from "@/lib/projects/rich-text";
+
+describe("PDF : listes et retours à la ligne comme à l'écran", () => {
+  it("liste aux numéros saisis à la main : aucun marqueur automatique", () => {
+    const b = parse2("<ol><li>1. Validation du règlement</li><li>suite de la ligne</li><li>2. Cérémonie</li></ol>");
+    expect(b.filter((x) => x.type === "li").map((x) => x.marker)).toEqual([null, null, null]);
+  });
+  it("tirets et « + » comptent comme marqueurs manuels", () => {
+    const b = parse2("<ul><li>- Sentier rando</li><li>+ Questions</li></ul>");
+    expect(b.every((x) => x.marker === null)).toBe(true);
+  });
+  it("liste ordinaire : numéros et puces automatiques", () => {
+    expect(parse2("<ol><li>Alpha</li><li>Bêta</li></ol>").map((x) => x.marker)).toEqual(["1.", "2."]);
+    expect(parse2("<ul><li>Alpha</li></ul>")[0].marker).toBe("•");
+  });
+  it("<br> hors liste : nouveau paragraphe (l'italique ne se mêle plus au titre suivant)", () => {
+    const b = parse2("<i>Présentation</i><i><br></i><b><u>Communication</u></b>");
+    expect(b.map((x) => x.runs.map((r) => r.text).join(""))).toEqual(["Présentation", "Communication"]);
+    expect(b[0].runs[0].italic).toBe(true);
+  });
+  it("<br> dans un élément de liste : simple retour à la ligne", () => {
+    const b = parse2("<ul><li>ligne 1<br>ligne 2</li></ul>");
+    expect(b).toHaveLength(1);
+    expect(b[0].runs.map((r) => r.text).join("")).toBe("ligne 1\nligne 2");
+  });
+  it("écran : classe pj-rich-manuel sur les listes numérotées à la main", () => {
+    expect(marquerListesManuelles("<ol><li>1. A</li></ol><ul><li>B</li></ul>")).toBe('<ol class="pj-rich-manuel"><li>1. A</li></ol><ul><li>B</li></ul>');
   });
 });
