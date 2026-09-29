@@ -60,9 +60,9 @@ const nextConfig: NextConfig = {
   // générateurs PDF) et du logo GoCiviq PNG (pied des PDF) dans le
   // bundle des fonctions qui produisent des PDF.
   outputFileTracingIncludes: {
-    "/api/tickets/pdf": ["./public/fonts/**/*.ttf"],
-    "/api/commissions/**/*": ["./public/fonts/**/*.ttf", "./public/brand/logo-horizontal.png"],
-    "/api/projects/**/*": ["./public/fonts/**/*.ttf", "./public/brand/logo-horizontal.png"],
+    "/api/tickets/pdf": ["./public/fonts/**/*"],
+    "/api/commissions/**/*": ["./public/fonts/**/*", "./public/brand/logo-horizontal.png"],
+    "/api/projects/**/*": ["./public/fonts/**/*", "./public/brand/logo-horizontal.png"],
   },
   images: {
     remotePatterns: [

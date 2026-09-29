@@ -19,6 +19,9 @@ if (typeof window === "undefined") {
     fonts: [
       { src: path.join(fontsDir, "Inter-Regular.ttf"), fontWeight: 400 },
       { src: path.join(fontsDir, "Inter-Bold.ttf"), fontWeight: 700 },
+      // Italique : Inter (OFL, @fontsource/inter, sous-ensemble latin — voir public/fonts/OFL-Inter.txt).
+      { src: path.join(fontsDir, "Inter-Italic.woff"), fontWeight: 400, fontStyle: "italic" },
+      { src: path.join(fontsDir, "Inter-BoldItalic.woff"), fontWeight: 700, fontStyle: "italic" },
     ],
   });
 }

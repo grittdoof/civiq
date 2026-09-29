@@ -28,6 +28,9 @@ if (typeof window === "undefined") {
     fonts: [
       { src: path.join(fontsDir, "Inter-Regular.ttf"), fontWeight: 400 },
       { src: path.join(fontsDir, "Inter-Bold.ttf"), fontWeight: 700 },
+      // Italique : Inter (OFL, @fontsource/inter, sous-ensemble latin — voir public/fonts/OFL-Inter.txt).
+      { src: path.join(fontsDir, "Inter-Italic.woff"), fontWeight: 400, fontStyle: "italic" },
+      { src: path.join(fontsDir, "Inter-BoldItalic.woff"), fontWeight: 700, fontStyle: "italic" },
     ],
   });
 }
@@ -48,7 +51,7 @@ const s = StyleSheet.create({
   section: { marginTop: 14, marginBottom: 4 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginBottom: 6, color: "#111827", borderBottom: 1, borderColor: "#e5e7eb", paddingBottom: 3 },
   sectionTitleHighlight: { backgroundColor: "#fef3c7", padding: 4, marginLeft: -4, marginRight: -4 },
-  para: { lineHeight: 1.4, marginBottom: 4 },
+  para: { marginBottom: 4 },
   kvRow: { flexDirection: "row", marginBottom: 3 },
   kvLabel: { width: 130, color: "#6b7280" },
   kvValue: { flex: 1, fontWeight: 700 },
@@ -168,7 +171,7 @@ export function ProjectPDF(props: ProjectPdfData) {
                     {p.pctDone}%
                   </Text>
                 </View>
-                <Text style={{ fontSize: 8.5, color: "#6b7280", marginBottom: 4, lineHeight: 1.3 }}>
+                <Text style={{ fontSize: 8.5, color: "#6b7280", marginBottom: 4 }}>
                   {p.objective}
                 </Text>
                 {p.deliverables.map((d, di) => (

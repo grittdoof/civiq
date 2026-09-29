@@ -906,3 +906,24 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - **Cause** : la migration 036 (lot A) a ajouté `commission_members.deleted_by → profiles`. L'embed PostgREST `profile:profiles(...)` devenait **ambigu** (deux FK vers `profiles`) → réponse **HTTP 300 / PGRST201**, données `null` **sans erreur visible** → liste des membres vide sur la page commission, l'écran de séance, les destinataires de convocation (depuis le 25/09) et la page publique de réponse. Prouvé dans les logs `edge_logs` Supabase.
 - **Correctif** : embeds désambiguïsés `profiles!commission_members_user_id_fkey` (5 requêtes), journalisation des erreurs de lecture des membres, éditeurs membres / projets de commission resynchronisés sur les données serveur.
 - **Point d'attention** : toute table qui reçoit une nouvelle FK vers `profiles` (ex. `deleted_by`, `created_by`) rend ambigus les embeds `profiles(...)` existants : **toujours nommer la FK** (`profiles!<table>_<colonne>_fkey`). Tables concernées aujourd'hui : commission_members, commission_sessions, commissions, contacts, financeurs_locaux, milestones, profile_module_overrides, project_budget_lines, project_documents, project_quotes, projects, session_documents, ticket_assignees, tickets.
+
+## Session 20 — PDF : ordre du jour mal mis en forme, feuille d'émargement allégée (2026-09-29)
+
+### Prompt de départ
+> « La feuille d'émargement inclut l'ordre du jour, mais entre la mise en forme dans le logiciel et le PDF il y a des problèmes. » → puis « sinon on ne l'intègre pas, l'émargement c'est surtout faire signer les membres présents ».
+
+### Causes
+- Texte collé d'un courriel : l'éditeur fait **une ligne = un `<li>`**, avec les numéros saisis à la main. Le PDF ajoutait sa propre numérotation (« 1. 1. Validation… », « 2. municipal… ») ; l'écran, lui, n'affichait aucun marqueur.
+- **Italique invisible** : les polices standard Helvetica-Oblique de react-pdf disparaissaient dans les documents complets.
+- **Interligne doublé** : dans react-pdf avec Inter, toute valeur de `lineHeight` double l'espacement dès qu'un texte passe à la ligne.
+- `<br>` hors liste restait dans le même paragraphe (italique + saut de ligne + titre gras dans un seul `Text`).
+
+### Livrés
+- **Feuille d'émargement sans ordre du jour** (il reste dans la convocation et le compte rendu).
+- `rich-text.ts` : `MARQUEUR_MANUEL` + marqueur calculé par liste (aucun automatique si un élément commence par « 1. », « a) », « - », « + », « • »…), `<br>` hors liste = nouveau paragraphe ; `marquerListesManuelles()` appliqué par `toRichHtml` → classe `pj-rich-manuel` à l'écran (listes ordinaires : numéros / puces, listes manuelles : aucun marqueur).
+- **Police Inter italique embarquée** (`public/fonts/Inter-Italic.woff`, `Inter-BoldItalic.woff`, OFL, `@fontsource/inter` sous-ensemble latin — licence `OFL-Inter.txt`) dans les 4 modules PDF ; `outputFileTracingIncludes` élargi à `public/fonts/**/*`.
+- Suppression de tous les `lineHeight` des PDF (commission, pilotage, fiche, en-tête).
+
+### Points d'attention
+- **Ne pas remettre de `lineHeight` dans un style react-pdf** (interligne doublé).
+- Le sous-ensemble latin couvre le français (accents, œ, €, ’) ; un caractère hors latin en italique retomberait sur la police par défaut.

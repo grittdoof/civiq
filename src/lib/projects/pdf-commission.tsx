@@ -11,6 +11,9 @@ if (typeof window === "undefined") {
     fonts: [
       { src: path.join(fontsDir, "Inter-Regular.ttf"), fontWeight: 400 },
       { src: path.join(fontsDir, "Inter-Bold.ttf"), fontWeight: 700 },
+      // Italique : Inter (OFL, @fontsource/inter, sous-ensemble latin — voir public/fonts/OFL-Inter.txt).
+      { src: path.join(fontsDir, "Inter-Italic.woff"), fontWeight: 400, fontStyle: "italic" },
+      { src: path.join(fontsDir, "Inter-BoldItalic.woff"), fontWeight: 700, fontStyle: "italic" },
     ],
   });
 }
@@ -21,12 +24,14 @@ const s = StyleSheet.create({
   title: { fontSize: 16, fontWeight: 700, marginTop: 8, marginBottom: 4 },
   subtitle: { fontSize: 10, color: "#6b7280", marginBottom: 12 },
   sectionTitle: { fontSize: 12, fontWeight: 700, marginTop: 12, marginBottom: 6 },
-  para: { lineHeight: 1.4, marginBottom: 4 },
+  // Pas de lineHeight : dans react-pdf (police Inter), toute valeur double
+  // l'interligne dès que le texte passe à la ligne.
+  para: { marginBottom: 4 },
   richH2: { fontSize: 12, fontWeight: 700, marginTop: 8, marginBottom: 4, color: "#042f64" },
   richH3: { fontSize: 11, fontWeight: 700, marginTop: 6, marginBottom: 3 },
-  richLi: { flexDirection: "row", marginBottom: 2, paddingLeft: 6 },
-  richBullet: { width: 16, lineHeight: 1.4 },
-  richLiText: { flex: 1, lineHeight: 1.4 },
+  richLi: { flexDirection: "row", marginBottom: 1, paddingLeft: 12 },
+  richBullet: { width: 14 },
+  richLiText: { flex: 1 },
   trHead: { flexDirection: "row", backgroundColor: "#f3f4f6", padding: 4 },
   tr: { flexDirection: "row", borderBottom: 0.5, borderColor: "#e5e7eb", padding: 4, minHeight: 28, alignItems: "center" },
   th: { fontSize: 9, fontWeight: 700 },
@@ -36,15 +41,12 @@ const s = StyleSheet.create({
 });
 
 // ─── Texte riche (HTML assaini → blocs react-pdf) ───
-// Inter n'est embarquée qu'en Regular/Bold : l'italique utilise la
-// police standard PDF Helvetica (Oblique / BoldOblique), sans fichier.
+// Italique : vraie police Inter italique embarquée (la police standard
+// Helvetica-Oblique disparaissait à l'affichage de certains PDF).
 function runStyle(r: RichRun) {
   return {
-    ...(r.italic
-      ? { fontFamily: "Helvetica", fontStyle: "italic" as const, fontWeight: r.bold ? 700 : 400 }
-      : r.bold
-        ? { fontWeight: 700 }
-        : {}),
+    ...(r.italic ? { fontStyle: "italic" as const } : {}),
+    ...(r.bold ? { fontWeight: 700 } : {}),
     ...(r.underline ? { textDecoration: "underline" as const } : {}),
   };
 }
@@ -74,7 +76,7 @@ export function RichTextPdf({ value }: { value: string | null | undefined }) {
         if (b.type === "li") {
           return (
             <View key={i} style={s.richLi} wrap={false}>
-              <Text style={s.richBullet}>{b.ordered ? `${b.index}.` : "•"}</Text>
+              {b.marker && <Text style={s.richBullet}>{b.marker}</Text>}
               <Text style={s.richLiText}><Runs runs={b.runs} /></Text>
             </View>
           );
@@ -233,13 +235,8 @@ export function AttendancePDF(props: AttendancePdfData) {
           {props.secretaireNom && `Secrétaire de séance : ${props.secretaireNom}`}
         </Text>
 
-        {props.ordreDuJour && (
-          <>
-            <Text style={s.sectionTitle}>Ordre du jour</Text>
-            <RichTextPdf value={props.ordreDuJour} />
-          </>
-        )}
-
+        {/* L'ordre du jour n'est pas repris : la feuille sert à faire signer
+            les membres présents (il figure dans la convocation et au compte rendu). */}
         <Text style={s.sectionTitle}>Émargement</Text>
         <View style={s.trHead}>
           <Text style={[s.th, { flex: 3 }]}>Conseiller</Text>

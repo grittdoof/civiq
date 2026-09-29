@@ -1526,6 +1526,9 @@ textarea.pj-input { min-height: 60px; resize: vertical; }
 .pj-rich p { margin: 0 0 8px; }
 .pj-rich p:last-child { margin-bottom: 0; }
 .pj-rich ul, .pj-rich ol { padding-left: 22px; margin: 4px 0 8px; }
+.pj-rich ol { list-style: decimal; }
+.pj-rich ul { list-style: disc; }
+.pj-rich ol.pj-rich-manuel, .pj-rich ul.pj-rich-manuel { list-style: none; }
 .pj-rich h1, .pj-rich h2, .pj-rich h3 { font-weight: 700; margin: 10px 0 6px; }
 .pj-rich h2 { font-size: 17px; }
 .pj-rich h3 { font-size: 15px; }
