@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { peutChangerConfidentialite } from "@/lib/projects/confidentialite";
+import { CORBEILLE_JOURS, peutSupprimerProjet, sauvegarderProjet } from "@/lib/projects/corbeille";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
@@ -284,29 +285,41 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
-  const guard = await requireModule("projects");
-  if (!guard.ok) return guard.response;
-  if (!guard.communeId) {
-    return NextResponse.json({ error: "Aucune commune attribuée" }, { status: 403 });
-  }
-  // Règle métier : suppression projet réservée au super-admin
-  // (données structurantes : historique financier, délibérations,
-  // contraintes d'archivage RGPD / comptable).
-  if (guard.role !== "super_admin") {
-    return NextResponse.json(
-      { error: "Seul un super-administrateur peut supprimer un projet. Contactez le support." },
-      { status: 403 },
-    );
+// DELETE /api/projects/:id — mise à la corbeille (brief utilisateur du
+// 2026-09-29) : bureau municipal, élu référent ou agent du projet. Une
+// sauvegarde JSON est écrite avant ; le projet reste 30 jours dans la
+// corbeille du super-administrateur, qui peut le restaurer.
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const access = await requireProjectEdit(id);
+  if (!access.ok) return access.response;
+
+  const body = (await req.json().catch(() => ({}))) as { motif?: unknown };
+  const motif = typeof body.motif === "string" ? body.motif.trim().slice(0, 300) : "";
+  if (!motif) return NextResponse.json({ error: "Indiquez en une phrase pourquoi ce projet est supprimé." }, { status: 400 });
+
+  const service = await createServiceClient();
+  const { data: projet } = await service
+    .from("projects").select("pilote_elu, pilote_agent").eq("id", id).eq("commune_id", access.communeId).is("deleted_at", null).maybeSingle();
+  if (!projet) return NextResponse.json({ error: "Projet introuvable" }, { status: 404 });
+  if (!peutSupprimerProjet({ id: access.userId, role: access.role }, projet)) {
+    return NextResponse.json({ error: "Seuls un administrateur de la commune, l'élu référent ou l'agent du projet peuvent le supprimer." }, { status: 403 });
   }
 
-  const { id } = await params;
-  const service = await createServiceClient();
+  // Sauvegarde d'abord : sans elle, pas de suppression.
+  let sauvegarde: string;
+  try {
+    sauvegarde = (await sauvegarderProjet(service, id, "mise_a_la_corbeille")).path;
+  } catch (e) {
+    console.error("[projets] sauvegarde avant suppression", e);
+    return NextResponse.json({ error: "La sauvegarde de sécurité a échoué : le projet n'a pas été supprimé. Réessayez." }, { status: 500 });
+  }
+
   const { error } = await service
     .from("projects")
-    .update(softDeleteFields(guard.userId))
+    .update({ ...softDeleteFields(access.userId), suppression_motif: motif })
     .eq("id", id)
-    .eq("commune_id", guard.communeId)
+    .eq("commune_id", access.communeId)
     .is("deleted_at", null);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -314,9 +327,10 @@ export async function DELETE(_req: NextRequest, { params }: RouteParams) {
     action: "project.deleted",
     targetType: "project",
     targetId: id,
-    communeId: guard.communeId,
+    communeId: access.communeId,
+    metadata: { motif, sauvegarde },
   });
 
-  synchroniserAgendasApres(guard.communeId);
-  return NextResponse.json({ ok: true });
+  synchroniserAgendasApres(access.communeId);
+  return NextResponse.json({ ok: true, restaurable_jours: CORBEILLE_JOURS });
 }

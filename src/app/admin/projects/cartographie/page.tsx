@@ -5,6 +5,8 @@ import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
+import { filtrerProjetsVisibles } from "@/lib/projects/confidentialite";
+import TypeBadge from "@/components/projects/TypeBadge";
 import {
   PROJECT_PHASE_LABELS,
   STAKEHOLDER_ROLE_LABELS,
@@ -12,11 +14,14 @@ import {
   type ProjectPhase,
   type StakeholderRole,
   type StakeholderType,
+  type TypeProjetCode,
 } from "@/lib/projects/types";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/cartographie — vue transversale « qui intervient
-// sur quoi », filtrable par type et rôle.
+// sur quoi », filtrable par type et rôle. Réunit les parties prenantes
+// d'un projet (rôle RACI) et celles rattachées à une étape (lot B).
+// Projets confidentiels filtrés (même règle que user_voit_projet).
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -36,35 +41,60 @@ export default async function CartographiePage({ searchParams }: Props) {
   const { type, role } = await searchParams;
 
   const service = await createServiceClient();
-  const { data } = await service
-    .from("project_stakeholders")
-    .select(`
-      id, role, phase,
-      stakeholder:contacts!inner ( id, nom, organisation, type:categorie, commune_id ),
-      project:projects!inner ( id, titre, phase, commune_id )
-    `)
-    // Filtrage commune côté serveur (auparavant : toutes les communes,
-    // puis filtre JS — fuite de volume et troncature à 1000 lignes).
-    .eq("project.commune_id", ctx.communeId)
-    .eq("stakeholder.commune_id", ctx.communeId)
-    .is("project.deleted_at", null)
-    .is("project.archived_at", null)
-    .is("stakeholder.deleted_at", null);
+  const projetSel = "id, titre, type_code, commune_id, confidentiel, pilote_elu, pilote_agent";
+  const [{ data }, { data: etapesData }] = await Promise.all([
+    service
+      .from("project_stakeholders")
+      .select(`
+        id, role, phase,
+        stakeholder:contacts!inner ( id, nom, organisation, type:categorie, commune_id ),
+        project:projects!inner ( ${projetSel} )
+      `)
+      .eq("project.commune_id", ctx.communeId)
+      .eq("stakeholder.commune_id", ctx.communeId)
+      .is("project.deleted_at", null)
+      .is("project.archived_at", null)
+      .is("stakeholder.deleted_at", null),
+    service
+      .from("milestone_contacts")
+      .select(`
+        id,
+        stakeholder:contacts!inner ( id, nom, organisation, type:categorie, commune_id ),
+        milestone:milestones!inner ( id, libelle, deleted_at, project:projects!inner ( ${projetSel} ) )
+      `)
+      .eq("stakeholder.commune_id", ctx.communeId)
+      .eq("milestone.project.commune_id", ctx.communeId)
+      .is("milestone.deleted_at", null)
+      .is("milestone.project.deleted_at", null)
+      .is("milestone.project.archived_at", null)
+      .is("stakeholder.deleted_at", null),
+  ]);
 
+  type Projet = { id: string; titre: string; type_code: TypeProjetCode | null; commune_id: string; confidentiel: boolean; pilote_elu: string | null; pilote_agent: string | null };
+  type Contact = { id: string; nom: string; organisation: string | null; type: StakeholderType; commune_id: string };
   type Row = {
     id: string;
-    role: StakeholderRole;
+    role: StakeholderRole | null;
     phase: ProjectPhase | null;
-    stakeholder: { id: string; nom: string; organisation: string | null; type: StakeholderType; commune_id: string } | null;
-    project: { id: string; titre: string; phase: ProjectPhase; commune_id: string } | null;
+    etape: string | null;
+    stakeholder: Contact | null;
+    project: Projet | null;
   };
 
-  let rows = ((data ?? []) as unknown as Row[]).filter(
+  const projetRows: Row[] = ((data ?? []) as unknown as Array<Omit<Row, "etape">>).map((r) => ({ ...r, etape: null }));
+  const etapeRows: Row[] = ((etapesData ?? []) as unknown as Array<{ id: string; stakeholder: Contact | null; milestone: { libelle: string; project: Projet | null } | null }>)
+    .map((r) => ({ id: `e-${r.id}`, role: null, phase: null, etape: r.milestone?.libelle ?? null, stakeholder: r.stakeholder, project: r.milestone?.project ?? null }));
+  const tous = [...projetRows, ...etapeRows].filter(
     (r) => r.stakeholder?.commune_id === ctx.communeId && r.project?.commune_id === ctx.communeId,
   );
+  const visibles = new Set(
+    (await filtrerProjetsVisibles(service, { id: ctx.userId, role: ctx.role }, [...new Map(tous.map((r) => [r.project!.id, r.project!])).values()])).map((p) => p.id),
+  );
+  let rows = tous.filter((r) => visibles.has(r.project!.id));
 
   if (type) rows = rows.filter((r) => r.stakeholder?.type === type);
   if (role) rows = rows.filter((r) => r.role === role);
+  rows.sort((a, b) => a.project!.titre.localeCompare(b.project!.titre, "fr"));
 
   // Regrouper par stakeholder
   const byStakeholder = new Map<string, { nom: string; type: StakeholderType; lines: Row[] }>();
@@ -91,8 +121,8 @@ export default async function CartographiePage({ searchParams }: Props) {
 
       <h1 className="civiq-page-title">Cartographie des parties prenantes</h1>
       <p className="pj-page-subtitle">
-        Vue transversale : qui intervient sur quel projet, dans quel rôle RACI
-        et à quelle étape.
+        Qui intervient sur quel projet : rôle sur l&apos;ensemble du projet (responsable, approbateur, consulté, informé)
+        ou participation à une étape précise.
       </p>
 
       <div className="pj-filters">
@@ -134,10 +164,10 @@ export default async function CartographiePage({ searchParams }: Props) {
               <table className="pj-table">
                 <thead>
                   <tr>
-                    <th>Projet</th>
-                    <th>Étape du projet</th>
-                    <th>Rôle</th>
-                    <th>Étape d&apos;intervention</th>
+                    <th scope="col">Projet</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Rôle</th>
+                    <th scope="col">Intervient sur</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -148,13 +178,15 @@ export default async function CartographiePage({ searchParams }: Props) {
                           {l.project!.titre}
                         </Link>
                       </td>
-                      <td>{PROJECT_PHASE_LABELS[l.project!.phase]}</td>
+                      <td><TypeBadge type={l.project!.type_code ?? "suivi_simple"} size="sm" /></td>
                       <td>
-                        <span className="civiq-badge civiq-badge-default">
-                          {STAKEHOLDER_ROLE_LABELS[l.role]}
-                        </span>
+                        {l.role ? (
+                          <span className="civiq-badge civiq-badge-default">{STAKEHOLDER_ROLE_LABELS[l.role]}</span>
+                        ) : (
+                          <span className="pj-list-muted">Participant</span>
+                        )}
                       </td>
-                      <td>{l.phase ? PROJECT_PHASE_LABELS[l.phase] : "Tout le projet"}</td>
+                      <td>{l.etape ? `Étape : ${l.etape}` : l.phase ? PROJECT_PHASE_LABELS[l.phase] : "Tout le projet"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -5,36 +5,21 @@ import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { listProjects } from "@/lib/projects/queries";
-import {
-  PROJECT_PHASE_LABELS,
-  type ProjectPhase,
-} from "@/lib/projects/types";
+import { chargerPortefeuille } from "@/lib/projects/portefeuille-server";
+import { construirePpi, type LignePpi } from "@/lib/projects/ppi";
 import { formatEuros } from "@/lib/projects/cost-calc";
-import PhaseIcon from "@/components/projects/PhaseIcon";
 import ExportPpiButton from "@/components/projects/ExportPpiButton";
 import PpiInclusionToggle from "@/components/projects/PpiInclusionToggle";
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/projects/ppi — Plan Pluriannuel d'Investissement
+// /admin/projects/ppi — Plan pluriannuel d'investissement (PPI)
 //
-// Vision consolidée de tous les projets d'investissement de la
-// commune, regroupés par année de programmation (date_creation
-// par défaut, fallback année courante si non renseignée).
-//
-// Pour chaque opération : montant HT, subventions sollicitées,
-// subventions obtenues, autofinancement, reste à charge, phase
-// en cours.
+// Projets de type investissement, regroupés par année d'échéance
+// souhaitée (à défaut, année de création). Montants hors taxes issus
+// du budget du projet (lib/projects/ppi.ts, commun avec l'export PDF).
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
-
-// Bonnes pratiques PPI : tableau N, N+1, N+2, N+3 — on couvre
-// l'année courante + 3 années suivantes.
-function programmingYear(p: { date_creation?: string | null }): number {
-  if (p.date_creation) return new Date(p.date_creation).getFullYear();
-  return new Date().getFullYear();
-}
 
 export default async function PpiPage() {
   const ctx = await requireCommune();
@@ -44,51 +29,22 @@ export default async function PpiPage() {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const projects = await listProjects(ctx.communeId);
-
-  // Agrégats financement par projet (déjà précalculés par listProjects)
-  const service = await createServiceClient();
-  const { data: communeRow } = await service
-    .from("communes")
-    .select("name")
-    .eq("id", ctx.communeId)
-    .maybeSingle();
+  const [pf, service] = await Promise.all([chargerPortefeuille(ctx.communeId), createServiceClient()]);
+  const { data: communeRow } = await service.from("communes").select("name").eq("id", ctx.communeId).maybeSingle();
   const communeName = communeRow?.name ?? "Commune";
+  const ppi = construirePpi({
+    projets: pf.items,
+    lignesParProjet: pf.lignesParProjet,
+    subventionsParProjet: pf.subventionsParProjet,
+    statuts: pf.statuts,
+  });
+  const avecEstimation = ppi.annees.some((a) => a.lignes.some((l) => l.estimation));
 
-  // Filtre : on exclut les projets « accompagnement sans financement »
-  // (ils n'entrent pas dans le PPI au sens financier) PUIS ceux que
-  // l'utilisateur a manuellement exclus (in_ppi = false).
-  const eligibleProjects = projects.filter((p) => !p.accompagne_sans_financer);
-  const ppiProjects = eligibleProjects.filter((p) => p.in_ppi !== false);
-  // Projets éligibles mais explicitement retirés par l'utilisateur :
-  // affichés en bas avec un bouton « Réintégrer ».
-  const excludedProjects = eligibleProjects.filter((p) => p.in_ppi === false);
-
-  // Groupement par année de programmation
-  const byYear = new Map<number, typeof ppiProjects>();
-  for (const p of ppiProjects) {
-    const y = programmingYear(p);
-    const arr = byYear.get(y) ?? [];
-    arr.push(p);
-    byYear.set(y, arr);
-  }
-  const years = Array.from(byYear.keys()).sort((a, b) => a - b);
-
-  // Totaux globaux
-  const totals = ppiProjects.reduce(
-    (acc, p) => {
-      const budget = Number(p.budget_estime ?? 0);
-      const demande = p.financing_total_demande ?? 0;
-      const obtenu = p.financing_total_obtenu ?? 0;
-      const reste = budget - obtenu;
-      return {
-        budget: acc.budget + budget,
-        demande: acc.demande + demande,
-        obtenu: acc.obtenu + obtenu,
-        reste: acc.reste + reste,
-      };
-    },
-    { budget: 0, demande: 0, obtenu: 0, reste: 0 },
+  const Montant = ({ l }: { l: LignePpi }) => (
+    <>
+      {formatEuros(l.montantHt)}
+      {l.estimation && l.montantHt > 0 && <span className="pj-list-muted"> *</span>}
+    </>
   );
 
   return (
@@ -96,15 +52,14 @@ export default async function PpiPage() {
       <div className="pj-ppi-header">
         <div>
           <Link href="/admin/projects" className="civiq-btn civiq-btn-ghost civiq-btn-sm">
-            <ArrowLeft size={14} /> Gestion de projet
+            <ArrowLeft size={14} aria-hidden="true" /> Gestion de projet
           </Link>
           <h1 className="civiq-page-title" style={{ marginTop: 8 }}>
-            Plan Pluriannuel d&apos;Investissement
+            Plan pluriannuel d&apos;investissement (PPI)
           </h1>
           <p className="pj-page-subtitle">
-            Vision consolidée des investissements de {communeName}, regroupés
-            par année de programmation. Pour chaque opération : montant HT,
-            financements sollicités, obtenus, et reste à charge.
+            Les investissements de {communeName}, année par année : montant hors taxes, subventions sollicitées
+            et obtenues, reste à charge de la commune.
           </p>
         </div>
         <div className="pj-page-header-actions">
@@ -112,185 +67,94 @@ export default async function PpiPage() {
         </div>
       </div>
 
-      {/* Totaux */}
       <section className="pj-summary-bar">
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Opérations</div>
-          <div className="pj-summary-value">{ppiProjects.length}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Investissement total HT</div>
-          <div className="pj-summary-value">{formatEuros(totals.budget)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Subventions sollicitées</div>
-          <div className="pj-summary-value">{formatEuros(totals.demande)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Subventions obtenues</div>
-          <div className="pj-summary-value pj-summary-value-success">{formatEuros(totals.obtenu)}</div>
-        </div>
-        <div className="pj-summary-card">
-          <div className="pj-summary-label">Reste à charge commune</div>
-          <div className="pj-summary-value pj-summary-value-warn">{formatEuros(totals.reste)}</div>
-        </div>
+        <div className="pj-summary-card"><div className="pj-summary-label">Opérations</div><div className="pj-summary-value">{ppi.total.operations}</div></div>
+        <div className="pj-summary-card"><div className="pj-summary-label">Investissement total HT</div><div className="pj-summary-value">{formatEuros(ppi.total.montantHt)}</div></div>
+        <div className="pj-summary-card"><div className="pj-summary-label">Subventions sollicitées</div><div className="pj-summary-value">{formatEuros(ppi.total.sollicite)}</div></div>
+        <div className="pj-summary-card"><div className="pj-summary-label">Subventions obtenues</div><div className="pj-summary-value pj-summary-value-success">{formatEuros(ppi.total.obtenu)}</div></div>
+        <div className="pj-summary-card"><div className="pj-summary-label">Reste à charge commune</div><div className="pj-summary-value pj-summary-value-warn">{formatEuros(ppi.total.reste)}</div></div>
       </section>
 
-      {ppiProjects.length === 0 ? (
+      {ppi.total.operations === 0 && ppi.exclus.length === 0 ? (
         <div className="civiq-card pj-empty">
-          <p className="pj-empty-title">Aucune opération à programmer</p>
+          <p className="pj-empty-title">Aucun investissement à programmer</p>
           <p className="pj-empty-hint">
-            Créez des projets d&apos;investissement pour construire votre PPI.
-            Les projets « accompagnement sans financement » sont exclus du PPI.
+            Le PPI reprend les projets de type « Investissement ». Les événements et les suivis simples n&apos;y figurent pas.
           </p>
         </div>
       ) : (
         <div className="pj-ppi-content">
           <div className="pj-ppi-tip" role="note">
-            <Info size={14} />
+            <Info size={14} aria-hidden="true" />
             <span>
-              La <strong>programmation</strong> de chaque opération est déduite de sa date
-              de création. Un champ « année cible » sera ajouté ultérieurement
-              pour affiner la prospective.
+              Chaque opération est programmée l&apos;année de son <strong>échéance souhaitée</strong> (modifiable sur la fiche du projet),
+              à défaut l&apos;année de sa création.
+              {avecEstimation && " * Montant issu de l'estimation initiale : saisissez le budget du projet pour l'affiner."}
             </span>
           </div>
 
-          {years.map((year) => {
-            const items = byYear.get(year) ?? [];
-            const yearTotals = items.reduce(
-              (acc, p) => {
-                const budget = Number(p.budget_estime ?? 0);
-                const obtenu = p.financing_total_obtenu ?? 0;
-                return {
-                  budget: acc.budget + budget,
-                  obtenu: acc.obtenu + obtenu,
-                  reste: acc.reste + (budget - obtenu),
-                };
-              },
-              { budget: 0, obtenu: 0, reste: 0 },
-            );
-            return (
-              <section key={year} className="pj-ppi-year">
-                <header className="pj-ppi-year-header">
-                  <h2 className="pj-ppi-year-title">Programmation {year}</h2>
-                  <div className="pj-ppi-year-totals">
-                    <span>
-                      <span className="pj-ppi-year-label">Total HT</span>
-                      <strong>{formatEuros(yearTotals.budget)}</strong>
-                    </span>
-                    <span>
-                      <span className="pj-ppi-year-label">Subventions obtenues</span>
-                      <strong className="pj-text-success">
-                        {formatEuros(yearTotals.obtenu)}
-                      </strong>
-                    </span>
-                    <span>
-                      <span className="pj-ppi-year-label">Reste à charge</span>
-                      <strong className="pj-text-warn">
-                        {formatEuros(yearTotals.reste)}
-                      </strong>
-                    </span>
-                  </div>
-                </header>
-
+          {ppi.annees.map(({ annee, lignes, total }) => (
+            <section key={annee} className="pj-ppi-year">
+              <header className="pj-ppi-year-header">
+                <h2 className="pj-ppi-year-title">Programmation {annee}</h2>
+                <div className="pj-ppi-year-totals">
+                  <span><span className="pj-ppi-year-label">Total HT</span> <strong>{formatEuros(total.montantHt)}</strong></span>
+                  <span><span className="pj-ppi-year-label">Subventions obtenues</span> <strong className="pj-text-success">{formatEuros(total.obtenu)}</strong></span>
+                  <span><span className="pj-ppi-year-label">Reste à charge</span> <strong className="pj-text-warn">{formatEuros(total.reste)}</strong></span>
+                </div>
+              </header>
+              <div className="pj-stats-table-wrap">
                 <table className="pj-table pj-ppi-table">
                   <thead>
                     <tr>
-                      <th>Opération</th>
-                      <th>Étape</th>
-                      <th>Tiers</th>
-                      <th className="pj-num">Montant HT</th>
-                      <th className="pj-num">Subv. sollicitées</th>
-                      <th className="pj-num">Subv. obtenues</th>
-                      <th className="pj-num">Reste à charge</th>
-                      <th aria-label="Actions" />
+                      <th scope="col">Opération</th>
+                      <th scope="col">Où en est-on ?</th>
+                      <th scope="col">Tiers</th>
+                      <th scope="col" className="pj-num">Montant HT</th>
+                      <th scope="col" className="pj-num">Subv. sollicitées</th>
+                      <th scope="col" className="pj-num">Subv. obtenues</th>
+                      <th scope="col" className="pj-num">Reste à charge</th>
+                      <th scope="col"><span className="pj-sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((p) => {
-                      const budget = Number(p.budget_estime ?? 0);
-                      const demande = p.financing_total_demande ?? 0;
-                      const obtenu = p.financing_total_obtenu ?? 0;
-                      const reste = budget - obtenu;
-                      return (
-                        <tr key={p.id}>
-                          <td>
-                            <Link
-                              href={`/admin/projects/${p.id}`}
-                              className="pj-ppi-link"
-                            >
-                              {p.titre}
-                            </Link>
-                          </td>
-                          <td>
-                            <div className="pj-list-phase-cell" style={{ gap: 6 }}>
-                              <div className="pj-list-phase-badge" style={{ width: 22, height: 22 }}>
-                                <PhaseIcon phase={p.phase as ProjectPhase} size={12} strokeWidth={2} />
-                              </div>
-                              <span style={{ fontSize: 12.5 }}>
-                                {PROJECT_PHASE_LABELS[p.phase as ProjectPhase]}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            {p.concerne_tiers ? (
-                              <span className="pj-list-pill pj-list-pill-tiers">
-                                {p.tiers_nom ?? "Tiers"}
-                              </span>
-                            ) : (
-                              <span className="pj-list-muted">—</span>
-                            )}
-                          </td>
-                          <td className="pj-num pj-num-strong">{formatEuros(budget)}</td>
-                          <td className="pj-num">{formatEuros(demande)}</td>
-                          <td className="pj-num pj-text-success">{formatEuros(obtenu)}</td>
-                          <td className="pj-num pj-text-warn">{formatEuros(reste)}</td>
-                          <td className="pj-ppi-action-cell">
-                            <PpiInclusionToggle
-                              projectId={p.id}
-                              variant="remove"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {lignes.map((l) => (
+                      <tr key={l.id}>
+                        <td><Link href={`/admin/projects/${l.id}`} className="pj-ppi-link">{l.titre}</Link></td>
+                        <td>{l.etat}</td>
+                        <td>{l.tiers ? <span className="pj-list-pill pj-list-pill-tiers">{l.tiers}</span> : <span className="pj-list-muted">—</span>}</td>
+                        <td className="pj-num pj-num-strong"><Montant l={l} /></td>
+                        <td className="pj-num">{formatEuros(l.sollicite)}</td>
+                        <td className="pj-num pj-text-success">{formatEuros(l.obtenu)}</td>
+                        <td className="pj-num pj-text-warn">{formatEuros(l.reste)}</td>
+                        <td className="pj-ppi-action-cell"><PpiInclusionToggle projectId={l.id} variant="remove" /></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-              </section>
-            );
-          })}
+              </div>
+            </section>
+          ))}
 
-          {excludedProjects.length > 0 && (
+          {ppi.exclus.length > 0 && (
             <section className="pj-ppi-excluded">
               <header className="pj-ppi-excluded-header">
-                <div className="pj-ppi-excluded-icon" aria-hidden>
-                  <Archive size={16} />
-                </div>
+                <div className="pj-ppi-excluded-icon" aria-hidden="true"><Archive size={16} /></div>
                 <div>
-                  <h2 className="pj-ppi-excluded-title">
-                    Projets exclus du PPI ({excludedProjects.length})
-                  </h2>
+                  <h2 className="pj-ppi-excluded-title">Investissements retirés du PPI ({ppi.exclus.length})</h2>
                   <p className="pj-ppi-excluded-hint">
-                    Ces opérations existent dans votre portefeuille mais sont
-                    retirées du Plan Pluriannuel. Réintégrez-les si elles
-                    redeviennent éligibles à la programmation.
+                    Ils restent dans le portefeuille mais ne sont pas programmés. Réintégrez-les s&apos;ils redeviennent d&apos;actualité.
                   </p>
                 </div>
               </header>
               <ul className="pj-ppi-excluded-list">
-                {excludedProjects.map((p) => (
-                  <li key={p.id} className="pj-ppi-excluded-item">
-                    <Link
-                      href={`/admin/projects/${p.id}`}
-                      className="pj-ppi-excluded-link"
-                    >
-                      <strong>{p.titre}</strong>
-                      <span className="pj-ppi-excluded-meta">
-                        {PROJECT_PHASE_LABELS[p.phase as ProjectPhase]} ·{" "}
-                        {formatEuros(Number(p.budget_estime ?? 0))}
-                      </span>
+                {ppi.exclus.map((l) => (
+                  <li key={l.id} className="pj-ppi-excluded-item">
+                    <Link href={`/admin/projects/${l.id}`} className="pj-ppi-excluded-link">
+                      <strong>{l.titre}</strong>
+                      <span className="pj-ppi-excluded-meta">{l.etat} · {formatEuros(l.montantHt)}</span>
                     </Link>
-                    <PpiInclusionToggle projectId={p.id} variant="restore" />
+                    <PpiInclusionToggle projectId={l.id} variant="restore" />
                   </li>
                 ))}
               </ul>

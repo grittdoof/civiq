@@ -13,7 +13,6 @@ import {
   UserRound,
 } from "lucide-react";
 import { Lock } from "lucide-react";
-import RightDrawer from "./RightDrawer";
 import type { AlertesProjet, StatutProjet } from "@/lib/projects/pilotage";
 import type { TypeProjetCode } from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
@@ -162,8 +161,8 @@ export default function ProjectsListExperience({
           <button
             type="button"
             className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
-            onClick={() => setFiltersDrawerOpen(true)}
-            aria-haspopup="dialog"
+            onClick={() => setFiltersDrawerOpen((o) => !o)}
+            aria-controls="pj-filtres"
             aria-expanded={filtersDrawerOpen}
           >
             <SlidersHorizontal size={14} />
@@ -179,32 +178,27 @@ export default function ProjectsListExperience({
         </div>
       </div>
 
-      <RightDrawer
-        open={filtersDrawerOpen}
-        onClose={() => setFiltersDrawerOpen(false)}
-        title="Filtres du portefeuille"
-        footer={
-          activeFilterCount > 0 ? (
-            <button
-              type="button"
-              className="civiq-btn civiq-btn-ghost"
-              onClick={resetFilters}
-            >
-              <X size={13} /> Réinitialiser
-            </button>
-          ) : null
-        }
-      >
-        <FiltersBar
-          typesSelected={typesSelected}
-          onToggleType={toggleType}
-          commissions={allCommissions}
-          commissionsSelected={commissionsSelected}
-          onToggleCommission={toggleCommission}
-          statut={statutSelected}
-          onStatut={setStatutSelected}
-        />
-      </RightDrawer>
+      {filtersDrawerOpen && (
+        <div id="pj-filtres" className="pj-filters-inline civiq-card">
+          <FiltersBar
+            typesSelected={typesSelected}
+            onToggleType={toggleType}
+            commissions={allCommissions}
+            commissionsSelected={commissionsSelected}
+            onToggleCommission={toggleCommission}
+            statut={statutSelected}
+            onStatut={setStatutSelected}
+          />
+          <div className="pj-filters-inline-foot">
+            {activeFilterCount > 0 && (
+              <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" onClick={resetFilters}>
+                <X size={13} aria-hidden="true" /> Réinitialiser
+              </button>
+            )}
+            <button type="button" className="civiq-btn civiq-btn-outline civiq-btn-sm" onClick={() => setFiltersDrawerOpen(false)}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       {filteredProjects.length === 0 ? (
         <div className="civiq-card pj-empty pj-empty-soft">

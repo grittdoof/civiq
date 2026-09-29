@@ -27,9 +27,11 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
             Toutes les dates des projets (investissements, événements, suivis) et les séances de commission.
           </p>
         </div>
+        <div className="pj-page-header-actions">
+          <AgendaAbonnement retourGoogle={google ?? null} />
+        </div>
       </header>
 
-      <AgendaAbonnement retourGoogle={google ?? null} />
       <CalendarView events={events} commissions={commissions} referents={referents} />
     </main>
   );

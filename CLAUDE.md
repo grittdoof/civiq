@@ -859,6 +859,30 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Vitest : `esbuild.jsx = "automatic"` pour tester les modules `.tsx` serveur.
 - **Code mort à valider nominativement au lot G** : `ProjectsStatsDrawer.tsx`, `DonutChart.tsx` (remplacés par l'onglet Statistiques), ancienne fiche par phases `/api/projects/[id]/pdf` + `pdf-document.tsx` + `/admin/projects/[id]/fiche`.
 
+## Session 18 — Menus sans voile, vues du portefeuille, agenda en bouton, corbeille des projets (2026-09-29)
+
+### Prompt de départ
+> « Dans admin/projects le bouton outline affiche un menu grisé (filtre noir transparent), ce n'est pas pratique. Vérifie tous les onglets. Dans le calendrier, le CTA "Retrouver ce calendrier dans mon agenda" doit être un bouton fond bleu à droite (Claude Design). Permets la suppression des projets : 30 jours dans le back-office du super-administrateur, qui peut les supprimer à tout moment. Prévois une sauvegarde JSON. »
+
+### Livrés
+- **Menus sans voile** : « Plus » → « Autres vues » (liste déroulante, `PortfolioActionsDrawer`) ; « Filtres » s'ouvre dans la page. `RightDrawer` n'est plus utilisé (code mort à valider au lot G).
+- **Vues du portefeuille remises sur le nouveau modèle** (plus aucune phase) :
+  - **PPI** (`lib/projects/ppi.ts`, page + PDF) : investissements uniquement, année = échéance souhaitée (à défaut création), montant = budget HT prévu (à défaut ancienne estimation, signalée *).
+  - **Comparatif des coûts** : investissements, budget HT + coûts d'exploitation de la RPC `project_global_cost`.
+  - **Revue mensuelle** : par commission, avancement, étapes en retard, deux prochaines échéances, alertes.
+  - **Cartographie** : ⚠ **fuite corrigée** — affichait les projets confidentiels ; filtre `filtrerProjetsVisibles` + parties prenantes rattachées aux étapes.
+- **Calendrier** : bouton bleu « Ajouter à mon agenda » à droite du titre + menu (maquette 1a) : Afficher (toute la commune / mes projets) puis Google (recommandé) / Apple / Outlook / Autre. Le lien d'abonnement est créé au premier choix d'agenda.
+- **Corbeille des projets** (migration **045**, appliquée en prod après dry run avec purge réelle annulée) :
+  - Mise à la corbeille (`DELETE /api/projects/:id`, motif obligatoire) par le bureau, l'élu référent ou l'agent ; **sauvegarde JSON écrite avant** (sinon refus).
+  - `/super-admin/corbeille` : restaurer, télécharger la sauvegarde JSON, supprimer définitivement.
+  - Cron quotidien `/api/cron/purge-projets` (2 h 15) : purge au-delà de 30 jours.
+  - Purge = `project_snapshot()` (JSON de toutes les lignes, format `gociviq.projet.v1`) + copie des pièces jointes et de la photo dans le bucket privé **`project-archives`**, puis `purge_project()` (refuse un projet hors corbeille), puis retrait des fichiers d'origine. Tickets et décisions liés conservés (`ON DELETE SET NULL`).
+
+### Points d'attention
+- **Exception à la règle « aucune suppression physique »** décidée par l'utilisateur pour les projets, encadrée par la corbeille de 30 jours et les archives. Toute nouvelle table fille de `projects` doit être ajoutée à `project_snapshot()` **et** à `purge_project()`.
+- Les archives (`project-archives`) sont conservées sans limite : définir une durée de conservation avec les Archives départementales.
+- Recommandé en plus : sauvegardes quotidiennes Supabase (plan Pro, restauration à un instant donné).
+
 ## Session 19 — Émargement : tous les membres, présent / excusé / absent (2026-09-29)
 
 ### Prompt de départ
