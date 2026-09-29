@@ -835,3 +835,11 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Dates murales (composantes UTC) : afficher avec `timeZone: "UTC"`, publier en `TZID=Europe/Paris`. Minuit UTC = journée entière.
 - Toute nouvelle route qui modifie une date visible au calendrier doit appeler `synchroniserAgendasApres(communeId)` avant sa réponse.
 - URI de redirection à déclarer dans la console Google : `https://<domaine>/api/google-calendar/callback`.
+
+#### Itération (2026-09-29) — panneau « Ajouter à mon agenda » en 2 étapes
+- Maquette Claude Design « Ajout Agenda », **variante 1b** retenue : ① Quels événements ? (toute la commune / ce qui me concerne) ② Dans quel agenda ? (Google Agenda recommandé | autre agenda : lien d'abonnement, iPhone/Mac en `webcal://`, Outlook via `outlook.office.com/…/addfromweb`).
+- **Un seul périmètre** appliqué au lien iCal ET à Google (PATCH des deux). Pastille d'état dans l'en-tête (Non configuré / Lien créé / Google Agenda connecté) : l'état est chargé dès le montage.
+- Couleurs de la maquette ramenées aux tokens (`--accent`, `--accent-light`, `--success(-light)`, `--destructive`, `--border`, `--fg-muted`) ; aucun nouveau token.
+- Sans identifiants Google, la carte Google disparaît et « Mon agenda » occupe toute la largeur.
+- Adresse de retour OAuth réelle : `https://www.gociviq.fr/api/google-calendar/callback` (le site est servi sur `www`). En mode Test, Google expire les autorisations au bout de 7 jours : publier l'application.
+
