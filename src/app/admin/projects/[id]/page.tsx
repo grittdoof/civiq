@@ -33,6 +33,8 @@ import AvancementAjuster from "@/components/projects/AvancementAjuster";
 import SuiviActions from "@/components/projects/SuiviActions";
 import ConfidentielControl from "@/components/projects/ConfidentielControl";
 import FicheExportMenu from "@/components/projects/FicheExportMenu";
+import SupprimerProjet from "@/components/projects/SupprimerProjet";
+import { peutSupprimerProjet } from "@/lib/projects/corbeille";
 import { peutChangerConfidentialite } from "@/lib/projects/confidentialite";
 
 // ═══════════════════════════════════════════════════════════════
@@ -275,6 +277,9 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             <FicheExportMenu projectId={id} />
             {peutChangerConfidentialite({ id: ctx.userId, role: ctx.role }) && !archived && (
               <ConfidentielControl projectId={id} confidentiel={confidentiel} />
+            )}
+            {peutSupprimerProjet({ id: ctx.userId, role: ctx.role }, p) && (
+              <SupprimerProjet projectId={id} titre={p.titre} />
             )}
             <Link href={legacyHref} className="civiq-btn civiq-btn-ghost civiq-btn-sm">
               <Layers size={14} aria-hidden="true" /> Vue détaillée (ancienne)

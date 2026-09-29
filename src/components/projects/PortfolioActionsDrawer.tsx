@@ -1,114 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import {
-  MoreHorizontal,
-  BarChart3,
-  Users,
-  CalendarDays,
-  TrendingUp, Settings, HandCoins } from "lucide-react";
-import RightDrawer from "./RightDrawer";
+import { BarChart3, CalendarDays, ChevronDown, HandCoins, Settings, TrendingUp, Users } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
-// PortfolioActionsDrawer — regroupe dans un panneau off-canvas
-// droit les actions secondaires du header portefeuille projets :
-//   • Comparatif coûts
-//   • Cartographie parties prenantes
-//   • Revue mensuelle
-//   • PPI
-//
-// Le header ne garde que les contrôles primaires (vue, commission,
-// gabarit, nouveau projet).
+// Menu « Autres vues » du portefeuille : liste déroulante accrochée au
+// bouton (plus de panneau latéral sur fond assombri). Se ferme au clic
+// extérieur, à Échap ou en choisissant une vue.
 // ═══════════════════════════════════════════════════════════════
+
+const VUES = [
+  { href: "/admin/projects/ppi", label: "Plan pluriannuel d'investissement", description: "Les investissements année par année, hors taxes.", Icon: TrendingUp },
+  { href: "/admin/projects/comparatif", label: "Comparatif des coûts", description: "Coût global sur 10 ans des investissements.", Icon: BarChart3 },
+  { href: "/admin/projects/revue-mensuelle", label: "Revue mensuelle", description: "Retards, échéances et alertes, à imprimer.", Icon: CalendarDays },
+  { href: "/admin/projects/cartographie", label: "Cartographie des parties prenantes", description: "Qui intervient sur quel projet.", Icon: Users },
+  { href: "/admin/projects/financeurs", label: "Financeurs", description: "Aides publiques du territoire et financeurs locaux.", Icon: HandCoins },
+  { href: "/admin/projects/parametres", label: "Paramètres de la commune", description: "Délégation au maire, achats, récupération de la TVA.", Icon: Settings },
+];
 
 export default function PortfolioActionsDrawer() {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  const links: Array<{
-    href: string;
-    label: string;
-    description: string;
-    icon: React.ReactNode;
-  }> = [
-    {
-      href: "/admin/projects/comparatif",
-      label: "Comparatif coûts",
-      description: "Comparer les projets sur leur coût global 10 ans.",
-      icon: <BarChart3 size={18} />,
-    },
-    {
-      href: "/admin/projects/cartographie",
-      label: "Cartographie parties prenantes",
-      description: "Vue transversale des acteurs par projet.",
-      icon: <Users size={18} />,
-    },
-    {
-      href: "/admin/projects/revue-mensuelle",
-      label: "Revue mensuelle",
-      description: "Synthèse imprimable pour la revue de direction.",
-      icon: <CalendarDays size={18} />,
-    },
-    {
-      href: "/admin/projects/ppi",
-      label: "PPI",
-      description: "Plan Pluriannuel d'Investissement.",
-      icon: <TrendingUp size={18} />,
-    },
-    {
-      href: "/admin/projects/financeurs",
-      label: "Financeurs",
-      description: "Aides publiques de votre territoire et fiches des financeurs locaux.",
-      icon: <HandCoins size={18} />,
-    },
-    {
-      href: "/admin/projects/parametres",
-      label: "Paramètres de la commune",
-      description: "Délégation au maire, guide des achats, récupération de la TVA.",
-      icon: <Settings size={18} />,
-    },
-  ];
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
 
   return (
-    <>
-      <button
-        type="button"
-        className="civiq-btn civiq-btn-outline"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        title="Autres vues du portefeuille"
-      >
-        <MoreHorizontal size={14} /> <span>Plus</span>
+    <div className="pj-dropdown" ref={ref}>
+      <button type="button" className="civiq-btn civiq-btn-outline" aria-expanded={open} aria-controls="pj-autres-vues" onClick={() => setOpen((o) => !o)}>
+        Autres vues <ChevronDown size={14} aria-hidden="true" className={open ? "pj-learn-more-chevron open" : "pj-learn-more-chevron"} />
       </button>
-
-      <RightDrawer
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Vues transversales"
-      >
-        <p className="pj-drawer-help">
-          Accédez aux vues synthétiques du portefeuille.
-        </p>
-        <ul className="pj-actions-list">
-          {links.map((l) => (
-            <li key={l.href}>
-              <Link
-                href={l.href}
-                className="pj-actions-item"
-                onClick={() => setOpen(false)}
-                prefetch={false}
-              >
-                <span className="pj-actions-icon" aria-hidden>{l.icon}</span>
-                <span className="pj-actions-copy">
-                  <strong>{l.label}</strong>
-                  <em>{l.description}</em>
+      {open && (
+        <ul id="pj-autres-vues" className="pj-dropdown-panel pj-dropdown-right">
+          {VUES.map(({ href, label, description, Icon }) => (
+            <li key={href}>
+              <Link href={href} className="pj-dropdown-item" prefetch={false} onClick={() => setOpen(false)}>
+                <span className="pj-dropdown-icon" aria-hidden="true"><Icon size={16} /></span>
+                <span className="pj-dropdown-copy">
+                  <strong>{label}</strong>
+                  <span>{description}</span>
                 </span>
               </Link>
             </li>
           ))}
         </ul>
-      </RightDrawer>
-    </>
+      )}
+    </div>
   );
 }

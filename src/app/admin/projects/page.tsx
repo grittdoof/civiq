@@ -40,7 +40,7 @@ const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string; campagne?: string; onglet?: string; type?: string; statut?: string }>;
+  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string; campagne?: string; onglet?: string; type?: string; statut?: string; supprime?: string }>;
 }
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
@@ -258,6 +258,12 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           )}
         </div>
       </div>
+
+      {sp.supprime && (
+        <p className="pj-alerte pj-alerte-information" role="status">
+          Le projet a été mis à la corbeille. Une sauvegarde est conservée ; il peut être restauré pendant 30 jours sur demande au support.
+        </p>
+      )}
 
       <nav className="pj-life-tabs pj-portfolio-tabs" aria-label="Vues du portefeuille">
         {ONGLETS.map((t) => (

@@ -17,6 +17,7 @@ import {
   X,
   ArrowLeft,
   Landmark,
+  Trash2,
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════
@@ -31,6 +32,7 @@ const NAV = [
   { href: "/super-admin/modules",   label: "Modules",          icon: Boxes },
   { href: "/super-admin/rgpd",      label: "RGPD",             icon: ShieldCheck },
   { href: "/super-admin/seuils",    label: "Seuils marchés",   icon: Landmark },
+  { href: "/super-admin/corbeille", label: "Corbeille projets", icon: Trash2 },
 ];
 
 export default function SuperAdminShell({ children }: { children: React.ReactNode }) {

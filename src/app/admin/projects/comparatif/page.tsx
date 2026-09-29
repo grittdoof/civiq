@@ -5,8 +5,8 @@ import "../projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { listProjects } from "@/lib/projects/queries";
-import { PROJECT_PHASE_LABELS } from "@/lib/projects/types";
+import { chargerPortefeuille } from "@/lib/projects/portefeuille-server";
+import { construirePpi } from "@/lib/projects/ppi";
 import { formatEuros } from "@/lib/projects/cost-calc";
 import CostComparisonChart from "@/components/projects/CostComparisonChart";
 
@@ -26,23 +26,36 @@ export default async function ComparatifPage() {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const projects = await listProjects(ctx.communeId);
+  // Investissements uniquement : le coût global (exploitation, entretien
+  // sur 10 ans) n'a de sens que pour un équipement ou un ouvrage.
+  const pf = await chargerPortefeuille(ctx.communeId);
+  const ppi = construirePpi({
+    projets: pf.items.map((p) => ({ ...p, in_ppi: true })),
+    lignesParProjet: pf.lignesParProjet,
+    subventionsParProjet: pf.subventionsParProjet,
+    statuts: pf.statuts,
+  });
+  const lignes = ppi.annees.flatMap((a) => a.lignes);
 
-  // Coût global par projet via RPC
   const service = await createServiceClient();
   type GcRow = { invest: number; total_nominal: number; total_actualise: number };
   const enriched = await Promise.all(
-    projects.map(async (p) => {
-      const { data: gc } = await service.rpc("project_global_cost", { p_project_id: p.id });
+    lignes.map(async (l) => {
+      const { data: gc } = await service.rpc("project_global_cost", { p_project_id: l.id });
       const row = (gc as GcRow[] | null)?.[0];
-      const obtenu = p.financing_total_obtenu ?? 0;
-      const invest = Number(row?.invest ?? p.budget_estime ?? 0);
+      // La RPC part de l'ancienne enveloppe estimée : on lui substitue le
+      // budget HT du projet et on garde les coûts d'exploitation calculés.
+      const rpcInvest = Number(row?.invest ?? 0);
+      const exploitationNominal = Number(row?.total_nominal ?? rpcInvest) - rpcInvest;
+      const exploitationActualise = Number(row?.total_actualise ?? rpcInvest) - rpcInvest;
       return {
-        ...p,
-        invest,
-        total_nominal: Number(row?.total_nominal ?? invest),
-        total_actualise: Number(row?.total_actualise ?? invest),
-        reste_a_charge: invest - obtenu,
+        id: l.id,
+        titre: l.titre,
+        etat: l.etat,
+        invest: l.montantHt,
+        total_nominal: l.montantHt + exploitationNominal,
+        total_actualise: l.montantHt + exploitationActualise,
+        reste_a_charge: l.reste,
       };
     }),
   );
@@ -60,14 +73,14 @@ export default async function ComparatifPage() {
 
       <h1 className="civiq-page-title">Comparatif des coûts</h1>
       <p className="pj-page-subtitle">
-        Trié par <strong>coût global actualisé</strong> décroissant. Un projet
-        peu coûteux à l&apos;investissement peut peser plus lourd sur 10 ans
-        une fois exploitation et entretien intégrés.
+        Investissements triés par <strong>coût global actualisé</strong> (hors taxes) : un projet peu coûteux à
+        construire peut peser plus lourd sur 10 ans, une fois l&apos;entretien et le fonctionnement intégrés.
       </p>
 
       {enriched.length === 0 ? (
         <div className="civiq-card pj-empty">
-          <p className="pj-empty-title">Aucun projet à comparer.</p>
+          <p className="pj-empty-title">Aucun investissement à comparer.</p>
+          <p className="pj-empty-hint">Le comparatif ne concerne que les projets de type « Investissement ».</p>
         </div>
       ) : (
         <>
@@ -89,9 +102,9 @@ export default async function ComparatifPage() {
             <table className="pj-table">
               <thead>
                 <tr>
-                  <th>Projet</th>
-                  <th>Étape</th>
-                  <th>Investissement</th>
+                  <th scope="col">Projet</th>
+                  <th scope="col">Où en est-on ?</th>
+                  <th scope="col">Investissement HT</th>
                   <th>Coût global nominal</th>
                   <th>Coût global actualisé</th>
                   <th>Reste à charge commune</th>
@@ -105,7 +118,7 @@ export default async function ComparatifPage() {
                         {e.titre}
                       </Link>
                     </td>
-                    <td>{PROJECT_PHASE_LABELS[e.phase]}</td>
+                    <td>{e.etat}</td>
                     <td>{formatEuros(e.invest)}</td>
                     <td>{formatEuros(e.total_nominal)}</td>
                     <td className="pj-table-strong">{formatEuros(e.total_actualise)}</td>

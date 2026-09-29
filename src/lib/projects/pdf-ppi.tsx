@@ -4,10 +4,6 @@ import {
   Document, Page, View, Text, StyleSheet, Font,
 } from "@react-pdf/renderer";
 import { PdfHeader, PdfFooter } from "./pdf-header";
-import {
-  PROJECT_PHASE_LABELS,
-  type ProjectPhase,
-} from "./types";
 
 // ═══════════════════════════════════════════════════════════════
 // PDF Plan Pluriannuel d'Investissement (PPI)
@@ -123,7 +119,8 @@ const s = StyleSheet.create({
 export interface PpiPdfProject {
   id: string;
   titre: string;
-  phase: ProjectPhase;
+  /** « Avancement 40 % », « Terminé »… */
+  etat: string;
   concerne_tiers: boolean;
   tiers_nom: string | null;
   budget_estime: number;
@@ -225,7 +222,7 @@ export function PpiPDF({ data }: { data: PpiPdfData }) {
               <View style={s.table}>
                 <View style={s.trHead} fixed>
                   <Text style={[s.th, s.colOperation]}>Opération</Text>
-                  <Text style={[s.th, s.colPhase]}>Étape</Text>
+                  <Text style={[s.th, s.colPhase]}>Où en est-on ?</Text>
                   <Text style={[s.th, s.colTiers]}>Tiers</Text>
                   <Text style={[s.th, s.colMontant]}>Montant HT</Text>
                   <Text style={[s.th, s.colSubvSoll]}>Subv. sollicitées</Text>
@@ -242,7 +239,7 @@ export function PpiPDF({ data }: { data: PpiPdfData }) {
                     <View key={p.id} style={s.tr}>
                       <Text style={[s.td, s.colOperation]}>{p.titre}</Text>
                       <Text style={[s.td, s.colPhase]}>
-                        {PROJECT_PHASE_LABELS[p.phase]}
+                        {p.etat}
                       </Text>
                       <Text style={[p.concerne_tiers ? s.td : s.tdMuted, s.colTiers]}>
                         {p.concerne_tiers ? p.tiers_nom ?? "Tiers" : "—"}
@@ -261,10 +258,10 @@ export function PpiPDF({ data }: { data: PpiPdfData }) {
 
         <View style={s.notice}>
           <Text>
-            Note méthodologique : la programmation par année se base sur la
-            date de création de chaque opération. Les projets « accompagnement
-            sans financement » sont exclus du PPI. Les montants sont
-            exprimés en euros HT.
+            Note méthodologique : seuls les projets d&apos;investissement figurent au PPI,
+            programmés l&apos;année de leur échéance souhaitée (à défaut, de leur
+            création). Montants en euros hors taxes, issus du budget de chaque
+            projet (à défaut, de l&apos;estimation initiale).
           </Text>
         </View>
 
