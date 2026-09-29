@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
+import { requireProjectEdit } from "@/lib/projects/api-helpers";
 import { createClient, createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { PROJECT_PHASES, type ProjectPhase, type AdvanceResult } from "@/lib/projects/types";
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const { id } = await params;
+  // Projet confidentiel : même règle de visibilité que partout ailleurs.
+  const access = await requireProjectEdit(id);
+  if (!access.ok) return access.response;
   let body: AdvanceBody = {};
   try {
     body = await req.json();

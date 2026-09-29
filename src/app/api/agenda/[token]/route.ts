@@ -31,7 +31,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   if (!acces.ok || acces.communeId !== feed.commune_id) return introuvable();
 
   const [events, { data: commune }] = await Promise.all([
-    evenementsPourProfil(service, feed.commune_id as string, feed.profile_id as string, feed.perimetre as "tout" | "mes"),
+    evenementsPourProfil(service, feed.commune_id as string, { id: feed.profile_id as string, role: acces.role }, feed.perimetre as "tout" | "mes"),
     service.from("communes").select("name").eq("id", feed.commune_id).maybeSingle(),
   ]);
   const site = getSiteUrl();

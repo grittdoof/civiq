@@ -12,12 +12,13 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
+import { Lock } from "lucide-react";
 import RightDrawer from "./RightDrawer";
+import type { AlertesProjet, StatutProjet } from "@/lib/projects/pilotage";
 import type { TypeProjetCode } from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
 import { avancementAffiche } from "@/lib/projects/etapes";
 import TypeBadge, { TYPE_META } from "./TypeBadge";
-import ProjectsStatsDrawer from "./ProjectsStatsDrawer";
 import type { ProjectListItem } from "@/lib/projects/queries";
 
 // ═══════════════════════════════════════════════════════════════
@@ -43,7 +44,13 @@ interface Props {
   totalObtenu: number;
   /** Totaux des lignes budget par projet (id → dépense/recette cumulées). */
   budgetTotalsByProject?: Record<string, { depense: number; recette: number }>;
+  /** Badges d'alerte (retard, subvention sans accusé de réception, part communale, délégation). */
+  alertes?: Record<string, AlertesProjet>;
+  /** En cours / terminé (toutes les étapes terminées). */
+  statuts?: Record<string, StatutProjet>;
 }
+
+const PAGE = 30;
 
 const TYPES: TypeProjetCode[] = ["investissement", "evenementiel", "suivi_simple"];
 
@@ -52,8 +59,11 @@ export default function ProjectsListExperience({
   totalDemande,
   totalObtenu,
   budgetTotalsByProject = {},
+  alertes = {},
+  statuts = {},
 }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [statutSelected, setStatutSelected] = useState<StatutProjet | "">("");
+  const [visibles, setVisibles] = useState(PAGE);
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
   const [typesSelected, setTypesSelected] = useState<Set<TypeProjetCode>>(new Set());
   const [search, setSearch] = useState("");
@@ -86,9 +96,10 @@ export default function ProjectsListExperience({
         const ids = (p.commissions ?? []).map((c) => c.id);
         if (!ids.some((id) => commissionsSelected.has(id))) return false;
       }
+      if (statutSelected && (statuts[p.id] ?? "en_cours") !== statutSelected) return false;
       return true;
     });
-  }, [projects, typesSelected, commissionsSelected, search]);
+  }, [projects, typesSelected, commissionsSelected, search, statutSelected, statuts]);
 
   const toggleType = (t: TypeProjetCode) => {
     setTypesSelected((prev) => {
@@ -112,9 +123,10 @@ export default function ProjectsListExperience({
     setTypesSelected(new Set());
     setCommissionsSelected(new Set());
     setSearch("");
+    setStatutSelected("");
   };
 
-  const activeFilterCount = typesSelected.size + commissionsSelected.size + (search.trim() ? 1 : 0);
+  const activeFilterCount = typesSelected.size + commissionsSelected.size + (search.trim() ? 1 : 0) + (statutSelected ? 1 : 0);
 
   return (
     <>
@@ -160,16 +172,10 @@ export default function ProjectsListExperience({
               <span className="pj-toolbar-badge">{activeFilterCount}</span>
             )}
           </button>
-          <button
-            type="button"
-            className="pj-list-toolbar-stats civiq-btn civiq-btn-outline"
-            onClick={() => setDrawerOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={drawerOpen}
-          >
-            <BarChart3 size={14} />
+          <Link href="/admin/projects?onglet=statistiques" className="pj-list-toolbar-stats civiq-btn civiq-btn-outline" prefetch={false}>
+            <BarChart3 size={14} aria-hidden="true" />
             <span>Statistiques</span>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -195,6 +201,8 @@ export default function ProjectsListExperience({
           commissions={allCommissions}
           commissionsSelected={commissionsSelected}
           onToggleCommission={toggleCommission}
+          statut={statutSelected}
+          onStatut={setStatutSelected}
         />
       </RightDrawer>
 
@@ -217,19 +225,23 @@ export default function ProjectsListExperience({
           )}
         </div>
       ) : (
-        <CleanProjectList
-          projects={filteredProjects}
-          budgetTotalsByProject={budgetTotalsByProject}
-        />
+        <>
+          <CleanProjectList
+            projects={filteredProjects.slice(0, visibles)}
+            budgetTotalsByProject={budgetTotalsByProject}
+            alertes={alertes}
+          />
+          {filteredProjects.length > visibles && (
+            <div className="pj-list-more">
+              <button type="button" className="civiq-btn civiq-btn-outline" onClick={() => setVisibles((v) => v + PAGE)}>
+                Afficher {Math.min(PAGE, filteredProjects.length - visibles)} projets de plus
+              </button>
+              <span className="pj-list-muted">{visibles} affichés sur {filteredProjects.length}</span>
+            </div>
+          )}
+        </>
       )}
 
-      <ProjectsStatsDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        projects={filteredProjects}
-        totalDemande={totalDemande}
-        totalObtenu={totalObtenu}
-      />
     </>
   );
 }
@@ -244,15 +256,30 @@ function FiltersBar({
   commissions,
   commissionsSelected,
   onToggleCommission,
+  statut,
+  onStatut,
 }: {
   typesSelected: Set<TypeProjetCode>;
   onToggleType: (t: TypeProjetCode) => void;
   commissions: CommissionDescriptor[];
   commissionsSelected: Set<string>;
   onToggleCommission: (id: string) => void;
+  statut: StatutProjet | "";
+  onStatut: (s: StatutProjet | "") => void;
 }) {
   return (
     <div className="pj-filters">
+      <div className="pj-filters-group">
+        <span className="pj-filters-label">Statut</span>
+        <div className="pj-filters-chips">
+          {([["", "Tous"], ["en_cours", "En cours"], ["termine", "Terminés"]] as const).map(([v, label]) => (
+            <button key={v || "tous"} type="button" className={`pj-filter-chip${statut === v ? " is-active" : ""}`}
+              onClick={() => onStatut(v)} aria-pressed={statut === v}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="pj-filters-group">
         <span className="pj-filters-label">Type de projet</span>
         <div className="pj-filters-chips">
@@ -319,12 +346,27 @@ function FiltersBar({
 // pj-list-col-*, juste les lignes de projets).
 // ─────────────────────────────────────────────────────────────────
 
+function BadgesAlerte({ a, confidentiel }: { a?: AlertesProjet; confidentiel: boolean }) {
+  if (!a && !confidentiel) return null;
+  return (
+    <span className="pj-list-alertes">
+      {confidentiel && <span className="civiq-badge pj-badge-confidentiel"><Lock size={11} aria-hidden="true" /> Confidentiel</span>}
+      {a && a.retards > 0 && <span className="civiq-badge civiq-badge-warning">{a.retards} en retard</span>}
+      {a && a.subventionsSansAr > 0 && <span className="civiq-badge civiq-badge-warning">Subvention sans accusé de réception</span>}
+      {a?.partCommuneKo && <span className="civiq-badge civiq-badge-error">Part communale sous 20 %</span>}
+      {a?.delegationDepassee && <span className="civiq-badge civiq-badge-error">Au-delà de la délégation du maire</span>}
+    </span>
+  );
+}
+
 function CleanProjectList({
   projects,
   budgetTotalsByProject,
+  alertes,
 }: {
   projects: ProjectListItem[];
   budgetTotalsByProject: Record<string, { depense: number; recette: number }>;
+  alertes: Record<string, AlertesProjet>;
 }) {
   return (
     <ul className="pj-list">
@@ -387,6 +429,7 @@ function CleanProjectList({
                         {p.accompagne_sans_financer ? " · non financé" : ""}
                       </span>
                     )}
+                    <BadgesAlerte a={alertes[p.id]} confidentiel={!!(p as { confidentiel?: boolean }).confidentiel} />
                     {p.description && (
                       <span className="pj-list-desc">{p.description}</span>
                     )}

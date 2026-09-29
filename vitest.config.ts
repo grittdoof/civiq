@@ -9,6 +9,8 @@ import path from "node:path";
 // ═══════════════════════════════════════════════════════════════
 
 export default defineConfig({
+  // JSX des modules serveur (.tsx react-pdf) : runtime automatique, comme Next.
+  esbuild: { jsx: "automatic" },
   test: {
     include: ["tests/unit/**/*.{test,spec}.ts"],
     environment: "node",

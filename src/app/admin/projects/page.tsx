@@ -5,7 +5,6 @@ import "./projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { listProjects } from "@/lib/projects/queries";
 import {
   PROJECT_PHASES_BY_TYPE,
   PROJECT_PHASE_LABELS,
@@ -21,6 +20,10 @@ import PortfolioActionsDrawer from "@/components/projects/PortfolioActionsDrawer
 import AlerteBlock from "@/components/projects/AlerteBlock";
 import { campagneActive, messageCampagne } from "@/lib/aides/aides";
 import { projetsCampagne } from "@/lib/aides/campagne-server";
+import { chargerPortefeuille } from "@/lib/projects/portefeuille-server";
+import { calculerStatistiques, construireReporting, filtrerProjets, libelleFiltres, lireFiltres } from "@/lib/projects/pilotage";
+import StatistiquesProjets from "@/components/projects/StatistiquesProjets";
+import ReportingProjets from "@/components/projects/ReportingProjets";
 
 const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 
@@ -37,11 +40,14 @@ const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string; campagne?: string }>;
+  searchParams: Promise<{ view?: string; commission?: string; gabarit?: string; campagne?: string; onglet?: string; type?: string; statut?: string }>;
 }
 
 export default async function ProjectsPage({ searchParams }: PageProps) {
-  const { view, commission: commissionParam, gabarit: gabaritParam, campagne: campagneParam } = await searchParams;
+  const sp = await searchParams;
+  const { view, commission: commissionParam, gabarit: gabaritParam, campagne: campagneParam } = sp;
+  const onglet: "projets" | "statistiques" | "reporting" =
+    sp.onglet === "statistiques" || sp.onglet === "reporting" ? sp.onglet : "projets";
   // Vue par défaut : liste. Vue lanes (kanban par phase) en alternative.
   const viewMode: "lanes" | "list" = view === "lanes" ? "lanes" : "list";
   // Gabarit affiché en vue lanes (chaque gabarit a ses propres phases).
@@ -56,7 +62,10 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const allProjects = await listProjects(ctx.communeId);
+  // Portefeuille (projets confidentiels déjà filtrés) : alertes, statuts,
+  // statistiques et reporting partagent le même chargement.
+  const portefeuille = await chargerPortefeuille(ctx.communeId);
+  const allProjects = portefeuille.items;
 
   // Liste des commissions de la commune pour le filtre du portefeuille
   const service0 = await createServiceClient();
@@ -72,7 +81,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
   // l'année suivante sans demande de subvention déposée.
   const anneeCampagne = new Date().getUTCFullYear() + 1;
   const campagneProjets = campagneActive(new Date()) || campagneParam
-    ? await projetsCampagne(service0, ctx.communeId, anneeCampagne)
+    ? await projetsCampagne(service0, ctx.communeId, anneeCampagne, { id: ctx.userId, role: ctx.role })
     : [];
   const campagneIds = new Set(campagneProjets.map((p) => p.id));
 
@@ -154,6 +163,25 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
 
   const canCreate = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
+  // Onglets Statistiques / Reporting (brief §2.12)
+  const filtresPilotage = lireFiltres({ commission: commissionParam, type: sp.type, statut: sp.statut });
+  const stats = onglet === "statistiques"
+    ? calculerStatistiques({
+        projets: portefeuille.projets,
+        lignesParProjet: portefeuille.lignesParProjet,
+        subventionsParProjet: portefeuille.subventionsParProjet,
+      })
+    : null;
+  const reporting = onglet === "reporting"
+    ? construireReporting(filtrerProjets(portefeuille.projets, portefeuille.statuts, filtresPilotage), portefeuille.etapesParProjet)
+    : null;
+  const editedOn = new Date().toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" });
+  const ONGLETS = [
+    { key: "projets", label: "Projets", href: "/admin/projects" },
+    { key: "statistiques", label: "Statistiques", href: "/admin/projects?onglet=statistiques" },
+    { key: "reporting", label: "Reporting", href: "/admin/projects?onglet=reporting" },
+  ] as const;
+
   return (
     <main className="civiq-main pj-projects-page">
       <div className="pj-page-header">
@@ -231,7 +259,17 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {campagneProjets.length > 0 && (() => {
+      <nav className="pj-life-tabs pj-portfolio-tabs" aria-label="Vues du portefeuille">
+        {ONGLETS.map((t) => (
+          <Link key={t.key} href={t.href} prefetch={false}
+            className={`pj-life-tab${onglet === t.key ? " is-active" : ""}`}
+            aria-current={onglet === t.key ? "page" : undefined}>
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {onglet === "projets" && campagneProjets.length > 0 && (() => {
         const m = messageCampagne(campagneProjets.length, anneeCampagne);
         return (
           <div className="pj-campagne">
@@ -251,7 +289,16 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
         );
       })()}
 
-      {projects.length === 0 ? (
+      {onglet === "statistiques" && stats ? (
+        <StatistiquesProjets stats={stats} />
+      ) : onglet === "reporting" && reporting ? (
+        <ReportingProjets
+          items={reporting}
+          filtres={filtresPilotage}
+          commissions={portefeuille.commissions}
+          sousTitre={libelleFiltres(filtresPilotage, portefeuille.commissions, editedOn)}
+        />
+      ) : projects.length === 0 ? (
         <div className="civiq-card pj-empty">
           <p className="pj-empty-title">Aucun projet pour l&apos;instant</p>
           <p className="pj-empty-hint">
@@ -266,6 +313,8 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
       ) : viewMode === "list" ? (
         <ProjectsListExperience
           projects={projects}
+          alertes={Object.fromEntries(portefeuille.alertes)}
+          statuts={Object.fromEntries(portefeuille.statuts)}
           totalDemande={totalDemande}
           totalObtenu={totalObtenu}
           budgetTotalsByProject={Object.fromEntries(budgetByProject)}

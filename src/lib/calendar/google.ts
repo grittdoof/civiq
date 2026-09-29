@@ -226,7 +226,7 @@ export async function synchroniserProfil(service: SupabaseClient, profileId: str
     }
 
     const site = getSiteUrl();
-    const events = (await evenementsPourProfil(service, lien.commune_id, profileId, lien.perimetre)).filter((e) => dansFenetreExterne(e));
+    const events = (await evenementsPourProfil(service, lien.commune_id, { id: profileId, role: acces.role }, lien.perimetre)).filter((e) => dansFenetreExterne(e));
     const actuels = new Map(events.map((e) => {
       const r = versGoogle(e, profileId, site);
       return [e.id, { r, h: empreinte(r) }] as const;

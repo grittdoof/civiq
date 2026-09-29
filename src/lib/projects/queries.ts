@@ -25,6 +25,7 @@ import type {
   Stakeholder,
 } from "./types";
 import { DEFAULT_PARAMETRES, type CommuneParametres } from "./commune-parametres";
+import { contributeursConfidentiels, filtrerProjetsVisibles, peutVoirProjet, viewerCourant } from "./confidentialite";
 
 export interface ProjectListFilters {
   /** Inclure les projets archivés (exclus par défaut). */
@@ -81,6 +82,8 @@ export async function listProjects(
     return [];
   }
   let projects = (rows ?? []) as unknown as ProjectListItem[];
+  // Projets confidentiels : même règle que public.user_voit_projet().
+  projects = await filtrerProjetsVisibles(service, await viewerCourant(), projects);
 
   // Filtres applicatifs (cohérent avec listTickets)
   if (filters.phase) {
@@ -218,7 +221,13 @@ export async function getProject(
     .eq("id", projectId)
     .maybeSingle();
 
-  if (!project) {
+  // Projet confidentiel invisible pour ce spectateur : comme s'il n'existait pas.
+  const visible = project
+    ? peutVoirProjet(await viewerCourant(), project as { id: string; confidentiel?: boolean; pilote_elu?: string | null; pilote_agent?: string | null },
+        (await contributeursConfidentiels(service, [project as { id: string; confidentiel?: boolean }])).get(project.id as string) ?? [])
+    : false;
+
+  if (!project || !visible) {
     return {
       project: null,
       stakeholders: [],
@@ -475,7 +484,7 @@ export async function getCommission(
       .is("deleted_at", null),
     service
       .from("commission_projects")
-      .select("id, project_id, project:projects!inner ( id, titre, phase )")
+      .select("id, project_id, project:projects!inner ( id, titre, phase, confidentiel, pilote_elu, pilote_agent )")
       .eq("commission_id", commissionId)
       .is("project.deleted_at", null),
     service
@@ -497,7 +506,12 @@ export async function getCommission(
   return {
     commission: commission as Commission,
     members: (members.data ?? []) as unknown as CommissionDetail["members"],
-    projects: (projects.data ?? []) as unknown as CommissionDetail["projects"],
+    projects: await (async () => {
+      type Lien = { project: { id: string; confidentiel?: boolean; pilote_elu?: string | null; pilote_agent?: string | null } };
+      const liens = (projects.data ?? []) as unknown as Lien[];
+      const visibles = new Set((await filtrerProjetsVisibles(service, await viewerCourant(), liens.map((l) => l.project))).map((p) => p.id));
+      return liens.filter((l) => visibles.has(l.project.id)) as unknown as CommissionDetail["projects"];
+    })(),
     upcoming_sessions: (upcoming.data ?? []) as CommissionSession[],
     past_sessions: (past.data ?? []) as CommissionSession[],
   };

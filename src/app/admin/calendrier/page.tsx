@@ -16,7 +16,7 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
   }
   if (!ctx.communeId) redirect("/admin/onboarding");
 
-  const [{ events, commissions, referents }, { google }] = await Promise.all([listCalendarEvents(ctx.communeId), searchParams]);
+  const [{ events, commissions, referents }, { google }] = await Promise.all([listCalendarEvents(ctx.communeId, { id: ctx.userId, role: ctx.role }), searchParams]);
 
   return (
     <main className="civiq-main pj-detail-page">
