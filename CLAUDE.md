@@ -877,3 +877,8 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 
 ### Point d'attention
 - Une séance dont le compte rendu est **validé** garde sa liste figée (pas de complément automatique).
+
+### Correctif (même session) — membres de commission invisibles
+- **Cause** : la migration 036 (lot A) a ajouté `commission_members.deleted_by → profiles`. L'embed PostgREST `profile:profiles(...)` devenait **ambigu** (deux FK vers `profiles`) → réponse **HTTP 300 / PGRST201**, données `null` **sans erreur visible** → liste des membres vide sur la page commission, l'écran de séance, les destinataires de convocation (depuis le 25/09) et la page publique de réponse. Prouvé dans les logs `edge_logs` Supabase.
+- **Correctif** : embeds désambiguïsés `profiles!commission_members_user_id_fkey` (5 requêtes), journalisation des erreurs de lecture des membres, éditeurs membres / projets de commission resynchronisés sur les données serveur.
+- **Point d'attention** : toute table qui reçoit une nouvelle FK vers `profiles` (ex. `deleted_by`, `created_by`) rend ambigus les embeds `profiles(...)` existants : **toujours nommer la FK** (`profiles!<table>_<colonne>_fkey`). Tables concernées aujourd'hui : commission_members, commission_sessions, commissions, contacts, financeurs_locaux, milestones, profile_module_overrides, project_budget_lines, project_documents, project_quotes, projects, session_documents, ticket_assignees, tickets.

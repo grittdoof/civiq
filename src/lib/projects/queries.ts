@@ -479,7 +479,7 @@ export async function getCommission(
   const [members, projects, upcoming, past] = await Promise.all([
     service
       .from("commission_members")
-      .select("*, profile:profiles ( id, full_name, job_title )")
+      .select(`*, profile:profiles!commission_members_user_id_fkey ( id, full_name, job_title )`)
       .eq("commission_id", commissionId)
       .is("deleted_at", null),
     service
@@ -502,6 +502,9 @@ export async function getCommission(
       .lt("date_seance", now)
       .order("date_seance", { ascending: false }),
   ]);
+
+  // Une requête en erreur rendait silencieusement la liste vide : on journalise.
+  if (members.error) console.error("[commission] membres:", members.error.message);
 
   return {
     commission: commission as Commission,
@@ -576,7 +579,7 @@ export async function getSession(
       .order("created_at"),
     service
       .from("commission_members")
-      .select("*, profile:profiles ( id, full_name )")
+      .select(`*, profile:profiles!commission_members_user_id_fkey ( id, full_name )`)
       .eq("commission_id", commission.id),
     service
       .from("session_documents")
@@ -585,6 +588,8 @@ export async function getSession(
       .eq("session_id", sessionId)
       .order("uploaded_at", { ascending: false }),
   ]);
+  if (members.error) console.error("[séance] membres:", members.error.message);
+  if (attendance.error) console.error("[séance] émargement:", attendance.error.message);
 
   // Re-signer les URLs des documents (bucket privé)
   const docsList = (documents.data ?? []) as SessionDocument[];
