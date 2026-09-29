@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
-import { CalendarPlus, Check, ChevronDown, Copy, Link2Off, Loader2, RefreshCw, Unplug } from "lucide-react";
-import { lienAbonnementGoogle, lienWebcal } from "@/lib/projects/calendar";
-import LearnMore from "./LearnMore";
+import { Check, ChevronDown, Copy, Loader2, Plus } from "lucide-react";
+import { lienWebcal } from "@/lib/projects/calendar";
 
 // ═══════════════════════════════════════════════════════════════
-// « Retrouver ce calendrier dans mon agenda » (brief §2.11) :
-//   1. lien d'abonnement iCal personnel (Google, Apple, Outlook…) ;
-//   2. synchronisation Google Agenda, si la plateforme est configurée.
+// « Retrouver ce calendrier dans mon agenda » — panneau en 2 étapes
+// (maquette « Ajout Agenda », variante 1b) :
+//   ① Quels événements ?  (toute la commune / ce qui me concerne)
+//   ② Dans quel agenda ?  (Google Agenda recommandé | autre agenda)
+// Un seul choix de périmètre, appliqué au lien d'abonnement ET à la
+// synchronisation Google.
 // ═══════════════════════════════════════════════════════════════
 
 type Perimetre = "tout" | "mes";
@@ -27,7 +29,7 @@ interface Etat {
 
 const RETOUR_GOOGLE: Record<string, { ok: boolean; texte: string }> = {
   connecte: { ok: true, texte: "Google Agenda est connecté : l'agenda « GoCiviq » apparaît dans votre compte Google." },
-  connecte_erreur: { ok: false, texte: "Google Agenda est connecté, mais la première synchronisation a échoué. Réessayez avec « Synchroniser maintenant »." },
+  connecte_erreur: { ok: false, texte: "Google Agenda est connecté, mais la première synchronisation a échoué. Réessayez dans un instant." },
   refuse: { ok: false, texte: "La connexion a été annulée depuis Google. Rien n'a été modifié." },
   expire: { ok: false, texte: "La demande de connexion a expiré. Recommencez." },
   portee: { ok: false, texte: "L'autorisation de gérer l'agenda « GoCiviq » n'a pas été cochée chez Google. Recommencez en l'acceptant." },
@@ -35,57 +37,54 @@ const RETOUR_GOOGLE: Record<string, { ok: boolean; texte: string }> = {
   erreur: { ok: false, texte: "La connexion à Google Agenda a échoué. Réessayez dans quelques minutes." },
 };
 
-const dt = (iso: string) => new Date(iso).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
-
-const PERIMETRES: Array<{ value: Perimetre; label: string; hint?: string }> = [
-  { value: "tout", label: "Tout le calendrier de la commune" },
+const PERIMETRES: Array<{ value: Perimetre; titre: string; detail: string; court: string }> = [
+  { value: "tout", titre: "Tout le calendrier de la commune", detail: "Tous les projets et toutes les commissions", court: "toute la commune" },
   {
     value: "mes",
-    label: "Seulement mes projets et mes commissions",
-    hint: "Projets dont vous êtes élu référent, agent ou contributeur, étapes dont vous êtes responsable, commissions dont vous êtes membre.",
+    titre: "Seulement ce qui me concerne",
+    detail: "Mes projets, mes étapes, mes commissions",
+    court: "mes projets et commissions",
   },
 ];
+const court = (p: Perimetre) => PERIMETRES.find((x) => x.value === p)!.court;
 
-function ChoixPerimetre({ name, value, onChange, disabled }: { name: string; value: Perimetre; onChange: (p: Perimetre) => void; disabled?: boolean }) {
-  return (
-    <fieldset className="pj-wiz-fieldset pj-agenda-perimetre">
-      <legend className="civiq-field-label">Que voulez-vous voir dans votre agenda ?</legend>
-      {PERIMETRES.map((p) => (
-        <label key={p.value} className="pj-wiz-check">
-          <input type="radio" name={name} value={p.value} checked={value === p.value} onChange={() => onChange(p.value)} disabled={disabled} />
-          <span>
-            {p.label}
-            {p.hint && <span className="civiq-field-hint pj-agenda-hint">{p.hint}</span>}
-          </span>
-        </label>
-      ))}
-    </fieldset>
-  );
+function ilYa(iso: string): string {
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60_000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `le ${new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`;
 }
+
+/** Abonnement Outlook web (Microsoft 365, le plus courant en mairie). */
+const lienOutlook = (url: string) =>
+  `https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(url)}&name=${encodeURIComponent("GoCiviq")}`;
 
 export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: string | null }) {
   const [open, setOpen] = useState(!!retourGoogle);
   const [etat, setEtat] = useState<Etat | null>(null);
+  const [perimetre, setPerimetre] = useState<Perimetre>("tout");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [copie, setCopie] = useState(false);
-  const [perimetre, setPerimetre] = useState<Perimetre>("tout");
   const panelId = useId();
   const retour = retourGoogle ? RETOUR_GOOGLE[retourGoogle] : null;
 
   const charger = useCallback(async () => {
     setError(null);
     const res = await fetch("/api/calendar/feed");
-    const j = await res.json().catch(() => null);
+    const j = (await res.json().catch(() => null)) as (Etat & { error?: string }) | null;
     if (!res.ok || !j) { setError(j?.error ?? "Impossible de charger vos réglages d'agenda."); return; }
-    setEtat(j as Etat);
-    if (j.feed) setPerimetre(j.feed.perimetre);
+    setEtat(j);
+    setPerimetre(j.google.connected ? j.google.perimetre : j.feed?.perimetre ?? "tout");
   }, []);
 
-  useEffect(() => { if (open && !etat) void charger(); }, [open, etat, charger]);
+  // Chargé d'emblée : la pastille d'état de l'en-tête en dépend.
+  useEffect(() => { void charger(); }, [charger]);
 
-  async function appel(key: string, url: string, init: RequestInit, ok?: string) {
+  async function appel(key: string, url: string, init: RequestInit, ok?: string): Promise<boolean> {
     setBusy(key);
     setError(null);
     setMessage(null);
@@ -93,9 +92,21 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
     const j = await res.json().catch(() => ({}));
     setBusy(null);
     if (!res.ok) { setError(j.error ?? j.erreur ?? "L'opération a échoué."); return false; }
-    if (j.feed !== undefined) setEtat(j as Etat); else await charger();
     if (ok) setMessage(ok);
     return true;
+  }
+
+  async function choisirPerimetre(p: Perimetre) {
+    if (p === perimetre || busy) return;
+    setPerimetre(p);
+    if (!etat) return;
+    let ok = true;
+    if (etat.feed) ok = (await appel("perimetre", "/api/calendar/feed", { method: "PATCH", body: JSON.stringify({ perimetre: p }) })) && ok;
+    if (etat.google.connected) ok = (await appel("perimetre", "/api/google-calendar", { method: "PATCH", body: JSON.stringify({ perimetre: p }) })) && ok;
+    if (etat.feed || etat.google.connected) {
+      if (ok) setMessage("Réglage enregistré : vos agendas afficheront " + court(p) + ".");
+      await charger();
+    }
   }
 
   async function copier() {
@@ -103,33 +114,40 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
     try {
       await navigator.clipboard.writeText(etat.feed.url);
       setCopie(true);
-      setTimeout(() => setCopie(false), 2500);
+      setTimeout(() => setCopie(false), 1600);
     } catch {
       setError("La copie a échoué : sélectionnez le lien et copiez-le à la main.");
     }
   }
 
-  const feed = etat?.feed;
+  const feed = etat?.feed ?? null;
   const g = etat?.google;
+  const puce = g?.connected
+    ? { cls: "is-google", label: "Google Agenda connecté" }
+    : feed
+      ? { cls: "is-link", label: "Lien créé" }
+      : { cls: "", label: "Non configuré" };
 
   return (
-    <section id="agenda" className="civiq-card pj-agenda" aria-labelledby="agenda-titre">
+    <section id="agenda" className="pj-agenda" aria-labelledby="agenda-titre">
       <h2 id="agenda-titre" className="pj-agenda-heading">
         <button type="button" className="pj-agenda-toggle" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
-          <CalendarPlus size={18} aria-hidden="true" />
-          <span>Retrouver ce calendrier dans mon agenda</span>
+          <span className="pj-agenda-toggle-text">
+            <span className="pj-agenda-toggle-title">Retrouver ce calendrier dans mon agenda</span>
+            <span className="pj-agenda-toggle-sub">Google, iPhone, Outlook… mis à jour automatiquement</span>
+          </span>
+          {etat && (
+            <span className={`pj-agenda-puce ${puce.cls}`}>
+              {g?.connected && <span className="pj-agenda-dot" aria-hidden="true" />}
+              {puce.label}
+            </span>
+          )}
           <ChevronDown size={16} aria-hidden="true" className={open ? "pj-learn-more-chevron open" : "pj-learn-more-chevron"} />
         </button>
       </h2>
 
       <div id={panelId} hidden={!open} className="pj-agenda-body">
-        {retour && (
-          <p className={`pj-alerte ${retour.ok ? "pj-alerte-recommande" : "pj-alerte-information"}`} role="status">{retour.texte}</p>
-        )}
-        <p className="pj-params-intro">
-          Abonnez votre agenda habituel (téléphone, Google, Outlook) : les dates des projets et des séances de commission
-          s&apos;y affichent et se mettent à jour toutes seules. Vous continuez à tout modifier ici.
-        </p>
+        {retour && <p className={`pj-alerte ${retour.ok ? "pj-alerte-recommande" : "pj-alerte-information"}`} role="status">{retour.texte}</p>}
         {error && <p className="pj-modal-error" role="alert">{error}</p>}
         {message && <p className="pj-params-status" role="status">{message}</p>}
 
@@ -137,121 +155,138 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
           !error && <p className="pj-params-note"><Loader2 size={14} className="civiq-spin" aria-hidden="true" /> Chargement…</p>
         ) : (
           <>
-            {/* ─── 1. Abonnement iCal ─── */}
-            <div className="pj-agenda-block">
-              <h3 className="pj-etape-add-titre">Lien d&apos;abonnement personnel</h3>
-              <ChoixPerimetre
-                name="agenda-perimetre"
-                value={perimetre}
-                disabled={!!busy}
-                onChange={(p) => {
-                  setPerimetre(p);
-                  if (feed) void appel("perimetre", "/api/calendar/feed", { method: "PATCH", body: JSON.stringify({ perimetre: p }) }, "Réglage enregistré : votre agenda le prendra en compte à sa prochaine mise à jour.");
-                }}
-              />
+            {/* ─── ① Quels événements ? ─── */}
+            <fieldset className="pj-agenda-step">
+              <legend className="pj-agenda-step-title"><span className="pj-agenda-step-num" aria-hidden="true">1</span>Quels événements ?</legend>
+              <div className="pj-agenda-scopes">
+                {PERIMETRES.map((p) => (
+                  <label key={p.value} className={`pj-agenda-scope ${perimetre === p.value ? "is-selected" : ""}`}>
+                    <input type="radio" name="agenda-perimetre" value={p.value} checked={perimetre === p.value}
+                      onChange={() => void choisirPerimetre(p.value)} disabled={busy === "perimetre"} />
+                    <span className="pj-agenda-scope-text">
+                      <span className="pj-agenda-scope-titre">{p.titre}</span>
+                      <span className="pj-agenda-scope-detail">{p.detail}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
-              {!feed ? (
-                <button type="button" className="civiq-btn civiq-btn-default" disabled={!!busy}
-                  onClick={() => appel("creer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) })}>
-                  {busy === "creer" ? <Loader2 size={16} className="civiq-spin" aria-hidden="true" /> : <CalendarPlus size={16} aria-hidden="true" />} Créer mon lien d&apos;abonnement
-                </button>
-              ) : (
-                <>
-                  <div className="pj-agenda-actions">
-                    <a className="civiq-btn civiq-btn-default civiq-btn-sm" href={lienAbonnementGoogle(feed.url)} target="_blank" rel="noopener noreferrer">
-                      Ajouter à Google Agenda<span className="pj-sr-only"> (nouvel onglet)</span>
-                    </a>
-                    <a className="civiq-btn civiq-btn-outline civiq-btn-sm" href={lienWebcal(feed.url)}>
-                      Ajouter à Apple Calendrier ou Outlook
-                    </a>
-                  </div>
-                  <div className="civiq-field">
-                    <label htmlFor="agenda-url" className="civiq-field-label">Lien à copier (pour tout autre agenda)</label>
-                    <div className="pj-agenda-copy">
-                      <input id="agenda-url" className="civiq-input" readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} />
-                      <button type="button" className="civiq-btn civiq-btn-outline civiq-btn-sm" onClick={copier}>
-                        {copie ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copie ? "Copié" : "Copier"}
-                      </button>
+            {/* ─── ② Dans quel agenda ? ─── */}
+            <div className="pj-agenda-step" role="group" aria-labelledby="agenda-step2">
+              <p id="agenda-step2" className="pj-agenda-step-title"><span className="pj-agenda-step-num" aria-hidden="true">2</span>Dans quel agenda ?</p>
+              <div className={`pj-agenda-dest ${g?.configured ? "" : "is-single"}`}>
+                {g?.configured && (
+                  <div className="pj-agenda-card">
+                    <div className="pj-agenda-card-head">
+                      <span className="pj-agenda-logo is-google" aria-hidden="true">G</span>
+                      <h3 className="pj-agenda-card-title">Google Agenda</h3>
+                      <span className="pj-agenda-reco">Recommandé</span>
                     </div>
+                    {!g.connected ? (
+                      <>
+                        <p className="pj-agenda-card-text">
+                          Un agenda « GoCiviq » est créé dans votre compte, mis à jour en quelques minutes. Aucun accès à vos autres agendas.
+                        </p>
+                        <a className="civiq-btn civiq-btn-default civiq-btn-sm pj-agenda-cta" href="/api/google-calendar/connect">Connecter Google Agenda</a>
+                        {g.last_error && <p className="pj-agenda-card-note">Dernière déconnexion : {g.last_error}</p>}
+                      </>
+                    ) : (
+                      <>
+                        {g.last_sync_ok === false ? (
+                          <p className="pj-agenda-sync is-error">
+                            Échec de la synchronisation{g.last_error ? ` : ${g.last_error}` : "."}
+                          </p>
+                        ) : (
+                          <p className="pj-agenda-sync"><span className="pj-agenda-dot" aria-hidden="true" />Synchronisé{g.last_sync_at ? ` · ${ilYa(g.last_sync_at)}` : ""}</p>
+                        )}
+                        <p className="pj-agenda-card-text">{[g.email, court(g.perimetre)].filter(Boolean).join(" · ")}</p>
+                        <div className="pj-agenda-links">
+                          <a href="https://calendar.google.com/calendar/r" target="_blank" rel="noopener noreferrer">
+                            Ouvrir Google Agenda<span className="pj-sr-only"> (nouvel onglet)</span>
+                          </a>
+                          {g.last_sync_ok === false && (
+                            <button type="button" className="pj-link-btn" disabled={!!busy}
+                              onClick={async () => { if (await appel("gsync", "/api/google-calendar/sync", { method: "POST" }, "Agenda Google à jour.")) await charger(); }}>
+                              {busy === "gsync" ? "Synchronisation…" : "Réessayer"}
+                            </button>
+                          )}
+                          <button type="button" className="pj-link-btn pj-agenda-danger" disabled={!!busy}
+                            onClick={async () => {
+                              if (!window.confirm("Déconnecter Google Agenda ? L'agenda « GoCiviq » restera dans votre compte Google, sans mise à jour : vous pourrez le supprimer depuis Google.")) return;
+                              if (await appel("gdeco", "/api/google-calendar", { method: "DELETE" }, "Google Agenda déconnecté.")) await charger();
+                            }}>
+                            Déconnecter
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <p className="pj-alerte pj-alerte-information">
-                    Ce lien est personnel : toute personne qui l&apos;obtient voit les titres et les dates des projets. Si vous
-                    l&apos;avez transmis par erreur, changez de lien : l&apos;ancien cessera aussitôt de fonctionner.
-                  </p>
-                  <p className="pj-params-note">
-                    {feed.last_accessed_at ? `Dernière lecture par votre agenda : ${dt(feed.last_accessed_at)}.` : "Votre agenda n'a pas encore lu ce lien."}
-                  </p>
-                  <div className="pj-agenda-actions">
-                    <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" disabled={!!busy}
-                      onClick={() => window.confirm("Changer de lien ? L'ancien cessera de fonctionner : il faudra réabonner vos agendas.") &&
-                        appel("changer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) }, "Nouveau lien créé. Réabonnez vos agendas avec ce lien.")}>
-                      <RefreshCw size={14} aria-hidden="true" /> Changer de lien
-                    </button>
-                    <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" disabled={!!busy}
-                      onClick={() => window.confirm("Désactiver le lien ? Vos agendas abonnés cesseront d'être mis à jour.") &&
-                        appel("desactiver", "/api/calendar/feed", { method: "DELETE" }, "Lien désactivé.")}>
-                      <Link2Off size={14} aria-hidden="true" /> Désactiver le lien
-                    </button>
+                )}
+
+                <div className="pj-agenda-card">
+                  <div className="pj-agenda-card-head">
+                    <span className="pj-agenda-logo is-other" aria-hidden="true"><Plus size={16} /></span>
+                    <h3 className="pj-agenda-card-title">{g?.configured ? "Autre agenda" : "Mon agenda"}</h3>
                   </div>
-                </>
+                  {!feed ? (
+                    <>
+                      <p className="pj-agenda-card-text">
+                        {g?.configured ? "iPhone, Outlook, Thunderbird…" : "Google, iPhone, Outlook, Thunderbird…"} via un lien d&apos;abonnement.
+                        Mise à jour toutes les quelques heures.
+                      </p>
+                      <button type="button" className="civiq-btn civiq-btn-outline civiq-btn-sm pj-agenda-cta" disabled={!!busy}
+                        onClick={async () => { if (await appel("creer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) })) await charger(); }}>
+                        {busy === "creer" && <Loader2 size={14} className="civiq-spin" aria-hidden="true" />} Obtenir mon lien
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="pj-agenda-copy">
+                        <label htmlFor="agenda-url" className="pj-sr-only">Lien d&apos;abonnement personnel</label>
+                        <input id="agenda-url" className="pj-agenda-url" readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} />
+                        <button type="button" className={`pj-agenda-copy-btn ${copie ? "is-done" : ""}`} onClick={copier}>
+                          {copie ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copie ? "Copié" : "Copier"}
+                        </button>
+                      </div>
+                      <p className="pj-agenda-card-note">Collez-le dans « S&apos;abonner à un calendrier ». Lien personnel, ne le partagez pas.</p>
+                      <div className="pj-agenda-links">
+                        <a href={lienWebcal(feed.url)}>Ouvrir sur iPhone / Mac</a>
+                        <a href={lienOutlook(feed.url)} target="_blank" rel="noopener noreferrer">
+                          Ouvrir dans Outlook<span className="pj-sr-only"> (nouvel onglet)</span>
+                        </a>
+                      </div>
+                      <div className="pj-agenda-links pj-agenda-links-discret">
+                        <button type="button" className="pj-link-btn" disabled={!!busy}
+                          onClick={async () => {
+                            if (!window.confirm("Changer de lien ? L'ancien cessera aussitôt de fonctionner : il faudra réabonner vos agendas.")) return;
+                            if (await appel("changer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) }, "Nouveau lien créé. Réabonnez vos agendas avec ce lien.")) await charger();
+                          }}>
+                          Changer de lien
+                        </button>
+                        <button type="button" className="pj-link-btn" disabled={!!busy}
+                          onClick={async () => {
+                            if (!window.confirm("Désactiver le lien ? Vos agendas abonnés cesseront d'être mis à jour.")) return;
+                            if (await appel("desactiver", "/api/calendar/feed", { method: "DELETE" }, "Lien désactivé.")) await charger();
+                          }}>
+                          Désactiver
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {feed && g?.connected && (
+                <p className="pj-agenda-card-note">
+                  Si vous avez aussi ajouté le lien d&apos;abonnement dans Google Agenda, chaque date y apparaît deux fois : gardez-en un seul.
+                </p>
               )}
-              <LearnMore label="Comment ça marche ?">
-                <p>
-                  Ce lien est au format iCal (ou « .ics »), le format standard des agendas. Votre agenda le relit
-                  régulièrement : une modification faite ici apparaît en quelques minutes dans Apple Calendrier et
-                  jusqu&apos;à 24 heures plus tard dans Google Agenda.
-                </p>
-                <p>
-                  Outlook : « Ajouter un calendrier » → « S&apos;abonner à partir du web », puis collez le lien.
-                  Sur iPhone : Réglages → Calendrier → Comptes → Ajouter un compte → Autre → « Ajouter un calendrier avec abonnement ».
-                </p>
-                <p>L&apos;agenda affiche les dates, les titres, le type de projet, la commission et l&apos;élu référent, jamais les commentaires ni les notes internes.</p>
-              </LearnMore>
             </div>
 
-            {/* ─── 2. Google Agenda ─── */}
-            {g?.configured && (
-              <div className="pj-agenda-block">
-                <h3 className="pj-etape-add-titre">Synchronisation Google Agenda</h3>
-                <p className="pj-params-intro">
-                  Plus rapide que l&apos;abonnement : chaque modification apparaît en quelques minutes dans un agenda séparé
-                  « GoCiviq » de votre compte Google. GoCiviq n&apos;a accès qu&apos;à cet agenda, jamais à vos autres agendas.
-                </p>
-                {!g.connected ? (
-                  <>
-                    <a className="civiq-btn civiq-btn-default civiq-btn-sm" href="/api/google-calendar/connect">Connecter mon Google Agenda</a>
-                    {g.last_error && <p className="pj-params-note">Dernière déconnexion : {g.last_error}</p>}
-                  </>
-                ) : (
-                  <>
-                    <p className="pj-params-note">
-                      Connecté{g.email ? ` au compte ${g.email}` : ""}.{" "}
-                      {g.last_sync_at ? `Dernière synchronisation : ${dt(g.last_sync_at)}${g.last_sync_ok ? "." : " (échec)."}` : ""}
-                      {g.last_sync_ok === false && g.last_error ? ` ${g.last_error}` : ""}
-                    </p>
-                    <ChoixPerimetre name="google-perimetre" value={g.perimetre} disabled={!!busy}
-                      onChange={(p) => appel("gperimetre", "/api/google-calendar", { method: "PATCH", body: JSON.stringify({ perimetre: p }) }, "Réglage enregistré et agenda Google mis à jour.")} />
-                    <div className="pj-agenda-actions">
-                      <button type="button" className="civiq-btn civiq-btn-outline civiq-btn-sm" disabled={!!busy}
-                        onClick={() => appel("gsync", "/api/google-calendar/sync", { method: "POST" }, "Agenda Google à jour.")}>
-                        {busy === "gsync" ? <Loader2 size={14} className="civiq-spin" aria-hidden="true" /> : <RefreshCw size={14} aria-hidden="true" />} Synchroniser maintenant
-                      </button>
-                      <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" disabled={!!busy}
-                        onClick={() => window.confirm("Déconnecter Google Agenda ? L'agenda « GoCiviq » restera dans votre compte Google, sans mise à jour : vous pourrez le supprimer depuis Google.") &&
-                          appel("gdeco", "/api/google-calendar", { method: "DELETE" }, "Google Agenda déconnecté.")}>
-                        <Unplug size={14} aria-hidden="true" /> Déconnecter
-                      </button>
-                    </div>
-                  </>
-                )}
-                {feed && g.connected && (
-                  <p className="pj-alerte pj-alerte-information">
-                    Vous utilisez à la fois le lien d&apos;abonnement et la synchronisation : si les deux sont ajoutés à
-                    Google Agenda, chaque date y apparaît deux fois. Gardez-en un seul.
-                  </p>
-                )}
-              </div>
-            )}
+            <p className="pj-agenda-footer">
+              Les événements apparaissent en lecture seule, sans commentaires ni notes internes. Vous continuez à tout modifier ici.
+            </p>
           </>
         )}
       </div>
