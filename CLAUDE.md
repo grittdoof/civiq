@@ -858,3 +858,22 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Couleurs recharts : classes `.pj-stats-serie-*` (l'attribut SVG `fill` ne lit pas les variables CSS).
 - Vitest : `esbuild.jsx = "automatic"` pour tester les modules `.tsx` serveur.
 - **Code mort à valider nominativement au lot G** : `ProjectsStatsDrawer.tsx`, `DonutChart.tsx` (remplacés par l'onglet Statistiques), ancienne fiche par phases `/api/projects/[id]/pdf` + `pdf-document.tsx` + `/admin/projects/[id]/fiche`.
+
+## Session 19 — Émargement : tous les membres, présent / excusé / absent (2026-09-29)
+
+### Prompt de départ
+> « J'ai créé une séance sans convoquer les membres (invitation déjà envoyée par mail) : aucun membre n'est renseigné. Quoi qu'il arrive, tous les membres (présent, excusé ou absent) doivent figurer pour l'émargement et pour le compte rendu. »
+
+### Causes
+- Seuls les **administrateurs** pouvaient pointer les présences : les éditeurs (quasi tous les élus) voyaient « — » partout.
+- Le **compte rendu PDF** ne listait que les membres déjà pointés → aucun membre si personne n'a pointé.
+- Pas de statut **« excusé »** (booléen présent/absent seulement) ; un membre retiré de la commission disparaissait de l'historique de ses séances.
+
+### Livrés
+- **Migration 046** (appliquée en prod après dry run) : `session_attendance.statut` (`present|excuse|absent`, NULL = non renseigné) synchronisé par trigger avec l'ancien `present` ; `ensure_session_attendance(session)` crée une ligne par membre actif — appelée à la création de la séance et à chaque ouverture tant que le compte rendu n'est pas validé ; rattrapage des séances ouvertes (la séance du 29/09 retrouve ses 6 membres).
+- `lib/projects/emargement.ts` (pur, testé) : `listeEmargement` (membres actifs ∪ inscrits à la séance, anciens membres conservés), `repartition`, `peutPointer`.
+- Écran de séance : trois boutons Présent / Excusé / Absent, résumé chiffré ; pointage par admin, éditeur, super-admin **ou secrétaire de séance**, et par chaque élu pour lui-même ; signature d'un élu = lui seul, d'un externe = recueillie par un gestionnaire.
+- Feuille d'émargement PDF : tous les membres avec statut (« Non renseigné » sinon). Compte rendu PDF : Présents, Excusés, Absents, Présence non renseignée.
+
+### Point d'attention
+- Une séance dont le compte rendu est **validé** garde sa liste figée (pas de complément automatique).

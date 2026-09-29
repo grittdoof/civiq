@@ -5,11 +5,14 @@ import { writeAudit } from "@/lib/audit";
 
 // POST /api/commissions/:id/sessions/:sid/attendance
 // Body :
-//   - { user_id, present, signature_data? }  → membre interne
-//   - { commission_member_id, present, signature_data? } → membre externe
+//   - { user_id, statut?, signature_data? }  → membre interne
+//   - { commission_member_id, statut?, signature_data? } → membre externe
+//   (statut : present | excuse | absent | null ; `present` reste accepté)
 //
-// Pour un interne : isSelf || isAdmin.
-// Pour un externe : isAdmin uniquement (recueille la signature en séance).
+// Pointer présent / excusé / absent : gestionnaires de la séance (admin,
+// éditeur, super-admin, secrétaire de séance) ; un élu pour lui-même.
+// Signature : un élu signe pour lui-même ; celle d'un membre externe est
+// recueillie en séance par un gestionnaire.
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
 
@@ -17,8 +20,11 @@ interface Body {
   user_id?: string;
   commission_member_id?: string;
   present?: boolean;
+  statut?: "present" | "excuse" | "absent" | null;
   signature_data?: string | null;
 }
+
+const STATUTS = ["present", "excuse", "absent"];
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const guard = await requireModule("projects");
@@ -33,25 +39,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "user_id ou commission_member_id requis" }, { status: 400 });
   }
 
-  const isAdmin = ["admin", "super_admin"].includes(guard.role);
-
-  // Si interne : seul soi-même ou admin
-  if (body.user_id) {
-    const isSelf = body.user_id === guard.userId;
-    if (!isSelf && !isAdmin) {
-      return NextResponse.json(
-        { error: "Vous ne pouvez signer que pour vous-même" },
-        { status: 403 },
-      );
-    }
-  } else {
-    // Externe : admin only
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: "Seul un administrateur peut émarger un membre externe" },
-        { status: 403 },
-      );
-    }
+  if (body.statut !== undefined && body.statut !== null && !STATUTS.includes(body.statut)) {
+    return NextResponse.json({ error: "Statut inconnu" }, { status: 400 });
   }
 
   const service = await createServiceClient();
@@ -59,7 +48,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   // La séance doit appartenir à la commune de l'appelant
   const { data: sess } = await service
     .from("commission_sessions")
-    .select("id, commission:commissions ( commune_id )")
+    .select("id, secretaire_de_seance_user_id, commission:commissions ( commune_id )")
     .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
@@ -69,11 +58,24 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
+  const secretaireId = (sess as { secretaire_de_seance_user_id?: string | null }).secretaire_de_seance_user_id ?? null;
+  const gestionnaire = ["admin", "editor", "super_admin"].includes(guard.role) || secretaireId === guard.userId;
+  const isSelf = !!body.user_id && body.user_id === guard.userId;
+  const signe = body.signature_data !== undefined && body.signature_data !== null;
+  if (body.user_id) {
+    // La signature d'un élu est personnelle ; le pointage, non.
+    if (signe && !isSelf) return NextResponse.json({ error: "Chacun signe pour lui-même" }, { status: 403 });
+    if (!isSelf && !gestionnaire) return NextResponse.json({ error: "Vous ne pouvez pointer que votre propre présence" }, { status: 403 });
+  } else if (!gestionnaire) {
+    return NextResponse.json({ error: "Seul un gestionnaire de la séance peut émarger un membre externe" }, { status: 403 });
+  }
+
   const payload: Record<string, unknown> = {
     session_id: sid,
     conseiller_user_id: body.user_id ?? null,
     commission_member_id: body.commission_member_id ?? null,
     present: typeof body.present === "boolean" ? body.present : null,
+    ...(body.statut !== undefined ? { statut: body.statut } : {}),
     signature_data: body.signature_data ?? null,
     signe_le: body.signature_data ? new Date().toISOString() : null,
   };
@@ -101,7 +103,8 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   // En mise à jour, on ne touche qu'aux champs fournis : marquer la
   // présence ne doit pas effacer une signature déjà recueillie.
   const patch: Record<string, unknown> = {};
-  if (typeof body.present === "boolean") patch.present = body.present;
+  if (body.statut !== undefined) patch.statut = body.statut;
+  else if (typeof body.present === "boolean") patch.present = body.present;
   if (body.signature_data !== undefined) {
     patch.signature_data = body.signature_data;
     patch.signe_le = body.signature_data ? new Date().toISOString() : null;

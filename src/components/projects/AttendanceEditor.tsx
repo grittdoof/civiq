@@ -2,96 +2,56 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, X, PenTool, UserPlus, Lock } from "lucide-react";
+import { CheckCircle2, Lock, PenTool, UserPlus } from "lucide-react";
 import SignaturePad from "./SignaturePad";
-import type { CommissionMemberRole } from "@/lib/projects/types";
-
-interface Member {
-  /** id de commission_members */
-  member_id: string;
-  /** user_id si compte GoCiviq, null si externe */
-  user_id: string | null;
-  full_name: string;
-  role: CommissionMemberRole;
-  /** True pour les externes (sans compte) */
-  isExternal: boolean;
-}
-
-interface Attendance {
-  /** id de commission_members (pour les externes) */
-  member_id: string | null;
-  user_id: string | null;
-  present: boolean | null;
-  signature_data: string | null;
-  signe_le: string | null;
-}
+import { STATUT_EMARGEMENT, repartition, type Emargement, type StatutEmargement } from "@/lib/projects/emargement";
 
 interface Props {
   commissionId: string;
   sessionId: string;
-  members: Member[];
-  attendance: Attendance[];
+  /** Tous les membres de la séance (listeEmargement), convoqués ou non. */
+  entries: Emargement[];
   currentUserId: string;
-  isAdmin: boolean;
-  /** Émargement verrouillé : le compte rendu a été validé.
-   *  Tant qu'il est en brouillon, les signatures restent ouvertes. */
+  /** Admin, éditeur, super-admin ou secrétaire de séance. */
+  canManage: boolean;
+  /** Compte rendu validé : pointage et signatures figés. */
   signaturesLocked: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Feuille d'émargement — signature électronique horodatée.
+// Feuille d'émargement : TOUS les membres figurent (présent, excusé,
+// absent, ou non renseigné), qu'une convocation soit partie ou non.
 //
-// Membres internes : signent pour eux-mêmes (canvas SignaturePad).
-// Membres externes : seul un admin peut les marquer présents et
-// recueillir leur signature à leur place (cas du tactile partagé
-// en séance) ou la saisir.
+// Pointage : gestionnaires de la séance pour tous ; chaque élu pour
+// lui-même. Signature électronique horodatée : l'élu signe pour lui ;
+// celle d'un membre externe est recueillie en séance par un gestionnaire.
 // ═══════════════════════════════════════════════════════════════
 
-export default function AttendanceEditor({
-  commissionId,
-  sessionId,
-  members,
-  attendance,
-  currentUserId,
-  isAdmin,
-  signaturesLocked,
-}: Props) {
+const STATUTS: StatutEmargement[] = ["present", "excuse", "absent"];
+const BADGE: Record<StatutEmargement, string> = {
+  present: "civiq-badge-success",
+  excuse: "civiq-badge-warning",
+  absent: "civiq-badge-error",
+};
+
+export default function AttendanceEditor({ commissionId, sessionId, entries, currentUserId, canManage, signaturesLocked }: Props) {
   const router = useRouter();
-  const [signingFor, setSigningFor] = useState<Member | null>(null);
+  const [signingFor, setSigningFor] = useState<Emargement | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Lookup d'attendance : par user_id pour internes, par member_id pour externes
-  const byUser = new Map<string, Attendance>();
-  const byMember = new Map<string, Attendance>();
-  for (const a of attendance) {
-    if (a.user_id) byUser.set(a.user_id, a);
-    if (a.member_id) byMember.set(a.member_id, a);
-  }
-
-  function getAttendance(m: Member): Attendance | undefined {
-    if (m.isExternal) return byMember.get(m.member_id);
-    return m.user_id ? byUser.get(m.user_id) : undefined;
-  }
-
   const url = `/api/commissions/${commissionId}/sessions/${sessionId}/attendance`;
+  const r = repartition(entries);
 
-  async function setPresence(m: Member, present: boolean) {
-    const body: Record<string, unknown> = { present };
-    if (m.isExternal) {
-      body.commission_member_id = m.member_id;
-    } else {
-      body.user_id = m.user_id;
-    }
-    await post(body);
-  }
+  const cible = (e: Emargement) => (e.user_id ? { user_id: e.user_id } : { commission_member_id: e.member_id });
 
-  async function post(body: Record<string, unknown>): Promise<boolean> {
+  async function post(e: Emargement, body: Record<string, unknown>): Promise<boolean> {
     setSaveError(null);
+    setBusy(e.cle);
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...cible(e), ...body }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -103,195 +63,149 @@ export default function AttendanceEditor({
     } catch {
       setSaveError("Connexion perdue — réessayez.");
       return false;
+    } finally {
+      setBusy(null);
     }
   }
 
-  async function sign(m: Member, signatureDataUrl: string) {
-    const body: Record<string, unknown> = {
-      present: true,
-      signature_data: signatureDataUrl,
-    };
-    if (m.isExternal) {
-      body.commission_member_id = m.member_id;
-    } else {
-      body.user_id = m.user_id;
-    }
-    if (await post(body)) setSigningFor(null);
-  }
-
-  // ── Résolution du contexte « moi » pour l'aide explicite ──
-  const myMember = members.find((m) => !m.isExternal && m.user_id === currentUserId) ?? null;
-  const myAttendance = myMember ? byUser.get(myMember.user_id!) : undefined;
-  const alreadySigned = !!myAttendance?.signature_data;
-  const canIsign = !!myMember && !alreadySigned && !signaturesLocked;
+  const moi = entries.find((e) => e.user_id === currentUserId && !e.ancien) ?? null;
+  const canIsign = !!moi && !moi.signature_data && !signaturesLocked;
 
   return (
     <>
       {saveError && <div className="pj-modal-error" role="alert">{saveError}</div>}
 
-      {/* ─── Bandeau « Signer maintenant » mis en avant ─── */}
-      {myMember && (
+      {moi && (
         <div className="pj-sign-banner">
           {canIsign ? (
             <>
               <div>
-                <strong>Bienvenue {myMember.full_name}.</strong>
+                <strong>Bienvenue {moi.nom}.</strong>
                 <p className="pj-table-sub" style={{ marginTop: 2 }}>
-                  Vous êtes membre de cette commission. Cliquez ci-contre pour
-                  signer électroniquement la feuille d&apos;émargement.
+                  Vous êtes membre de cette commission : signez électroniquement la feuille d&apos;émargement.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSigningFor(myMember)}
-                className="civiq-btn civiq-btn-default"
-              >
-                <PenTool size={14} /> Signer maintenant
+              <button type="button" onClick={() => setSigningFor(moi)} className="civiq-btn civiq-btn-default">
+                <PenTool size={14} aria-hidden="true" /> Signer maintenant
               </button>
             </>
-          ) : alreadySigned ? (
+          ) : moi.signature_data ? (
             <div className="pj-sign-banner-done">
-              <CheckCircle2 size={16} />
+              <CheckCircle2 size={16} aria-hidden="true" />
               <span>
                 <strong>Merci, votre signature est enregistrée.</strong>
-                {myAttendance?.signe_le && (
-                  <span className="pj-table-sub" style={{ marginLeft: 6 }}>
-                    le {new Date(myAttendance.signe_le).toLocaleString("fr-FR")}
-                  </span>
-                )}
+                {moi.signe_le && <span className="pj-table-sub" style={{ marginLeft: 6 }}>le {new Date(moi.signe_le).toLocaleString("fr-FR")}</span>}
               </span>
             </div>
-          ) : signaturesLocked ? (
+          ) : (
             <div className="pj-sign-banner-locked">
-              <Lock size={16} />
-              <span>
-                <strong>Émargement verrouillé.</strong>{" "}
-                Le compte rendu a été validé, les signatures ne peuvent plus
-                être ajoutées.
-              </span>
+              <Lock size={16} aria-hidden="true" />
+              <span><strong>Émargement verrouillé.</strong> Le compte rendu a été validé.</span>
             </div>
-          ) : null}
-        </div>
-      )}
-      {!myMember && !isAdmin && (
-        <div className="pj-sign-banner pj-sign-banner-info">
-          <span>
-            Vous n&apos;êtes pas membre de cette commission, vous ne pouvez
-            donc pas signer. Les signatures sont réservées aux conseillers
-            désignés.
-          </span>
+          )}
         </div>
       )}
 
-      <table className="pj-table">
-        <thead>
-          <tr>
-            <th>Conseiller</th>
-            <th>Présence</th>
-            <th>Signature</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => {
-            const a = getAttendance(m);
-            const isMe = !m.isExternal && m.user_id === currentUserId;
-            const canSignSelf = isMe && !a?.signature_data && !signaturesLocked;
-            // Pour les externes : seul l'admin peut signer à leur place
-            const canSignExternal = m.isExternal && isAdmin && !a?.signature_data;
-            return (
-              <tr key={m.member_id}>
-                <td>
-                  <div className="pj-table-strong" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {m.isExternal && (
-                      <span title="Membre externe (sans compte GoCiviq)" style={{ display: "inline-flex" }}>
-                        <UserPlus size={12} />
-                      </span>
-                    )}
-                    {m.full_name}
-                  </div>
-                  {m.role === "president" && <div className="pj-table-sub">Président·e</div>}
-                  {m.role === "vice_president" && <div className="pj-table-sub">Vice-président·e</div>}
-                  {m.isExternal && <div className="pj-table-sub">Externe</div>}
-                </td>
-                <td>
-                  {isAdmin ? (
-                    <div style={{ display: "flex", gap: 4 }}>
-                      <button
-                        type="button"
-                        onClick={() => setPresence(m, true)}
-                        className={`civiq-badge ${a?.present === true ? "civiq-badge-success" : "civiq-badge-muted"}`}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <CheckCircle2 size={10} /> Présent
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPresence(m, false)}
-                        className={`civiq-badge ${a?.present === false ? "civiq-badge-warning" : "civiq-badge-muted"}`}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <X size={10} /> Absent
-                      </button>
-                    </div>
-                  ) : a?.present === true ? (
-                    <span className="civiq-badge civiq-badge-success">Présent</span>
-                  ) : a?.present === false ? (
-                    <span className="civiq-badge civiq-badge-muted">Absent</span>
-                  ) : (
-                    <span className="civiq-badge civiq-badge-muted">—</span>
-                  )}
-                </td>
-                <td>
-                  {a?.signature_data ? (
-                    <div>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={a.signature_data}
-                        alt="Signature"
-                        style={{ maxHeight: 36, maxWidth: 140 }}
-                      />
-                      {a.signe_le && (
-                        <div className="pj-table-sub">
-                          le {new Date(a.signe_le).toLocaleString("fr-FR")}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="pj-table-sub">—</span>
-                  )}
-                </td>
-                <td>
-                  {(canSignSelf || canSignExternal) && (
-                    <button
-                      type="button"
-                      onClick={() => setSigningFor(m)}
-                      className="civiq-btn civiq-btn-outline civiq-btn-sm"
-                    >
-                      <PenTool size={12} /> Signer
-                    </button>
-                  )}
-                </td>
+      <p className="pj-emargement-resume" role="status">
+        {entries.length} membre{entries.length > 1 ? "s" : ""} : {r.presents.length} présent{r.presents.length > 1 ? "s" : ""},{" "}
+        {r.excuses.length} excusé{r.excuses.length > 1 ? "s" : ""}, {r.absents.length} absent{r.absents.length > 1 ? "s" : ""}
+        {r.nonRenseignes.length > 0 ? `, ${r.nonRenseignes.length} non renseigné${r.nonRenseignes.length > 1 ? "s" : ""}` : ""}.
+      </p>
+
+      {entries.length === 0 ? (
+        <p className="pj-section-empty">
+          Cette commission n&apos;a aucun membre : ajoutez-les sur la page de la commission, ils apparaîtront ici.
+        </p>
+      ) : (
+        <div className="pj-stats-table-wrap">
+          <table className="pj-table">
+            <thead>
+              <tr>
+                <th scope="col">Membre</th>
+                <th scope="col">Présence</th>
+                <th scope="col">Signature</th>
+                <th scope="col"><span className="pj-sr-only">Actions</span></th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {entries.map((e) => {
+                const isMe = e.user_id === currentUserId;
+                const peutPointer = !signaturesLocked && (canManage || isMe);
+                const canSign = !signaturesLocked && !e.signature_data && (isMe || (e.externe && canManage));
+                return (
+                  <tr key={e.cle}>
+                    <td>
+                      <div className="pj-table-strong" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {e.externe && <UserPlus size={12} aria-label="Membre externe" />}
+                        {e.nom}
+                      </div>
+                      {e.role === "president" && <div className="pj-table-sub">Président·e</div>}
+                      {e.role === "vice_president" && <div className="pj-table-sub">Vice-président·e</div>}
+                      {e.externe && <div className="pj-table-sub">Externe</div>}
+                      {e.ancien && <div className="pj-table-sub">Ne fait plus partie de la commission</div>}
+                    </td>
+                    <td>
+                      {peutPointer ? (
+                        <div className="pj-emargement-statuts" role="radiogroup" aria-label={`Présence de ${e.nom}`}>
+                          {STATUTS.map((st) => (
+                            <button
+                              key={st}
+                              type="button"
+                              role="radio"
+                              aria-checked={e.statut === st}
+                              disabled={busy === e.cle}
+                              onClick={() => post(e, { statut: e.statut === st ? null : st })}
+                              className={`civiq-badge ${e.statut === st ? BADGE[st] : "civiq-badge-muted"}`}
+                              style={{ cursor: "pointer", border: 0 }}
+                            >
+                              {STATUT_EMARGEMENT[st]}
+                            </button>
+                          ))}
+                        </div>
+                      ) : e.statut ? (
+                        <span className={`civiq-badge ${BADGE[e.statut]}`}>{STATUT_EMARGEMENT[e.statut]}</span>
+                      ) : (
+                        <span className="civiq-badge civiq-badge-muted">Non renseigné</span>
+                      )}
+                    </td>
+                    <td>
+                      {e.signature_data ? (
+                        <div>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={e.signature_data} alt={`Signature de ${e.nom}`} style={{ maxHeight: 36, maxWidth: 140 }} />
+                          {e.signe_le && <div className="pj-table-sub">le {new Date(e.signe_le).toLocaleString("fr-FR")}</div>}
+                        </div>
+                      ) : (
+                        <span className="pj-table-sub">—</span>
+                      )}
+                    </td>
+                    <td>
+                      {canSign && (
+                        <button type="button" onClick={() => setSigningFor(e)} className="civiq-btn civiq-btn-outline civiq-btn-sm">
+                          <PenTool size={12} aria-hidden="true" /> Signer
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {signingFor && (
         <div className="pj-modal-backdrop" onClick={() => setSigningFor(null)}>
-          <div className="pj-modal" onClick={(e) => e.stopPropagation()}>
-            <h3 className="pj-modal-title">
-              Émargement — {signingFor.full_name}
-            </h3>
+          <div className="pj-modal" onClick={(ev) => ev.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Émargement — ${signingFor.nom}`}>
+            <h3 className="pj-modal-title">Émargement — {signingFor.nom}</h3>
             <div className="pj-modal-body">
               <p className="pj-section-empty">
-                {signingFor.isExternal
-                  ? "Le membre externe trace sa signature au doigt sur l'écran (vous, administrateur, la collectez en séance)."
+                {signingFor.externe
+                  ? "Le membre externe trace sa signature au doigt sur l'écran (vous la recueillez en séance)."
                   : "Tracez votre signature avec le doigt ou la souris. Elle sera horodatée et conservée."}
               </p>
               <SignaturePad
-                onSign={(data) => sign(signingFor, data)}
+                onSign={async (data) => { if (await post(signingFor, { statut: "present", signature_data: data })) setSigningFor(null); }}
                 onCancel={() => setSigningFor(null)}
               />
             </div>

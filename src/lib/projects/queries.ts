@@ -557,6 +557,13 @@ export async function getSession(
     return { session: null, commission: null, attendance: [], decisions: [], members: [], documents: [] };
   }
 
+  // Tous les membres figurent à l'émargement, convoqués ou non (046) :
+  // on complète la liste tant que le compte rendu n'est pas validé.
+  if (!(session as { compte_rendu_valide?: boolean }).compte_rendu_valide) {
+    const { error: ensureErr } = await service.rpc("ensure_session_attendance", { p_session_id: sessionId });
+    if (ensureErr) console.error("[séance] ensure_session_attendance:", ensureErr.message);
+  }
+
   const [attendance, decisions, members, documents] = await Promise.all([
     service
       .from("session_attendance")

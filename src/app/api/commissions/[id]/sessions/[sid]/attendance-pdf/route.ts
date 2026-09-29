@@ -4,6 +4,7 @@ import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getSession } from "@/lib/projects/queries";
 import { AttendancePDF } from "@/lib/projects/pdf-commission";
+import { listeEmargement, STATUT_EMARGEMENT, type LigneSource, type MembreSource } from "@/lib/projects/emargement";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,14 +23,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
   const service = await createServiceClient();
   const { data: commune } = await service.from("communes").select("name, logo_url").eq("id", guard.communeId).single();
 
-  // Lookup d'attendance — par user_id pour les internes et par
-  // commission_member_id pour les externes
-  const byUser = new Map<string, typeof detail.attendance[number]>();
-  const byMember = new Map<string, typeof detail.attendance[number]>();
-  for (const a of detail.attendance) {
-    if (a.conseiller_user_id) byUser.set(a.conseiller_user_id, a);
-    if (a.commission_member_id) byMember.set(a.commission_member_id, a);
-  }
+  // Tous les membres, convoqués ou non, avec leur statut.
+  const emargement = listeEmargement(detail.members as unknown as MembreSource[], detail.attendance as unknown as LigneSource[]);
 
   let secretaireNom: string | null = null;
   if (detail.session.secretaire_de_seance_user_id) {
@@ -53,16 +48,14 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
       lieu: detail.session.lieu,
       ordreDuJour: detail.session.ordre_du_jour,
       secretaireNom,
-      members: detail.members.map((m) => {
-        const a = m.user_id ? byUser.get(m.user_id) : byMember.get(m.id);
-        return {
-          full_name: m.profile?.full_name ?? m.external_name ?? "—",
-          role: m.role,
-          present: a?.present ?? null,
-          signature_data: a?.signature_data ?? null,
-          signe_le: a?.signe_le ?? null,
-        };
-      }),
+      members: emargement.map((e) => ({
+        full_name: e.ancien ? `${e.nom} (ancien membre)` : e.nom,
+        role: e.role,
+        present: e.statut === "present" ? true : e.statut ? false : null,
+        statutLabel: e.statut ? STATUT_EMARGEMENT[e.statut] : "Non renseigné",
+        signature_data: e.signature_data,
+        signe_le: e.signe_le,
+      })),
       generatedAt: new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
     }),
   );
