@@ -5095,3 +5095,63 @@ a.pj-commission-badge:hover {
   .pj-agenda-body { padding: 18px 16px 20px; gap: 22px; }
   .pj-agenda-dest { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ═══ Lot F — pilotage : onglets, alertes, statistiques, reporting, export ═══ */
+.pj-portfolio-tabs { margin-bottom: 16px; }
+.pj-badge-confidentiel { display: inline-flex; align-items: center; gap: 4px; background: var(--fg); color: var(--card); }
+.pj-list-alertes { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; }
+.pj-list-alertes .civiq-badge { font-size: 11px; }
+.pj-list-more { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: center; margin: 16px 0; }
+.pj-confidentiel-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+
+.pj-export-menu { position: relative; }
+.pj-export-menu > summary { list-style: none; cursor: pointer; }
+.pj-export-menu > summary::-webkit-details-marker { display: none; }
+.pj-export-panel {
+  position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: 300px; max-width: calc(100vw - 32px);
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--card-shadow);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.pj-export-group { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--fg); }
+.pj-export-links { display: flex; gap: 14px; font-size: 13px; font-weight: 600; }
+.pj-export-links a { color: var(--accent); }
+
+.pj-stats { display: flex; flex-direction: column; gap: 16px; }
+.pj-stats-bloc { display: flex; flex-direction: column; gap: 10px; }
+.pj-stats-titre { margin: 0; font-size: 16px; font-weight: 700; color: var(--fg); }
+.pj-stats-figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.pj-stats-chart { width: 100%; min-height: 120px; }
+.pj-stats-resume { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg-muted); }
+.pj-stats-general { display: flex; flex-direction: column; gap: 8px; }
+.pj-stats-big { font-size: 36px; font-weight: 800; color: var(--fg); line-height: 1; }
+.pj-stats-track { height: 10px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.pj-stats-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+.pj-stats-table-wrap { overflow-x: auto; }
+.pj-stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pj-stats-table th, .pj-stats-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border-light); }
+.pj-stats-table thead th { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
+.pj-stats-table td { font-variant-numeric: tabular-nums; }
+.pj-stats-total th, .pj-stats-total td { font-weight: 700; }
+/* Couleurs des séries : via CSS (l'attribut SVG fill ne lit pas les variables). */
+.pj-stats-serie-marine path { fill: var(--marine); }
+.pj-stats-serie-accent path { fill: var(--accent); }
+.pj-stats-serie-success path { fill: var(--success); }
+.pj-stats-serie-multi .recharts-bar-rectangle:nth-child(1) path { fill: var(--gris-soft); }
+.pj-stats-serie-multi .recharts-bar-rectangle:nth-child(2) path { fill: var(--accent); }
+.pj-stats-serie-multi .recharts-bar-rectangle:nth-child(3) path { fill: var(--success); }
+.pj-stats-budget .legend-item-0 .recharts-surface path { fill: var(--marine); }
+.pj-stats-budget .legend-item-1 .recharts-surface path { fill: var(--accent); }
+.pj-stats-budget .legend-item-2 .recharts-surface path { fill: var(--success); }
+
+.pj-reporting { display: flex; flex-direction: column; gap: 14px; }
+.pj-reporting-filtres { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.pj-reporting-filtres .civiq-field { flex: 1 1 180px; margin: 0; }
+.pj-reporting-doc { display: flex; flex-direction: column; gap: 12px; }
+.pj-reporting-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+.pj-reporting-sub { margin: 2px 0 0; font-size: 13px; color: var(--fg-muted); }
+.pj-reporting-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+/* Tabulation stricte : • projet / ◦ étape / ▪ détail */
+.pj-rep-l1 { list-style: disc; margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; }
+.pj-rep-projet { font-weight: 700; color: var(--fg); }
+.pj-rep-l2 { list-style: circle; margin: 4px 0 0; padding-left: 24px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+.pj-rep-l3 { list-style: square; margin: 2px 0 0; padding-left: 24px; color: var(--fg); font-size: 14px; }

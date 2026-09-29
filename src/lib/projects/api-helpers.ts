@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
+import { contributeursConfidentiels, peutVoirProjet } from "./confidentialite";
 
 // ═══════════════════════════════════════════════════════════════
 // Helpers d'auth pour les routes API projet :
@@ -24,12 +25,16 @@ export async function requireProjectAccess(projectId: string): Promise<ProjectAc
   const service = await createServiceClient();
   const { data } = await service
     .from("projects")
-    .select("id, commune_id")
+    .select("id, commune_id, confidentiel, pilote_elu, pilote_agent")
     .is("deleted_at", null)
     .eq("id", projectId)
     .maybeSingle();
 
-  if (!data) {
+  // Projet confidentiel : 404 (on ne révèle pas son existence).
+  const visible = data
+    ? peutVoirProjet({ id: guard.userId, role: guard.role }, data, (await contributeursConfidentiels(service, [data])).get(data.id) ?? [])
+    : false;
+  if (!data || !visible) {
     return { ok: false, response: NextResponse.json({ error: "Projet introuvable" }, { status: 404 }) };
   }
   if (data.commune_id !== guard.communeId && !guard.isSuperAdmin) {

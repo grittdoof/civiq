@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Layers, MapPin, Pencil, UserRound, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Layers, Lock, MapPin, Pencil, UserRound, Users } from "lucide-react";
 import "../projects.css";
 import "../flow.css";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -31,6 +31,9 @@ import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import ProjectTypeChanger from "@/components/projects/ProjectTypeChanger";
 import AvancementAjuster from "@/components/projects/AvancementAjuster";
 import SuiviActions from "@/components/projects/SuiviActions";
+import ConfidentielControl from "@/components/projects/ConfidentielControl";
+import FicheExportMenu from "@/components/projects/FicheExportMenu";
+import { peutChangerConfidentialite } from "@/lib/projects/confidentialite";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/projects/[id] — écran de vie du projet (brief §2.3, lot B).
@@ -189,6 +192,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   }
   const jours = ext.evenement_debut ? joursAvant(ext.evenement_debut, now) : null;
   const archived = !!p.archived_at;
+  const confidentiel = !!(p as { confidentiel?: boolean }).confidentiel;
 
   return (
     <main className="civiq-main pj-life">
@@ -212,6 +216,11 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         <div className="pj-life-id">
           <div className="pj-life-badges">
             <TypeBadge type={type} />
+            {confidentiel && (
+              <span className="civiq-badge pj-badge-confidentiel" title={(p as { confidentiel_motif?: string | null }).confidentiel_motif ?? undefined}>
+                <Lock size={12} aria-hidden="true" /> Confidentiel
+              </span>
+            )}
             {commission && (
               <span className="pj-commission-badge" style={{ ["--comm-color" as string]: commission.color }}>
                 <span className="pj-wiz-dot" style={{ background: commission.color }} aria-hidden="true" />
@@ -263,6 +272,10 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
               </Link>
             )}
             {canEdit && !archived && <ProjectTypeChanger projectId={id} currentType={type} canEdit />}
+            <FicheExportMenu projectId={id} />
+            {peutChangerConfidentialite({ id: ctx.userId, role: ctx.role }) && !archived && (
+              <ConfidentielControl projectId={id} confidentiel={confidentiel} />
+            )}
             <Link href={legacyHref} className="civiq-btn civiq-btn-ghost civiq-btn-sm">
               <Layers size={14} aria-hidden="true" /> Vue détaillée (ancienne)
             </Link>

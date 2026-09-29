@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/notifications/email";
 import { getBaseUrl } from "@/lib/base-url";
 import { PROJECT_PHASE_LABELS, FINANCING_STATUS_LABELS } from "./types";
 import type { ProjectPhase, FinancingStatus } from "./types";
+import { contributeursConfidentiels, peutVoirProjet } from "./confidentialite";
 
 // ═══════════════════════════════════════════════════════════════
 // Notifications du module Gestion de projet.
@@ -140,11 +141,19 @@ export async function sendProjectNotification(
 // ─── Récupère les abonnés d'un projet ───
 async function getProjectSubscribers(projectId: string): Promise<string[]> {
   const service = await createServiceClient();
-  const { data } = await service
-    .from("project_subscribers")
-    .select("user_id")
-    .eq("project_id", projectId);
-  return (data ?? []).map((r) => r.user_id as string);
+  const [{ data }, { data: projet }] = await Promise.all([
+    service.from("project_subscribers").select("user_id").eq("project_id", projectId),
+    service.from("projects").select("id, confidentiel, pilote_elu, pilote_agent").eq("id", projectId).maybeSingle(),
+  ]);
+  const ids = (data ?? []).map((r) => r.user_id as string);
+  // Projet confidentiel : seuls ceux qui peuvent le voir sont notifiés.
+  if (!projet?.confidentiel || ids.length === 0) return ids;
+  const [{ data: roles }, contrib] = await Promise.all([
+    service.from("profiles").select("id, role").in("id", ids),
+    contributeursConfidentiels(service, [projet]),
+  ]);
+  const roleDe = new Map((roles ?? []).map((r) => [r.id as string, r.role as string]));
+  return ids.filter((id) => peutVoirProjet({ id, role: roleDe.get(id) ?? null }, projet, contrib.get(projet.id) ?? []));
 }
 
 // ─── Récupère l'URL absolue de base (voir src/lib/base-url.ts) ───

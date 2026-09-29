@@ -6,6 +6,7 @@ import {
   type CalendarEvent,
   type CalendarRaw,
 } from "./calendar";
+import { filtrerProjetsVisibles, type Viewer } from "./confidentialite";
 
 // ═══════════════════════════════════════════════════════════════
 // Lecture des dates du calendrier général (serveur, service role).
@@ -15,11 +16,12 @@ import {
 
 export type { CalendarEvent };
 
-export async function chargerCalendrierBrut(service: SupabaseClient, communeId: string): Promise<CalendarRaw> {
+/** `viewer` : projets confidentiels filtrés selon public.user_voit_projet(). */
+export async function chargerCalendrierBrut(service: SupabaseClient, communeId: string, viewer: Viewer | null): Promise<CalendarRaw> {
   const [projs, comms] = await Promise.all([
     service
       .from("projects")
-      .select("id, titre, type_code, commission_pilote_id, pilote_elu, pilote_agent, evenement_debut, evenement_fin, lieu, date_maj")
+      .select("id, titre, type_code, commission_pilote_id, pilote_elu, pilote_agent, evenement_debut, evenement_fin, lieu, date_maj, confidentiel")
       .eq("commune_id", communeId)
       .is("deleted_at", null)
       .is("archived_at", null),
@@ -29,7 +31,7 @@ export async function chargerCalendrierBrut(service: SupabaseClient, communeId: 
       .eq("commune_id", communeId)
       .is("deleted_at", null),
   ]);
-  const projects = (projs.data ?? []) as CalendarRaw["projects"];
+  const projects = await filtrerProjetsVisibles(service, viewer, (projs.data ?? []) as Array<CalendarRaw["projects"][number] & { confidentiel: boolean }>);
   const commissions = (comms.data ?? []) as CalendarRaw["commissions"];
   const projectIds = projects.map((p) => p.id);
   const commissionIds = commissions.map((c) => c.id);
@@ -83,9 +85,9 @@ export interface CalendarPageData {
   referents: Array<{ id: string; nom: string }>;
 }
 
-export async function listCalendarEvents(communeId: string): Promise<CalendarPageData> {
+export async function listCalendarEvents(communeId: string, viewer: Viewer): Promise<CalendarPageData> {
   const service = await createServiceClient();
-  const raw = await chargerCalendrierBrut(service, communeId);
+  const raw = await chargerCalendrierBrut(service, communeId, viewer);
   const events = construireEvenements(raw);
   const referentIds = new Set(raw.projects.map((p) => p.pilote_elu).filter((x): x is string => !!x));
   return {
@@ -104,11 +106,11 @@ export async function listCalendarEvents(communeId: string): Promise<CalendarPag
 export async function evenementsPourProfil(
   service: SupabaseClient,
   communeId: string,
-  profileId: string,
+  viewer: Viewer,
   perimetre: "tout" | "mes",
 ): Promise<CalendarEvent[]> {
-  const raw = await chargerCalendrierBrut(service, communeId);
-  return construireEvenements(perimetre === "mes" ? restreindreAuProfil(raw, profileId) : raw);
+  const raw = await chargerCalendrierBrut(service, communeId, viewer);
+  return construireEvenements(perimetre === "mes" ? restreindreAuProfil(raw, viewer.id) : raw);
 }
 
 /**

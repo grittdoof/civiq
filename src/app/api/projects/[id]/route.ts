@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
+import { requireProjectEdit } from "@/lib/projects/api-helpers";
+import { peutChangerConfidentialite } from "@/lib/projects/confidentialite";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
 import { getProject } from "@/lib/projects/queries";
@@ -35,6 +37,8 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
 }
 
 interface PatchBody {
+  confidentiel?: boolean;
+  confidentiel_motif?: string | null;
   titre?: string;
   description?: string | null;
   objectifs?: string | null;
@@ -124,6 +128,9 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   } catch {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
+  // Projet confidentiel invisible pour cet utilisateur : 404.
+  const access = await requireProjectEdit(id);
+  if (!access.ok) return access.response;
 
   const updates: Record<string, unknown> = {};
   for (const key of Object.keys(body) as (keyof PatchBody)[]) {
@@ -219,6 +226,21 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   }
 
   // Avancement ajusté à la main : motif obligatoire, auteur et date tracés.
+  // Confidentialité (§2.10) : réservée au bureau municipal.
+  if ("confidentiel" in body) {
+    if (!peutChangerConfidentialite({ id: guard.userId, role: guard.role })) {
+      return NextResponse.json({ error: "Seul un administrateur de la commune peut changer la confidentialité d'un projet." }, { status: 403 });
+    }
+    const on = body.confidentiel === true;
+    const motif = typeof body.confidentiel_motif === "string" ? body.confidentiel_motif.trim().slice(0, 300) : "";
+    if (on && !motif) return NextResponse.json({ error: "Indiquez en une phrase pourquoi ce projet est confidentiel." }, { status: 400 });
+    Object.assign(updates, {
+      confidentiel: on,
+      confidentiel_motif: on ? motif : null,
+      confidentiel_par: guard.userId,
+      confidentiel_le: new Date().toISOString(),
+    });
+  }
   if ("avancement_manuel_pct" in body) {
     const pct = body.avancement_manuel_pct;
     if (pct === null) {

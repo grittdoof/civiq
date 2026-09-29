@@ -13,6 +13,7 @@ import CommissionAdminActions from "@/components/projects/CommissionAdminActions
 import CommissionIcon from "@/components/projects/CommissionIcon";
 import NewCommissionDialog from "@/components/projects/NewCommissionDialog";
 import type { ProjectPhase } from "@/lib/projects/types";
+import { filtrerProjetsVisibles } from "@/lib/projects/confidentialite";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function CommissionDetailPage({ params }: PageProps) {
     { data: parentRow },
   ] = await Promise.all([
     service.from("profiles").select("id, full_name, job_title").eq("commune_id", ctx.communeId),
-    service.from("projects").select("id, titre, phase").is("deleted_at", null).is("archived_at", null).eq("commune_id", ctx.communeId).order("titre"),
+    service.from("projects").select("id, titre, phase, confidentiel, pilote_elu, pilote_agent").is("deleted_at", null).is("archived_at", null).eq("commune_id", ctx.communeId).order("titre"),
     service
       .from("commissions")
       .select("id, nom, color, icon, active")
@@ -54,6 +55,9 @@ export default async function CommissionDetailPage({ params }: PageProps) {
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+  // Projets confidentiels : même règle que public.user_voit_projet().
+  const projectsVisibles = await filtrerProjetsVisibles(service, { id: ctx.userId, role: ctx.role },
+    (projectsDir ?? []) as Array<{ id: string; titre: string; phase: string; confidentiel: boolean; pilote_elu: string | null; pilote_agent: string | null }>);
   const subs = (subCommissions ?? []) as Array<{
     id: string; nom: string; color: string; icon: string; active: boolean;
   }>;
@@ -199,7 +203,7 @@ export default async function CommissionDetailPage({ params }: PageProps) {
               project_id: p.project_id,
               project: p.project ? { id: p.project.id, titre: p.project.titre, phase: p.project.phase as ProjectPhase } : null,
             }))}
-            directory={(projectsDir ?? []) as { id: string; titre: string; phase: ProjectPhase }[]}
+            directory={projectsVisibles as unknown as { id: string; titre: string; phase: ProjectPhase }[]}
             canEdit={canCreateSession}
           />
         </section>

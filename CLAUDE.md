@@ -843,3 +843,18 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 - Sans identifiants Google, la carte Google disparaît et « Mon agenda » occupe toute la largeur.
 - Adresse de retour OAuth réelle : `https://www.gociviq.fr/api/google-calendar/callback` (le site est servi sur `www`). En mode Test, Google expire les autorisations au bout de 7 jours : publier l'application.
 
+
+### Lot F — pilotage : confidentialité, statistiques, reporting, fiche A4 (branche `claude/projets-lot-f`)
+- **044** (appliquée en prod, additive) : `projects.confidentiel` (+ motif, par, le) ; `user_voit_projet(uuid)` (SECURITY DEFINER) ; policies `projects_select|update` et `user_can_edit_project()` l'appliquent → les tables filles héritent de la restriction.
+- **Règle** (`lib/projects/confidentialite.ts`, miroir 1:1 du SQL) : projet confidentiel visible du **bureau municipal (admin, super_admin)** et des personnes qui le portent (élu référent, agent, contributeurs). Seul le bureau peut (dé)marquer, avec un motif (`PATCH /api/projects/:id`, `ConfidentielControl`).
+- Appliquée côté serveur (service role) dans : `listProjects`, `getProject`, `getCommission`, `requireProjectAccess` (toutes les routes `/api/projects/[id]/**` → 404), PATCH/advance, calendrier + flux iCal + Google (`chargerCalendrierBrut(…, viewer)`), notifications (`getProjectSubscribers`), alerte de campagne (bandeau filtré par spectateur ; envois groupés : confidentiels exclus), sélecteur de projets des commissions.
+- **Page `/admin/projects` à onglets** (`?onglet=`) : Projets (badges d'alerte retard / sans accusé de réception / part communale < 20 % / délégation dépassée / confidentiel, filtre statut en cours·terminé, pagination par 30), **Statistiques** (avancement général et par commission, budget HT prévu / engagé / payé par commission, subventions sollicitées / accordées / encaissées ; recharts différé, sans animation ; tableau de chiffres équivalent), **Reporting** (puces • / ◦ / ▪, étapes `remonter_au_reporting`, niveau 3 = lignes du commentaire, jamais de note interne ; filtres commission / type / statut ; export PDF et Word ; copier le texte).
+- **Fiche projet A4** `GET /api/projects/:id/fiche?format=pdf|docx&variante=complete|communicable` (menu « Exporter la fiche » sur l'écran de vie) : communicable = sans commentaires ni pièces « note interne » ; événement = budget de fonctionnement + rétroplanning, jamais de plan de financement ; bandeau « PROJET CONFIDENTIEL ».
+- Logique pure : `pilotage.ts` (statut, alertes, statistiques, reporting), `fiche.ts` ; rendu `pdf-pilotage.tsx` (react-pdf, puces dessinées : Inter n'a pas ◦ ▪ ◆) et `docx-pilotage.ts` (bibliothèque **`docx`**, vraie liste numérotée à 3 niveaux, logos en image) ; chargement `portefeuille-server.ts`, `fiche-server.ts`.
+
+#### Points d'attention (lot F)
+- **Toute nouvelle lecture de `projects` en service role doit filtrer la confidentialité** (`filtrerProjetsVisibles` / `peutVoirProjet`), sinon fuite : la RLS ne protège que les lectures avec la clé utilisateur.
+- Statut « terminé » = au moins une étape et toutes terminées (pas de colonne dédiée).
+- Couleurs recharts : classes `.pj-stats-serie-*` (l'attribut SVG `fill` ne lit pas les variables CSS).
+- Vitest : `esbuild.jsx = "automatic"` pour tester les modules `.tsx` serveur.
+- **Code mort à valider nominativement au lot G** : `ProjectsStatsDrawer.tsx`, `DonutChart.tsx` (remplacés par l'onglet Statistiques), ancienne fiche par phases `/api/projects/[id]/pdf` + `pdf-document.tsx` + `/admin/projects/[id]/fiche`.
