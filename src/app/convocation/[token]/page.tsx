@@ -39,7 +39,7 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
   const { data: conv } = await service
     .from("session_convocations")
     .select(
-      "session_id, status, response_comment, member:commission_members ( external_name, profile:profiles ( full_name ) )",
+      "session_id, status, response_comment, member:commission_members ( external_name, profile:profiles!commission_members_user_id_fkey ( full_name ) )",
     )
     .eq("token", token)
     .maybeSingle();

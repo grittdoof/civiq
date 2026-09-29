@@ -73,7 +73,7 @@ export async function listConvocationRecipients(
 ): Promise<ConvocationRecipient[]> {
   const { data: membersData } = await service
     .from("commission_members")
-    .select("id, user_id, external_name, external_email, profile:profiles ( full_name )")
+    .select("id, user_id, external_name, external_email, profile:profiles!commission_members_user_id_fkey ( full_name )")
     .eq("commission_id", commissionId)
     .is("deleted_at", null)
     .order("created_at");

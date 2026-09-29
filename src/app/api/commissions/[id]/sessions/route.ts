@@ -68,6 +68,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     .single();
   if (error || !session) return NextResponse.json({ error: error?.message ?? "Erreur" }, { status: 500 });
 
+  // Tous les membres figurent à l'émargement dès la création, qu'une
+  // convocation parte ou non.
+  const { error: ensureErr } = await service.rpc("ensure_session_attendance", { p_session_id: session.id });
+  if (ensureErr) console.error("[séance] ensure_session_attendance:", ensureErr.message);
+
   // Convocation (échec d'envoi ≠ échec de création : la séance existe,
   // l'envoi peut être relancé depuis la page de la séance)
   let convocation: SendConvocationsResult | null = null;

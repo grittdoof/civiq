@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
@@ -19,6 +19,8 @@ interface Props {
 export default function CommissionProjectsEditor({ commissionId, initial, directory, canEdit }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
+  // Toujours refléter les données du serveur (rafraîchissement, changement de commission).
+  useEffect(() => { setRows(initial); }, [initial]);
   const [picking, setPicking] = useState(false);
   const [pickId, setPickId] = useState("");
 

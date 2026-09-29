@@ -14,6 +14,7 @@ import ConvocationsPanel from "@/components/projects/ConvocationsPanel";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listConvocationRecipients } from "@/lib/projects/convocation-send";
 import { toRichHtml } from "@/lib/projects/rich-text";
+import { listeEmargement, repartition, type LigneSource, type MembreSource } from "@/lib/projects/emargement";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/commissions/:id/sessions/:sid — détail d'une séance.
@@ -47,9 +48,11 @@ export default async function SessionDetailPage({ params }: PageProps) {
   const canEditMinutes = isAdmin || isSecretaire;
   const canManageDocs = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
-  // Quorum
-  const totalMembers = detail.members.length;
-  const presentCount = detail.attendance.filter((a) => a.present === true).length;
+  // Tous les membres figurent à l'émargement, convoqués ou non.
+  const emargement = listeEmargement(detail.members as unknown as MembreSource[], detail.attendance as unknown as LigneSource[]);
+  const totalMembers = emargement.length;
+  const presentCount = repartition(emargement).presents.length;
+  const canManageAttendance = ["admin", "editor", "super_admin"].includes(ctx.role ?? "") || isSecretaire;
   // Les signatures restent ouvertes tant que le compte rendu n'est
   // pas validé (verrouillé). Une fois le CR validé, on lock.
   const signaturesLocked = detail.session.compte_rendu_valide;
@@ -57,7 +60,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
   // Candidats secrétaire = membres internes (avec compte GoCiviq) de la
   // commission. Les externes (sans user_id) ne peuvent pas éditer le CR.
   const secretaryCandidates = detail.members
-    .filter((m) => m.user_id && m.profile)
+    .filter((m) => m.user_id && m.profile && !(m as { deleted_at?: string | null }).deleted_at)
     .map((m) => ({ id: m.user_id!, full_name: m.profile?.full_name ?? null }));
   const currentSecretaryName = detail.members.find(
     (m) => m.user_id === detail.session?.secretaire_de_seance_user_id,
@@ -169,22 +172,9 @@ export default async function SessionDetailPage({ params }: PageProps) {
           <AttendanceEditor
             commissionId={id}
             sessionId={sid}
-            members={detail.members.map((m) => ({
-              member_id: m.id,
-              user_id: m.user_id,
-              full_name: m.profile?.full_name ?? m.external_name ?? "—",
-              role: m.role,
-              isExternal: !m.user_id,
-            }))}
-            attendance={detail.attendance.map((a) => ({
-              member_id: a.commission_member_id,
-              user_id: a.conseiller_user_id,
-              present: a.present,
-              signature_data: a.signature_data,
-              signe_le: a.signe_le,
-            }))}
+            entries={emargement}
             currentUserId={ctx.userId}
-            isAdmin={isAdmin}
+            canManage={canManageAttendance}
             signaturesLocked={signaturesLocked}
           />
         </section>
