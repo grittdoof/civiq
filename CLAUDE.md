@@ -927,3 +927,16 @@ Le contrôle fin par utilisateur existait déjà : `profile_module_overrides(pro
 ### Points d'attention
 - **Ne pas remettre de `lineHeight` dans un style react-pdf** (interligne doublé).
 - Le sous-ensemble latin couvre le français (accents, œ, €, ’) ; un caractère hors latin en italique retomberait sur la police par défaut.
+
+## Session 21 — Fiche projet : toutes les étapes, chargement animé, fin de la « vue détaillée » (2026-10-02)
+
+### Prompt de départ
+> « J'ai ajouté des étapes dans mon projet, j'ai exporté la fiche : les nouvelles étapes ne s'affichent pas. Vérifie que la génération se met à jour à chaque export. La génération de PDF doit avoir une petite animation de chargement. Supprime Vue détaillée (ancienne). »
+
+### Cause
+Pas un cache (routes `force-dynamic`, `Cache-Control: no-store`) : `construireFiche` n'affichait **que les jalons** dès qu'un projet en comptait (3 jalons, 11 étapes ajoutées non-jalons → invisibles), triés par date (étapes sans date rejetées en fin).
+
+### Livrés
+- Fiche (PDF + Word) : **toutes les étapes**, dans l'ordre de l'écran du projet (`sortEtapes`), jalons repérés (losange dessiné + légende) ; événement : rétroplanning chronologique ; jusqu'à 30 étapes puis « + N autres étapes ».
+- Exports fiche (PDF / Word, complète / communicable) et reporting via l'écran de chargement animé `/projects-pdf` (`kind=fiche|reporting`, `format`, `variante`) : `fetch` `no-store` + paramètre horodaté → document régénéré à chaque clic ; Word téléchargé puis message « Document Word prêt ». `kind=project` pointe désormais vers la nouvelle fiche.
+- Lien « Vue détaillée (ancienne) » retiré de l'écran de vie (les routes `/phase/...` restent, suppression nominative au lot G).

@@ -213,12 +213,24 @@ describe("lot F — fiche projet A4", () => {
 
   it("complète : notes internes incluses et signalées", () => {
     const f = construireFiche({ ...input, variante: "complete" });
-    expect(f.etapesTitre).toBe("Calendrier des jalons");
-    expect(f.etapes.map((e) => e.libelle)).toEqual(["Choix de l'architecte", "Négociation terrain"]);
+    // Toutes les étapes figurent (jalons repérés, pas filtrés), dans l'ordre du projet.
+    expect(f.etapesTitre).toBe("Étapes et jalons");
+    expect(f.etapes.map((e) => e.libelle)).toEqual(["Choix de l'architecte", "Négociation terrain", "Étape non jalon"]);
+    expect(f.etapes.map((e) => e.jalon)).toEqual([true, true, false]);
+    expect(f.etapesMasquees).toBe(0);
     expect(f.etapes[1]).toMatchObject({ commentaire: "Prix plafond 30 k€", noteInterne: true });
     expect(f.documents.length).toBe(2);
     expect(f.confidentiel).toBe(true);
   });
+  it("ordre saisi respecté, étapes sans date comprises (cas réel : 11 étapes ajoutées)", () => {
+    const etapes = Array.from({ length: 34 }, (_, i) =>
+      etape({ id: `e${i}`, project_id: "p", libelle: `Étape ${i}`, ordre: (34 - i) * 10, est_un_jalon: i === 0, date_previsionnelle: i % 2 ? null : "2026-10-02T00:00:00.000Z" }));
+    const f = construireFiche({ ...input, variante: "complete", etapes });
+    expect(f.etapes[0].libelle).toBe("Étape 33");
+    expect(f.etapes.length).toBe(30);
+    expect(f.etapesMasquees).toBe(4);
+  });
+
   it("communicable : aucune note interne (commentaire ni pièce)", () => {
     const f = construireFiche({ ...input, variante: "communicable" });
     expect(f.etapes[1].commentaire).toBeNull();

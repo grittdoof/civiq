@@ -24,7 +24,8 @@ export default function ReportingProjets({ items, filtres, commissions, sousTitr
   if (filtres.commissionId) q.set("commission", filtres.commissionId);
   if (filtres.type) q.set("type", filtres.type);
   if (filtres.statut) q.set("statut", filtres.statut);
-  const lien = (format: "pdf" | "docx") => `/api/projects/reporting?${new URLSearchParams([...q.entries(), ["format", format]])}`;
+  // Écran de chargement animé, régénération à chaque clic.
+  const lien = (format: "pdf" | "docx") => `/projects-pdf?${new URLSearchParams([["kind", "reporting"], ...q.entries(), ["format", format]])}`;
 
   async function copier() {
     try {
@@ -76,8 +77,8 @@ export default function ReportingProjets({ items, filtres, commissions, sousTitr
             <a className="civiq-btn civiq-btn-default civiq-btn-sm" href={lien("pdf")} target="_blank" rel="noopener">
               <FileDown size={14} aria-hidden="true" /> PDF<span className="pj-sr-only"> (nouvel onglet)</span>
             </a>
-            <a className="civiq-btn civiq-btn-outline civiq-btn-sm" href={lien("docx")}>
-              <FileText size={14} aria-hidden="true" /> Word
+            <a className="civiq-btn civiq-btn-outline civiq-btn-sm" href={lien("docx")} target="_blank" rel="noopener">
+              <FileText size={14} aria-hidden="true" /> Word<span className="pj-sr-only"> (nouvel onglet)</span>
             </a>
             <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm" onClick={copier} disabled={items.length === 0}>
               {copie ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copie ? "Copié" : "Copier le texte"}
