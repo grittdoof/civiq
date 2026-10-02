@@ -5,8 +5,9 @@ import LearnMore from "./LearnMore";
 // (usage interne) ou communicable (sans notes internes — CADA, élus).
 
 export default function FicheExportMenu({ projectId }: { projectId: string }) {
+  // Écran de chargement animé, qui régénère le document à chaque clic.
   const href = (format: "pdf" | "docx", variante: "complete" | "communicable") =>
-    `/api/projects/${projectId}/fiche?format=${format}&variante=${variante}`;
+    `/projects-pdf?kind=fiche&id=${projectId}&format=${format}&variante=${variante}`;
   return (
     <details className="pj-export-menu">
       <summary className="civiq-btn civiq-btn-outline civiq-btn-sm">
@@ -16,12 +17,12 @@ export default function FicheExportMenu({ projectId }: { projectId: string }) {
         <p className="pj-export-group">Fiche complète <span className="pj-list-muted">— usage interne</span></p>
         <div className="pj-export-links">
           <a href={href("pdf", "complete")} target="_blank" rel="noopener">PDF<span className="pj-sr-only"> (nouvel onglet)</span></a>
-          <a href={href("docx", "complete")}>Word</a>
+          <a href={href("docx", "complete")} target="_blank" rel="noopener">Word<span className="pj-sr-only"> (nouvel onglet)</span></a>
         </div>
         <p className="pj-export-group">Fiche communicable <span className="pj-list-muted">— sans notes internes</span></p>
         <div className="pj-export-links">
           <a href={href("pdf", "communicable")} target="_blank" rel="noopener">PDF<span className="pj-sr-only"> (nouvel onglet)</span></a>
-          <a href={href("docx", "communicable")}>Word</a>
+          <a href={href("docx", "communicable")} target="_blank" rel="noopener">Word<span className="pj-sr-only"> (nouvel onglet)</span></a>
         </div>
         <LearnMore label="Quelle version choisir ?">
           <p>
