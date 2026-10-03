@@ -940,3 +940,17 @@ Pas un cache (routes `force-dynamic`, `Cache-Control: no-store`) : `construireFi
 - Fiche (PDF + Word) : **toutes les étapes**, dans l'ordre de l'écran du projet (`sortEtapes`), jalons repérés (losange dessiné + légende) ; événement : rétroplanning chronologique ; jusqu'à 30 étapes puis « + N autres étapes ».
 - Exports fiche (PDF / Word, complète / communicable) et reporting via l'écran de chargement animé `/projects-pdf` (`kind=fiche|reporting`, `format`, `variante`) : `fetch` `no-store` + paramètre horodaté → document régénéré à chaque clic ; Word téléchargé puis message « Document Word prêt ». `kind=project` pointe désormais vers la nouvelle fiche.
 - Lien « Vue détaillée (ancienne) » retiré de l'écran de vie (les routes `/phase/...` restent, suppression nominative au lot G).
+
+## Session 22 — Téléchargement des PDF en échec (2026-10-03)
+
+### Symptôme
+Téléchargements nommés par un UUID, en échec « Vérifiez votre connexion Internet ».
+
+### Cause
+`/projects-pdf` faisait `window.location.replace(blobUrl)` : un lien `blob:` appartient à la page qui l'a créé. Quand le navigateur **télécharge** le PDF au lieu de l'afficher (réglage Chrome « Télécharger les PDF »), la page de chargement est déjà quittée, le blob détruit → échec, et le nom du fichier est l'identifiant du blob.
+
+### Correctif
+`PdfLoader` reste sur la page : téléchargement nommé (`Content-Disposition` → `<a download>`) puis écran « PDF prêt » avec **Ouvrir le PDF** (nouvel onglet), **Télécharger à nouveau**, **Fermer l'onglet**. Plus de révocation du blob au démontage. Couvre fiche, reporting, émargement et compte rendu.
+
+### Point d'attention
+- Ne jamais naviguer la page vers son propre `blob:` ni le révoquer tant qu'un bouton y renvoie.
