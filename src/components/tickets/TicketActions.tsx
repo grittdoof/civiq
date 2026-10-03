@@ -45,10 +45,12 @@ interface Props {
   isSuperAdmin?: boolean;
   agents?: Array<{ id: string; full_name: string | null; job_title: string | null }>;
   hasReport: boolean;
+  /** Signalement suivi dans un projet : ni clôture ni réouverture ici. */
+  verrouParProjet?: boolean;
 }
 
 export default function TicketActions({
-  ticketId, ticketNumero, statut, canEdit, hasReport, isSuperAdmin,
+  ticketId, ticketNumero, statut, canEdit, hasReport, isSuperAdmin, verrouParProjet,
 }: Props) {
   const router = useRouter();
   const group = groupOf(statut);
@@ -156,7 +158,12 @@ export default function TicketActions({
               </div>
             </div>
           </div>
-          {canEdit && (
+          {verrouParProjet && (
+            <p style={{ fontSize: 12, color: "var(--fg-muted)", margin: 0, lineHeight: 1.5 }}>
+              Ce signalement se poursuit dans le projet : il ne se rouvre plus ici.
+            </p>
+          )}
+          {canEdit && !verrouParProjet && (
             <button
               type="button"
               onClick={reopen}

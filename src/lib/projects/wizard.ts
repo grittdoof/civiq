@@ -193,6 +193,8 @@ export interface WizardInput {
   partenaires?: string[];
   jalons?: Array<{ libelle: string; date_previsionnelle: string | null; verrou?: string | null }>;
   source_ticket_id?: string | null;
+  /** Signalement d'origine : prévenir son demandeur par email (choix de l'agent). */
+  prevenir_demandeur?: boolean;
 }
 
 /** Payload attendu par create_project_from_wizard (hors commune/auteur). */

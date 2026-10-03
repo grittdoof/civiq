@@ -8,6 +8,7 @@ import {
 import { requireCommune } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listTickets } from "@/lib/tickets/queries";
+import { groupOf } from "@/lib/tickets/types";
 import {
   PrioriteBadge, StatutBadge,
 } from "@/components/tickets/TicketBadge";
@@ -101,7 +102,7 @@ export default async function AdminDashboardPage() {
   }
 
   const topTickets = tickets
-    .filter((t) => !["clos", "annule"].includes(t.statut))
+    .filter((t) => groupOf(t.statut) === "ouvert")
     .sort((a, b) => {
       const order = { urgente: 4, haute: 3, normale: 2, basse: 1 } as const;
       return (order[b.priorite] ?? 0) - (order[a.priorite] ?? 0);

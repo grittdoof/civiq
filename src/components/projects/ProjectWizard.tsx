@@ -44,6 +44,8 @@ interface Props {
   associations: Stakeholder[];
   prefill?: { titre?: string; description?: string; source_ticket_id?: string; commission_pilote_id?: string; type_code?: TypeProjetCode };
   currentUserId: string;
+  /** Signalement d'origine dont le demandeur a laissé un email (lot G). */
+  demandeur?: { nom: string | null } | null;
 }
 
 type Step = "type" | "suivi" | "quoi" | "qui" | "combien" | "quand" | "quand_ou" | "recap";
@@ -110,13 +112,14 @@ function emptyDraft(prefill?: Props["prefill"]): Draft {
 
 const personLabel = (p: WizardPerson) => p.full_name?.trim() || "Sans nom";
 
-export default function ProjectWizard({ types, commissions, people, associations, prefill, currentUserId }: Props) {
+export default function ProjectWizard({ types, commissions, people, associations, prefill, currentUserId, demandeur }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(prefill));
   const [step, setStep] = useState<Step>(prefill?.type_code ? STEPS[prefill.type_code][1] : "type");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [prevenirDemandeur, setPrevenirDemandeur] = useState(true);
   const [restored, setRestored] = useState(false);
   const [partners, setPartners] = useState<Stakeholder[]>(associations);
   const [newPartner, setNewPartner] = useState("");
@@ -257,6 +260,7 @@ export default function ProjectWizard({ types, commissions, people, associations
       type_code: draft.type_code,
       jauge: draft.jauge,
       jalons: jalons.filter((j) => j.coche).map((j) => ({ libelle: j.libelle, date_previsionnelle: j.date_previsionnelle, verrou: j.verrou })),
+      prevenir_demandeur: !!demandeur && prevenirDemandeur,
     };
     const v = validateWizard(input);
     if (!v.ok) {
@@ -294,6 +298,17 @@ export default function ProjectWizard({ types, commissions, people, associations
     "aria-invalid": !!errors[k] || undefined,
     "aria-describedby": [hint, errors[k] ? `${k}-err` : null].filter(Boolean).join(" ") || undefined,
   });
+
+  // Dernier écran d'une création depuis un signalement : prévenir le demandeur.
+  const demandeurBlock = demandeur && draft.source_ticket_id ? (
+    <label className="pj-wiz-check pj-wiz-demandeur">
+      <input type="checkbox" checked={prevenirDemandeur} onChange={(e) => setPrevenirDemandeur(e.target.checked)} />
+      <span>
+        Prévenir {demandeur.nom ? <strong>{demandeur.nom}</strong> : "le demandeur"} par email que son signalement devient un projet
+        <span className="pj-wiz-aide">Message court, sans détail du projet (ni budget, ni élus). Le signalement sera clos avec le statut « Converti en projet ».</span>
+      </span>
+    </label>
+  ) : null;
 
   const personSelect = (id: string, key: "elu_referent_id" | "agent_pilote_id", label: string, required: boolean) => (
     <div className="civiq-field">
@@ -380,6 +395,8 @@ export default function ProjectWizard({ types, commissions, people, associations
           {personSelect("w-elu", "elu_referent_id", "Élu référent", true)}
           {eluHelp}
           <p className="pj-wiz-note">Photo, description, étapes : vous les ajouterez ensuite, quand vous voudrez.</p>
+          {demandeurBlock}
+          {submitError && <p className="pj-modal-error" role="alert">{submitError}</p>}
         </>
       );
       break;
@@ -592,6 +609,7 @@ export default function ProjectWizard({ types, commissions, people, associations
               )}
             </section>
           )}
+          {demandeurBlock}
           {submitError && <p className="pj-modal-error" role="alert">{submitError}</p>}
         </>
       );

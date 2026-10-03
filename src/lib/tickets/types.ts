@@ -13,7 +13,9 @@ export type TicketStatut =
   | "en_attente"
   | "resolu"
   | "clos"
-  | "annule";
+  | "annule"
+  /** Signalement devenu un projet (lot G) : posé uniquement par la création du projet. */
+  | "converti_en_projet";
 
 export type TicketCanal = "agent_interne" | "elu_terrain" | "email" | "telephone";
 
@@ -139,6 +141,7 @@ export const STATUT_LABELS: Record<TicketStatut, string> = {
   resolu: "Résolu",
   clos: "Clos",
   annule: "Annulé",
+  converti_en_projet: "Converti en projet",
 };
 
 export const STATUT_COLORS: Record<TicketStatut, { bg: string; fg: string }> = {
@@ -150,6 +153,7 @@ export const STATUT_COLORS: Record<TicketStatut, { bg: string; fg: string }> = {
   resolu: { bg: "oklch(0.95 0.06 155)", fg: "var(--success)" },
   clos: { bg: "oklch(0.93 0.005 258)", fg: "#6B7280" },
   annule: { bg: "oklch(0.93 0.01 25)", fg: "#9CA3AF" },
+  converti_en_projet: { bg: "var(--accent-light)", fg: "var(--accent)" },
 };
 
 export const CATEGORIE_LABELS: Record<TicketCategorie, string> = {
@@ -191,12 +195,13 @@ export const STATUT_GROUP: Record<TicketStatut, TicketGroup> = {
   resolu: "cloture",
   clos: "cloture",
   annule: "cloture",
+  converti_en_projet: "cloture",
 };
 
 export const OUVERT_STATUTS: TicketStatut[] = [
   "nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente",
 ];
-export const CLOTURE_STATUTS: TicketStatut[] = ["resolu", "clos", "annule"];
+export const CLOTURE_STATUTS: TicketStatut[] = ["resolu", "clos", "annule", "converti_en_projet"];
 
 export const GROUP_LABELS: Record<TicketGroup, string> = {
   ouvert: "Ouvert",
