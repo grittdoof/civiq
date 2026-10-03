@@ -987,3 +987,12 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 ### Points d'attention
 - **Toute nouvelle vue `public`** : `with (security_invoker = true)` et aucun `grant` à `anon` sans besoin explicite.
 - Logique pure `lib/projects/passerelle.ts`, accès serveur `passerelle-server.ts` (confidentialité appliquée via `peutVoirProjet`).
+
+### Suppression du code mort (validée nominativement le 2026-10-03)
+- **A** composants orphelins : `ProjectsStatsDrawer`, `DonutChart`, `RightDrawer`, `ProjectPhaseAdvanceDialog`, `CollapsibleSection`, `DeleteProjectButton`, `ProjectListView`, `SubscribersEditor`, `lib/projects/state-machine.ts` + son test (33 tests).
+- **B** ancienne vue par phases : `/admin/projects/[id]/phase/**`, ancienne fiche `/admin/projects/[id]/fiche`, `/api/projects/[id]/pdf`, `pdf-document.tsx`, `DeliverablePage`, `DeliverableNewSections`, `PhaseFreeAdditions`, `PhaseNaKebab`, `ProjectStepper`, `QuotesComparator`, `progress.ts`, `/api/projects/from-ticket`, routes `advance`, `subscribers`, `deliberations`, `authorizations`, `communications`. **Aucune donnée supprimée** : 3 autorisations et 1 communication saisies restent en base et dans les sauvegardes JSON, sans écran pour les afficher.
+- **C** registre `src/modules/**` (jamais importé).
+- **D** dépendances `date-fns`, `clsx`, `tailwind-merge`.
+- Vérifié par le graphe des imports depuis les pages et routes : plus aucun fichier du module n'est orphelin. Restent hors module, non proposés : `TicketAssignDialog`, `ui/PendingLink`, `lib/logger`.
+- Non traités (à valider séparément) : exports inutilisés de `lib/projects/types.ts` (guide des phases), règles CSS des écrans supprimés, colonnes/tables liées aux phases (`phase_progress`, `project_lifecycle_costs`…).
+- `npm test` → 238 ✓ (271 − 33 du test de la machine à états) ; `next build` OK.
