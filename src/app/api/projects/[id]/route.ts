@@ -14,9 +14,8 @@ import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
 
 // ═══════════════════════════════════════════════════════════════
 // GET    /api/projects/:id   — fiche projet complète
-// PATCH  /api/projects/:id   — mise à jour des champs scalaires
-//                              (pas la phase — utiliser /advance)
-// DELETE /api/projects/:id   — suppression (admin only)
+// PATCH  /api/projects/:id   — mise à jour des champs scalaires (pas la phase)
+// DELETE /api/projects/:id   — mise à la corbeille (motif obligatoire)
 // ═══════════════════════════════════════════════════════════════
 
 interface RouteParams {

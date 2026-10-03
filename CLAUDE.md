@@ -966,3 +966,33 @@ L'API Aides-territoires renvoie `url` en **relatif** (`/aides/<slug>/`). Stocké
 
 ### Point d'attention
 - Ne jamais afficher un lien venant d'une API externe sans le passer par `urlAbsolue` (lien relatif = 404, schéma `javascript:` = XSS).
+
+## Session 24 — Lot G : passerelle signalement → projet, fuite des vues publiques (2026-10-03)
+
+### Fuite corrigée (migration 048, appliquée en prod)
+Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accordées à `anon` et `authenticated` sans `security_invoker` : une vue s'exécute avec les droits de son propriétaire et **ignore la RLS**. Avec la seule clé publique, l'API REST renvoyait les 66 signalements (titres, statuts) et les statistiques des communes. → `security_invoker = true`, accès retiré aux rôles clients (l'application ne les lit qu'en service role). Vérifié : `anon` n'a plus aucun accès.
+
+### Passerelle signalement → projet
+- **047** (appliquée en prod, sans effet sur l'ancien code) : valeur d'enum `ticket_statut.converti_en_projet` (séparée : Postgres interdit d'utiliser une valeur d'enum dans la transaction qui l'ajoute).
+- **049** (⚠ à appliquer AU MOMENT du merge : l'ancien code ne connaît pas ce statut) : `create_project_from_wizard` passe le signalement en `converti_en_projet` (`clos_at`, `clos_by`), refuse un signalement déjà rattaché (« Ce signalement est déjà rattaché à un projet » → 409), journalise ; `tickets_reporting_v` : un converti n'est jamais « en retard ». Essai à blanc avec conversion réelle annulée.
+- **Lien unique** : `tickets.project_id` fait foi (lu par `getProject`) ; `projects.source_ticket_id` n'est plus lu.
+- « Transformer en projet » ouvre l'assistant (`/admin/projects/nouveau?from_ticket=`, choix du type) ; un signalement déjà rattaché redirige vers son projet. Dernier écran : case « Prévenir le demandeur par email » (présente si un email a été saisi, cochée par défaut).
+- Email au demandeur (`lib/emails/signalement-converti.ts`) : **aucun détail du projet** (titre, budget, élus), le projet pouvant devenir confidentiel ; `reply_to` = email de la mairie ; entrée dans le journal du signalement si envoyé. Push à l'auteur du signalement. Envois attendus avant la réponse.
+- Écran du signalement : bloc « Projet » (`EtatPasserelle` : convertible / lié / lié confidentiel — ni titre ni lien / projet supprimé → réouverture et reconversion possibles). Tant que le projet existe : ni changement de statut ni réouverture (`mutations.ts`, boutons masqués). « Converti en projet » ne se pose jamais à la main, même super-admin.
+- Écran du projet : « Issu du signalement n° X » (lien si le module Signalements est actif).
+- Listes en dur remplacées par `groupOf` / `CLOTURE_STATUTS` (carte, tableau de bord) : un converti sort de la file active.
+- Correctif au passage : l'écran unique du « suivi simple » n'affichait pas les erreurs de création.
+- Tests : `lot-g.test.ts` (10) → 271 ✓ ; `next build` OK.
+
+### Points d'attention
+- **Toute nouvelle vue `public`** : `with (security_invoker = true)` et aucun `grant` à `anon` sans besoin explicite.
+- Logique pure `lib/projects/passerelle.ts`, accès serveur `passerelle-server.ts` (confidentialité appliquée via `peutVoirProjet`).
+
+### Suppression du code mort (validée nominativement le 2026-10-03)
+- **A** composants orphelins : `ProjectsStatsDrawer`, `DonutChart`, `RightDrawer`, `ProjectPhaseAdvanceDialog`, `CollapsibleSection`, `DeleteProjectButton`, `ProjectListView`, `SubscribersEditor`, `lib/projects/state-machine.ts` + son test (33 tests).
+- **B** ancienne vue par phases : `/admin/projects/[id]/phase/**`, ancienne fiche `/admin/projects/[id]/fiche`, `/api/projects/[id]/pdf`, `pdf-document.tsx`, `DeliverablePage`, `DeliverableNewSections`, `PhaseFreeAdditions`, `PhaseNaKebab`, `ProjectStepper`, `QuotesComparator`, `progress.ts`, `/api/projects/from-ticket`, routes `advance`, `subscribers`, `deliberations`, `authorizations`, `communications`. **Aucune donnée supprimée** : 3 autorisations et 1 communication saisies restent en base et dans les sauvegardes JSON, sans écran pour les afficher.
+- **C** registre `src/modules/**` (jamais importé).
+- **D** dépendances `date-fns`, `clsx`, `tailwind-merge`.
+- Vérifié par le graphe des imports depuis les pages et routes : plus aucun fichier du module n'est orphelin. Restent hors module, non proposés : `TicketAssignDialog`, `ui/PendingLink`, `lib/logger`.
+- Non traités (à valider séparément) : exports inutilisés de `lib/projects/types.ts` (guide des phases), règles CSS des écrans supprimés, colonnes/tables liées aux phases (`phase_progress`, `project_lifecycle_costs`…).
+- `npm test` → 238 ✓ (271 − 33 du test de la machine à états) ; `next build` OK.

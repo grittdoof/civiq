@@ -295,13 +295,14 @@ export async function getProject(
       .select("*")
       .eq("project_id", projectId)
       .order("created_at", { ascending: false }),
-    (project as { source_ticket_id: string | null }).source_ticket_id
-      ? service
-          .from("tickets")
-          .select("id, numero, titre")
-          .eq("id", (project as { source_ticket_id: string }).source_ticket_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    // Lien unique (lot G) : tickets.project_id fait foi.
+    service
+      .from("tickets")
+      .select("id, numero, titre")
+      .eq("project_id", projectId)
+      .order("created_at")
+      .limit(1)
+      .maybeSingle(),
     service.rpc("project_global_cost", { p_project_id: projectId }),
     service
       .from("commission_projects")

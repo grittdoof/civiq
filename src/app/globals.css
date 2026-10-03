@@ -3166,3 +3166,7 @@ button.civiq-card,
 .commune-logo-error { margin: 8px 0 0; font-size: 13px; color: var(--destructive); }
 .commune-logo-spin { animation: commune-logo-spin 1s linear infinite; }
 @keyframes commune-logo-spin { to { transform: rotate(360deg); } }
+
+/* Passerelle signalement → projet (lot G) */
+.tk-passerelle-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--fg); display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.tk-passerelle-aide { margin: 0; font-size: 12px; line-height: 1.5; color: var(--fg-muted); }

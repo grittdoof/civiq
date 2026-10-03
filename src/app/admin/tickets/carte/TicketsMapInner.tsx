@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { fixLeafletIcons, ticketIcon, PRIORITE_HEX } from "@/components/tickets/leaflet-icons";
-import { PRIORITE_LABELS, STATUT_LABELS, CATEGORIE_ICONS, CATEGORIE_LABELS } from "@/lib/tickets/types";
+import { PRIORITE_LABELS, STATUT_LABELS, CATEGORIE_ICONS, CATEGORIE_LABELS, groupOf } from "@/lib/tickets/types";
 import type { MapTicket } from "./TicketsMap";
 import "leaflet/dist/leaflet.css";
 
@@ -36,9 +36,9 @@ export default function TicketsMapInner({ center, tickets }: Props) {
 
   const filtered = useMemo(() => {
     if (filter === "tous") return tickets;
-    if (filter === "urgents") return tickets.filter((t) => t.priorite === "urgente" && !["clos", "annule"].includes(t.statut));
-    if (filter === "ouverts") return tickets.filter((t) => !["clos", "annule", "resolu"].includes(t.statut));
-    if (filter === "clos") return tickets.filter((t) => ["clos", "resolu", "annule"].includes(t.statut));
+    if (filter === "urgents") return tickets.filter((t) => t.priorite === "urgente" && groupOf(t.statut) === "ouvert");
+    if (filter === "ouverts") return tickets.filter((t) => groupOf(t.statut) === "ouvert");
+    if (filter === "clos") return tickets.filter((t) => groupOf(t.statut) === "cloture");
     return tickets;
   }, [tickets, filter]);
 
@@ -57,9 +57,9 @@ export default function TicketsMapInner({ center, tickets }: Props) {
             {f.label}
             <span className="tk-pill-count">
               {f.value === "tous" ? tickets.length :
-                f.value === "urgents" ? tickets.filter((t) => t.priorite === "urgente" && !["clos", "annule"].includes(t.statut)).length :
-                f.value === "ouverts" ? tickets.filter((t) => !["clos", "annule", "resolu"].includes(t.statut)).length :
-                tickets.filter((t) => ["clos", "resolu", "annule"].includes(t.statut)).length}
+                f.value === "urgents" ? tickets.filter((t) => t.priorite === "urgente" && groupOf(t.statut) === "ouvert").length :
+                f.value === "ouverts" ? tickets.filter((t) => groupOf(t.statut) === "ouvert").length :
+                tickets.filter((t) => groupOf(t.statut) === "cloture").length}
             </span>
           </button>
         ))}
