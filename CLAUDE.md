@@ -954,3 +954,15 @@ Téléchargements nommés par un UUID, en échec « Vérifiez votre connexion In
 
 ### Point d'attention
 - Ne jamais naviguer la page vers son propre `blob:` ni le révoquer tant qu'un bouton y renvoie.
+
+## Session 23 — Aides : « Voir la démarche » en 404 (2026-10-03)
+
+### Cause
+L'API Aides-territoires renvoie `url` en **relatif** (`/aides/<slug>/`). Stocké tel quel dans `aides_cache.url`, le lien s'ouvrait sur `www.gociviq.fr/aides/…` → 404.
+
+### Correctif
+- `urlAbsolue()` (`lib/aides/aides.ts`) : résolution sur `https://aides-territoires.beta.gouv.fr`, http(s) uniquement. Appliquée à `url` et `url_candidature` dans `normaliserAide` (prochaines synchronisations) **et** dans `suggererAides` (répare à l'affichage le cache déjà écrit, sans migration).
+- Tests : 3 nouveaux (`lot-d.test.ts`) → 261 ✓.
+
+### Point d'attention
+- Ne jamais afficher un lien venant d'une API externe sans le passer par `urlAbsolue` (lien relatif = 404, schéma `javascript:` = XSS).

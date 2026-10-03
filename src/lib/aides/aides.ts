@@ -62,6 +62,21 @@ function stripHtml(s: string | null): string | null {
   return t ? t.slice(0, 2000) : null;
 }
 
+/**
+ * L'API renvoie des liens relatifs (« /aides/<slug>/ ») : ouverts tels
+ * quels depuis GoCiviq, ils donnaient une 404 sur notre propre domaine.
+ * Seuls http(s) sont acceptés ; tout autre schéma ⇒ null.
+ */
+export function urlAbsolue(u: string | null, baseUrl = ATTRIBUTION.url): string | null {
+  if (!u) return null;
+  try {
+    const abs = new URL(u, `${baseUrl}/`);
+    return abs.protocol === "https:" || abs.protocol === "http:" ? abs.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function normaliserAide(raw: Raw, baseUrl = ATTRIBUTION.url): AideCache | null {
   const id = str(raw.id) ?? str(raw.slug);
   const nom = str(raw.name) ?? str(raw.name_initial) ?? str(raw.short_title);
@@ -73,8 +88,8 @@ export function normaliserAide(raw: Raw, baseUrl = ATTRIBUTION.url): AideCache |
     aide_id: id,
     nom,
     slug,
-    url: str(raw.url) ?? (slug ? `${baseUrl}/aides/${slug}/` : null),
-    url_candidature: str(raw.application_url) ?? str(raw.origin_url),
+    url: urlAbsolue(str(raw.url), baseUrl) ?? (slug ? `${baseUrl}/aides/${slug}/` : null),
+    url_candidature: urlAbsolue(str(raw.application_url) ?? str(raw.origin_url), baseUrl),
     financeurs: names(raw.financers ?? raw.financers_full ?? raw.backers),
     categories: names(raw.categories ?? raw.categories_full),
     types_aide: names(raw.aid_types ?? raw.aid_types_full),
@@ -143,7 +158,8 @@ export function suggererAides(
         if (cat.has(c)) score += 2;
         if (desc.has(c)) score += 1;
       }
-      return { ...a, score };
+      // Le cache peut contenir des liens relatifs écrits avant le correctif.
+      return { ...a, url: urlAbsolue(a.url) ?? (a.slug ? `${ATTRIBUTION.url}/aides/${a.slug}/` : null), url_candidature: urlAbsolue(a.url_candidature), score };
     })
     .filter((a) => a.score > 0)
     .sort((a, b) => b.score - a.score || (a.date_limite ?? "9999").localeCompare(b.date_limite ?? "9999"))

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   AVERTISSEMENT_SUGGESTION, campagneActive, lirePage, messageCampagne, normaliserAide,
-  projetsSansDemande, suggererAides, type AideCache,
+  projetsSansDemande, suggererAides, urlAbsolue, type AideCache,
 } from "@/lib/aides/aides";
 
 describe("normaliserAide", () => {
@@ -33,6 +33,23 @@ describe("lirePage", () => {
     expect(lirePage({ "hydra:member": [{ id: 2 }], "hydra:view": { "hydra:next": "/api/aids/?page=3" } }).next).toBe("/api/aids/?page=3");
     expect(lirePage([{ id: 3 }])).toEqual({ items: [{ id: 3 }], next: null });
     expect(lirePage(null)).toEqual({ items: [], next: null });
+  });
+});
+
+describe("liens des aides", () => {
+  it("rend absolu le lien relatif renvoyé par l'API (sinon 404 sur GoCiviq)", () => {
+    const a = normaliserAide({ id: 1, name: "Aide", slug: "x", url: "/aides/x/" });
+    expect(a?.url).toBe("https://aides-territoires.beta.gouv.fr/aides/x/");
+  });
+  it("conserve un lien déjà absolu et refuse les schémas non web", () => {
+    expect(urlAbsolue("https://www.cerema.fr/fr/a")).toBe("https://www.cerema.fr/fr/a");
+    expect(urlAbsolue("javascript:alert(1)")).toBeNull();
+    expect(urlAbsolue(null)).toBeNull();
+  });
+  it("répare à l'affichage un lien relatif déjà en cache", () => {
+    const cache = { ...normaliserAide({ id: 2, name: "Voirie routière", slug: "y" })!, url: "/aides/y/" };
+    const [s] = suggererAides([cache], { titre: "voirie" }, "2026-10-03");
+    expect(s.url).toBe("https://aides-territoires.beta.gouv.fr/aides/y/");
   });
 });
 
