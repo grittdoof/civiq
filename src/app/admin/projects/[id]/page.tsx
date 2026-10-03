@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Layers, Lock, MapPin, Pencil, UserRound, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Lock, MapPin, Pencil, UserRound, Users } from "lucide-react";
 import "../projects.css";
 import "../flow.css";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -132,7 +132,6 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   const avancement = avancementAffiche(p);
   const now = new Date();
   const retards = detail.milestones.filter((m) => isEnRetard(m, now)).length;
-  const legacyHref = `/admin/projects/${id}/phase/${p.phase}`;
   const extC = p as typeof p & {
     date_consultation?: string | null;
     categorie_achat?: "travaux" | "fournitures_services";
@@ -281,9 +280,6 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             {peutSupprimerProjet({ id: ctx.userId, role: ctx.role }, p) && (
               <SupprimerProjet projectId={id} titre={p.titre} />
             )}
-            <Link href={legacyHref} className="civiq-btn civiq-btn-ghost civiq-btn-sm">
-              <Layers size={14} aria-hidden="true" /> Vue détaillée (ancienne)
-            </Link>
           </div>
         </div>
 

@@ -195,6 +195,9 @@ export async function ficheDocx(fiche: FicheData, env: EnveloppeDocx): Promise<B
     { text: e.date ?? "—" },
     e.enRetard ? { text: "En retard", color: DANGER, bold: true } : { text: e.statut },
   ])));
+  if (fiche.etapesMasquees > 0) {
+    children.push(new Paragraph({ children: [txt(`+ ${fiche.etapesMasquees} autre(s) étape(s) : voir le projet dans GoCiviq.`, { size: 15, color: MUTED, italics: true })] }));
+  }
 
   if (b?.kind === "investissement") {
     children.push(titreSection("Budget et plan de financement (hors taxes)"));

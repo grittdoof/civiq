@@ -81,6 +81,8 @@ export interface FicheData {
   avancement: number | null;
   /** Jalons (investissement, suivi) ou rétroplanning complet (événement). */
   etapesTitre: string;
+  /** Étapes non reprises au-delà de la limite d'une page A4. */
+  etapesMasquees: number;
   etapes: FicheLigneEtape[];
   evenement: { date: string | null; lieu: string | null } | null;
   budget:
@@ -98,7 +100,7 @@ const TYPE_LABEL: Record<TypeProjetCode, string> = {
   suivi_simple: "Suivi simple",
 };
 
-const MAX_ETAPES = 14;
+const MAX_ETAPES = 30;
 
 function adapt(e: EtapePilotage) {
   return { statut: e.statut ?? undefined, fait: !!e.fait, echeance: e.echeance, date_previsionnelle: e.date_previsionnelle } as Parameters<typeof statutOf>[0];
@@ -110,15 +112,18 @@ export function construireFiche(input: FicheInput): FicheData {
   const complete = input.variante === "complete";
   const evenement = type === "evenementiel";
 
-  // Événement : tout le rétroplanning ; sinon les jalons (à défaut, les étapes).
+  // Toutes les étapes figurent (les jalons sont repérés, pas filtrés) :
+  //   • événement : rétroplanning chronologique ;
+  //   • sinon : l'ordre choisi sur l'écran du projet.
   const toutes = sortEtapes(input.etapes.map((e) => ({ ...e, ...adapt(e) }) as unknown as EtapePilotage & ReturnType<typeof adapt>));
   const jalons = toutes.filter((e) => e.est_un_jalon);
-  // Chronologie : date réelle si terminée, sinon prévue ; sans date en dernier.
   const dateDe = (e: (typeof toutes)[number]) =>
     (statutOf(e) === "termine" ? e.date_reelle ?? e.date_previsionnelle : e.date_previsionnelle) ?? (e.echeance ? `${e.echeance}T00:00:00.000Z` : null);
-  const choisies = [...(evenement || jalons.length === 0 ? toutes : jalons)]
-    .sort((a, b) => (dateDe(a) ?? "9999").localeCompare(dateDe(b) ?? "9999"))
-    .slice(0, MAX_ETAPES);
+  const ordonnees = evenement
+    ? [...toutes].sort((a, b) => (dateDe(a) ?? "9999").localeCompare(dateDe(b) ?? "9999"))
+    : toutes;
+  const choisies = ordonnees.slice(0, MAX_ETAPES);
+  const etapesMasquees = Math.max(0, ordonnees.length - choisies.length);
 
   const etapes: FicheLigneEtape[] = choisies.map((e) => {
     const statut = statutOf(e);
@@ -165,7 +170,8 @@ export function construireFiche(input: FicheInput): FicheData {
     photoUrl: input.projet.photo_url,
     confidentiel: input.projet.confidentiel,
     avancement: avancementAffiche(input.projet).pct,
-    etapesTitre: evenement ? "Rétroplanning" : jalons.length ? "Calendrier des jalons" : "Étapes",
+    etapesTitre: evenement ? "Rétroplanning" : jalons.length ? "Étapes et jalons" : "Étapes",
+    etapesMasquees,
     etapes,
     evenement: evenement ? { date: dateReporting(input.projet.evenement_debut ?? null), lieu: input.projet.lieu ?? null } : null,
     budget,

@@ -142,6 +142,15 @@ export function FichePDF({ fiche, ...env }: Enveloppe & { fiche: FicheData }) {
                 <Col w="24%"><Text style={e.enRetard ? { ...s.cell, ...s.late } : s.cell}>{e.enRetard ? "En retard" : e.statut}</Text></Col>
               </View>
             ))}
+            {fiche.etapesMasquees > 0 && (
+              <Text style={s.note}>+ {fiche.etapesMasquees} autre{fiche.etapesMasquees > 1 ? "s" : ""} étape{fiche.etapesMasquees > 1 ? "s" : ""} (voir le projet dans GoCiviq).</Text>
+            )}
+            {fiche.etapes.some((e) => e.jalon) && (
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+                <View style={s.jalon} />
+                <Text style={{ ...s.note, marginTop: 0 }}>Jalon : étape clé qui compte dans l&apos;avancement.</Text>
+              </View>
+            )}
           </>
         )}
 
