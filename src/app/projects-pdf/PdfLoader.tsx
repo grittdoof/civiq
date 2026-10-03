@@ -2,14 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileText, AlertTriangle, ArrowLeft } from "lucide-react";
+import { FileText, AlertTriangle, ArrowLeft, Download, ExternalLink } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════════════
 // PdfLoader (projets / commissions) — adapté du module tickets.
 // Lit ?kind=project|fiche|reporting|attendance|minutes et ?id=... pour
 // cibler la bonne route API. Chaque ouverture régénère le document
 // (no-store + paramètre horodaté) : il reflète toujours l'état courant.
-// Word (format=docx) : téléchargé à la fin, puis message de confirmation.
+// Le fichier est téléchargé sous son vrai nom (Content-Disposition) et
+// la page reste ouverte : un lien blob: appartient à la page qui l'a créé,
+// la quitter (ancien `location.replace(blob)`) le détruisait — Chrome
+// échouait alors le téléchargement (« Vérifiez votre connexion Internet »,
+// fichier nommé par un UUID).
 // ═══════════════════════════════════════════════════════════════
 
 type Phase = "preparing" | "fetching" | "rendering" | "done" | "error";
@@ -28,7 +32,7 @@ export default function PdfLoader() {
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const startedRef = useRef(false);
-  const blobUrlRef = useRef<string | null>(null);
+  const [fichier, setFichier] = useState<{ url: string; nom: string } | null>(null);
 
   useEffect(() => {
     if (phase === "error") return;
@@ -71,20 +75,11 @@ export default function PdfLoader() {
         const blob = await res.blob();
         if (cancelled) return;
         const blobUrl = URL.createObjectURL(blob);
-        blobUrlRef.current = blobUrl;
-        if (format === "docx") {
-          // Word : téléchargement (nom fourni par le serveur), la page reste ouverte.
-          const nom = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "document.docx";
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = nom;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setPhase("done");
-          return;
-        }
-        window.location.replace(blobUrl);
+        const nom = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1]
+          ?? (format === "docx" ? "document.docx" : "document.pdf");
+        setFichier({ url: blobUrl, nom });
+        telecharger(blobUrl, nom);
+        setPhase("done");
       } catch (e) {
         if (cancelled) return;
         setPhase("error");
@@ -95,11 +90,8 @@ export default function PdfLoader() {
     return () => { cancelled = true; };
   }, [kind, id, cid, sid, format, variante, searchParams]);
 
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-    };
-  }, []);
+  // Pas de révocation du lien blob : le navigateur le libère à la fermeture
+  // de l'onglet, et le révoquer plus tôt casse « Ouvrir » / « Télécharger ».
 
   const docLabel =
     kind === "project" || kind === "fiche" ? "fiche projet" :
@@ -116,10 +108,22 @@ export default function PdfLoader() {
             <div className="tk-pdf-loader-icon">
               <FileText size={26} strokeWidth={1.7} />
             </div>
-            <h1 className="tk-pdf-loader-title">Document Word prêt</h1>
-            <p className="tk-pdf-loader-message">Le téléchargement de la {docLabel} a démarré. Vous pouvez fermer cet onglet.</p>
+            <h1 className="tk-pdf-loader-title">{format === "docx" ? "Document Word prêt" : "PDF prêt"}</h1>
+            <p className="tk-pdf-loader-message">
+              Le téléchargement de la {docLabel} a démarré{fichier ? <> (<strong>{fichier.nom}</strong>)</> : null}.
+            </p>
             <div className="tk-pdf-loader-actions">
-              <button type="button" onClick={() => window.close()} className="civiq-btn civiq-btn-outline">Fermer l&apos;onglet</button>
+              {fichier && format === "pdf" && (
+                <a href={fichier.url} target="_blank" rel="noopener" className="civiq-btn civiq-btn-default">
+                  <ExternalLink size={14} aria-hidden="true" /> Ouvrir le PDF
+                </a>
+              )}
+              {fichier && (
+                <button type="button" onClick={() => telecharger(fichier.url, fichier.nom)} className="civiq-btn civiq-btn-outline">
+                  <Download size={14} aria-hidden="true" /> Télécharger à nouveau
+                </button>
+              )}
+              <button type="button" onClick={() => window.close()} className="civiq-btn civiq-btn-ghost">Fermer l&apos;onglet</button>
             </div>
           </>
         ) : phase === "error" ? (
@@ -160,11 +164,20 @@ export default function PdfLoader() {
             <p className="tk-pdf-loader-step">
               {phase === "preparing" && "Connexion…"}
               {phase === "fetching" && `Génération du document${elapsed > 0 ? ` · ${elapsed}s` : ""}`}
-              {phase === "rendering" && (format === "docx" ? "Téléchargement…" : "Ouverture du PDF…")}
+              {phase === "rendering" && "Téléchargement…"}
             </p>
           </>
         )}
       </div>
     </main>
   );
+}
+
+function telecharger(url: string, nom: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nom;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
