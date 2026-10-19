@@ -1075,3 +1075,23 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 
 #### Point d'attention
 - **Toute nouvelle clé étrangère vers `profiles` ou `auth.users`** : `on delete set null` pour un auteur ou un historique, jamais NO ACTION (bloque la suppression du compte) ni CASCADE sur des archives.
+
+## Session 29 — Financeurs : refonte visuelle et animation « Préparer une demande » (2026-10-19)
+
+### Prompt de départ
+> « Améliorer le design de Financeurs pour plus de clarté (2 maquettes fournies). Quand je clique sur "+ Préparer une demande", petite animation qui montre la demande se déplacer dans Financeurs, sans alourdir. »
+
+### Livrés
+- **Pistes** (`PistesFinancement`, maquette 1) : carte = financeur (marine) + titre, échéance en pastille (« Avant le 31 déc. 2026 » ; à moins de 3 mois, carte et pastille en `--warning`), « Au fil de l'eau » sinon ; thématiques en étiquettes courtes colorées par famille (dernier segment de « Thème / Sous-thème ») ; « Voir la démarche » + « Préparer une demande » (contour accent). En-tête « N pistes pour « … » », mention « À vérifier : l'éligibilité… », tri affiché (date limite pour la recherche, pertinence pour les suggestions). 4 pistes puis « N autres pistes · Afficher la suite ». Recherche : carte, loupe dans le champ.
+- **Demandes** (`SubventionsEditor`, maquette 2) : regroupées par état (À relancer, À déposer, En attente d'AR, En cours d'étude, Accordé, Soldé, Refusé) avec pastilles ; carte = financeur + sigle (DETR, DSIL…, `sigleDispositif`), libellé du dispositif, frise déposé → accusé de réception → décision (`friseSubvention` ; « Sans accusé de réception depuis N sem. » en rouge), montant demandé ou accordé « sur » le montant demandé ; bouton « Saisir l'AR » (rouge) / « Renseigner le dépôt » / « Mettre à jour ».
+- **Animation** (`lib/ui/envol.ts`, Web Animations API, sans dépendance) : la nouvelle demande est ajoutée aussitôt à la liste (événement `civiq:subvention-ajoutee`), une copie de la carte s'envole jusqu'à elle (arrêt au bord de l'écran si elle est hors champ), la page défile jusqu'à la demande, qui s'illumine brièvement. Rien si « réduire les animations » ; garde-fou si l'onglet ne dessine pas.
+- **Correctif** : une demande préparée depuis une piste n'apparaissait dans la liste qu'après rechargement (état local jamais resynchronisé) ; la liste suit désormais les données du serveur.
+- Couleurs : uniquement les tokens existants (`--marine`, `--accent(-light|-hover)`, `--success(-light)`, `--warning(-light)`, `--type-event(-light)`, `--destructive` via `color-mix`).
+- Logique pure : `lib/aides/presentation.ts`, `lib/projects/subventions-vue.ts`. Tests : `financeurs-design.test.ts` (6) → 271 ✓ ; `next build` OK ; rendu et animation vérifiés dans le navigateur (page de test temporaire, données des maquettes).
+
+### Itération (même session) — l'aide d'origine reste attachée à la demande
+> « Quand j'ajoute un financeur depuis l'API Aides-territoires, il faut garder le lien externe vers la démarche et toutes informations utiles. »
+- **Migration 053** (appliquée en prod après essai à blanc, additive) : `financings.aide_url`, `aide_url_candidature`, `aide_date_limite`, `aide_infos` (description, thématiques, nature, porteurs, périmètre, récurrence, appel à projets). Rattrapage depuis `aides_cache` des demandes existantes (9, dont 7 actives).
+- À la création depuis une piste (suggestion **ou recherche**, hors cache) : `infosAideDepuis()` copie ces champs ; fiche locale : son lien. Côté serveur (`parseFinancing`) : liens rendus absolus, http(s) seulement (`urlAbsolue`), informations bornées (`lireInfosAide`). La recherche renvoie désormais la description (1 200 caractères).
+- Carte de la demande : « Voir la démarche », « Déposer chez le financeur », date limite (orange si proche et pas encore déposée), « Informations sur l'aide » dépliable avec mention de la source.
+- Tests : 274 ✓ ; `next build` OK ; carte vérifiée dans le navigateur.

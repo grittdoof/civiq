@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Circle, Clock, ExternalLink, Loader2, Plus, Send, Trash2, XCircle } from "lucide-react";
+import { GROUPES_SUBVENTION, friseSubvention, groupeSubvention, sigleDispositif, type EtapeFrise } from "@/lib/projects/subventions-vue";
+import { EVT_SUBVENTION_AJOUTEE } from "@/lib/ui/envol";
+import { echeanceProche, etiquettesCategories, libelleDateLimite, type InfosAide } from "@/lib/aides/presentation";
 import { SUBVENTION_STATUTS, SUBVENTION_STATUT_META } from "@/lib/projects/money-validation";
 import { subventionSansAr } from "@/lib/projects/financement";
 import { formatEuros } from "@/lib/projects/cost-calc";
@@ -31,6 +34,11 @@ export interface SubventionRow {
   date_ar: string | null;
   date_decision: string | null;
   notes: string | null;
+  /** Aide Aides-territoires d'origine (migration 053). */
+  aide_url?: string | null;
+  aide_url_candidature?: string | null;
+  aide_date_limite?: string | null;
+  aide_infos?: InfosAide | null;
 }
 
 interface Props {
@@ -39,14 +47,31 @@ interface Props {
   canEdit: boolean;
 }
 
-const dateFr = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }) : null);
 
 export default function SubventionsEditor({ projectId, initial, canEdit }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<SubventionRow[]>(initial);
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nouveau, setNouveau] = useState<string | null>(null);
   const now = new Date();
+
+  // Données serveur à jour (rafraîchissement) : elles font foi.
+  useEffect(() => { setRows(initial); }, [initial]);
+
+  // Demande préparée depuis une piste de financement : affichée aussitôt,
+  // mise en évidence le temps que la carte « arrive ».
+  useEffect(() => {
+    function recevoir(e: Event) {
+      const f = (e as CustomEvent<SubventionRow>).detail;
+      if (!f?.id) return;
+      setRows((l) => (l.some((x) => x.id === f.id) ? l : [...l, f]));
+      setNouveau(f.id);
+      window.setTimeout(() => setNouveau((n) => (n === f.id ? null : n)), 2200);
+    }
+    window.addEventListener(EVT_SUBVENTION_AJOUTEE, recevoir);
+    return () => window.removeEventListener(EVT_SUBVENTION_AJOUTEE, recevoir);
+  }, []);
 
   async function patch(r: SubventionRow, fields: Partial<SubventionRow>) {
     setError(null);
@@ -84,53 +109,80 @@ export default function SubventionsEditor({ projectId, initial, canEdit }: Props
 
       {error && <p className="pj-modal-error" role="alert">{error}</p>}
 
+      <div id="subv-liste" className="pj-subv-liste">
       {rows.length === 0 ? (
         <p className="pj-section-empty">Aucune demande de subvention enregistrée.</p>
       ) : (
-        <ul className="pj-pp-list">
-          {rows.map((r) => {
-            const meta = SUBVENTION_STATUT_META[r.statut];
-            const open = openId === r.id;
-            return (
-              <li key={r.id} className="pj-subv-item">
-                <div className="pj-pp-item">
-                  <div>
-                    <p className="pj-pp-nom">{r.financeur}{r.dispositif ? ` — ${r.dispositif}` : ""}</p>
-                    <p className="pj-pp-meta">
-                      <strong>{meta.label}</strong>
-                      {r.montant_demande !== null && ` · demandé ${formatEuros(Number(r.montant_demande))}`}
-                      {r.montant_obtenu !== null && ` · accordé ${formatEuros(Number(r.montant_obtenu))}`}
-                    </p>
-                    <p className="pj-pp-meta">
-                      {r.date_demande ? `Déposé le ${dateFr(r.date_demande)}` : "Non déposé"}
-                      {" · "}
-                      {r.date_ar ? `accusé de réception le ${dateFr(r.date_ar)}` : <strong className="pj-subv-sans-ar">sans accusé de réception</strong>}
-                    </p>
-                  </div>
-                  {canEdit && (
-                    <div className="pj-etape-tools">
-                      <button type="button" className="civiq-btn civiq-btn-outline civiq-btn-sm" onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open}>
-                        Mettre à jour
-                      </button>
-                      <button type="button" className="civiq-icon-btn danger" onClick={() => remove(r)} aria-label={`Retirer la demande ${r.financeur}`}>
-                        <Trash2 size={15} aria-hidden="true" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {open && canEdit && (
-                  <SubventionForm
-                    initial={r}
-                    submitLabel="Enregistrer"
-                    onCancel={() => setOpenId(null)}
-                    onSubmit={async (fields) => { if (await patch(r, fields)) setOpenId(null); }}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        GROUPES_SUBVENTION.map((g) => {
+          const items = rows.filter((r) => groupeSubvention(r, now) === g.cle);
+          if (items.length === 0) return null;
+          return (
+            <Fragment key={g.cle}>
+              <h3 className={`pj-subv-groupe is-${g.ton}`}>
+                {g.ton === "danger" ? <AlertCircle size={13} aria-hidden="true" /> : g.ton === "succes" ? <Check size={13} aria-hidden="true" /> : <span className="pj-subv-groupe-point" aria-hidden="true" />}
+                {g.label} · {items.length}
+              </h3>
+              <ul className="pj-subv-cartes">
+                {items.map((r) => {
+                  const open = openId === r.id;
+                  const { sigle, libelle } = sigleDispositif(r.dispositif);
+                  const accorde = r.statut === "accordee" || r.statut === "soldee";
+                  const base = r.montant_demande ?? r.assiette_ht;
+                  return (
+                    <li key={r.id} data-subvention-id={r.id}
+                      className={`pj-subv-carte is-${g.ton}${nouveau === r.id ? " is-nouveau" : ""}`}>
+                      <div className="pj-subv-carte-corps">
+                        <div className="pj-subv-carte-main">
+                          <p className="pj-subv-financeur">
+                            {r.financeur}
+                            {sigle && <span className="pj-subv-sigle">{sigle}</span>}
+                          </p>
+                          {libelle && <p className="pj-subv-dispositif">{libelle}</p>}
+                          <ul className="pj-subv-frise" aria-label="Avancement de la demande">
+                            {friseSubvention(r, now).map((e) => <EtapeFriseItem key={e.cle} e={e} />)}
+                          </ul>
+                          {r.notes && <p className="pj-subv-dispositif">{r.notes}</p>}
+                          <AideLiens r={r} aujourdhui={now.toISOString().slice(0, 10)} />
+                        </div>
+                        <div className="pj-subv-montant">
+                          <span className={`pj-subv-montant-label${accorde ? " is-succes" : ""}`}>{accorde ? "Accordé" : "Demandé"}</span>
+                          <strong className={accorde ? "is-succes" : undefined}>
+                            {accorde
+                              ? (r.montant_obtenu !== null ? formatEuros(Number(r.montant_obtenu)) : "—")
+                              : (r.montant_demande !== null ? formatEuros(Number(r.montant_demande)) : "—")}
+                          </strong>
+                          {accorde && base !== null && <span className="pj-subv-montant-sur">sur {formatEuros(Number(base))}</span>}
+                        </div>
+                        {canEdit && (
+                          <div className="pj-subv-actions">
+                            <button type="button"
+                              className={`civiq-btn civiq-btn-outline civiq-btn-sm${g.cle === "relancer" ? " pj-subv-btn-alerte" : ""}`}
+                              onClick={() => setOpenId(open ? null : r.id)} aria-expanded={open}>
+                              {g.cle === "relancer" ? "Saisir l'AR" : g.cle === "deposer" ? "Renseigner le dépôt" : "Mettre à jour"}
+                            </button>
+                            <button type="button" className="civiq-icon-btn danger" onClick={() => remove(r)} aria-label={`Retirer la demande ${r.financeur}`}>
+                              <Trash2 size={15} aria-hidden="true" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {open && canEdit && (
+                        <SubventionForm
+                          initial={r}
+                          submitLabel="Enregistrer"
+                          onCancel={() => setOpenId(null)}
+                          onSubmit={async (fields) => { if (await patch(r, fields)) setOpenId(null); }}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Fragment>
+          );
+        })
       )}
+      </div>
 
       {canEdit && (
         <details className="pj-subv-add">
@@ -151,6 +203,64 @@ export default function SubventionsEditor({ projectId, initial, canEdit }: Props
         </details>
       )}
     </section>
+  );
+}
+
+/** Liens et informations de l'aide d'origine (Aides-territoires ou fiche locale). */
+function AideLiens({ r, aujourdhui }: { r: SubventionRow; aujourdhui: string }) {
+  const infos = r.aide_infos;
+  const aDeposer = r.statut === "a_demander";
+  const tags = infos?.categories ? etiquettesCategories(infos.categories, 4) : [];
+  const details = infos && (infos.description || tags.length || infos.types_aide?.length || infos.perimetre || infos.recurrence);
+  if (!r.aide_url && !r.aide_url_candidature && !r.aide_date_limite && !details) return null;
+  return (
+    <div className="pj-subv-aide">
+      <div className="pj-subv-aide-liens">
+        {r.aide_url && (
+          <a href={r.aide_url} target="_blank" rel="noopener noreferrer" className="pj-subv-lien">
+            <ExternalLink size={13} aria-hidden="true" /> Voir la démarche<span className="pj-sr-only"> (nouvel onglet)</span>
+          </a>
+        )}
+        {r.aide_url_candidature && (
+          <a href={r.aide_url_candidature} target="_blank" rel="noopener noreferrer" className="pj-subv-lien">
+            <Send size={13} aria-hidden="true" /> Déposer chez le financeur<span className="pj-sr-only"> (nouvel onglet)</span>
+          </a>
+        )}
+        {r.aide_date_limite && (
+          <span className={`pj-piste-echeance${aDeposer && echeanceProche(r.aide_date_limite, aujourdhui) ? " is-proche" : ""}`}>
+            <Clock size={12} aria-hidden="true" /> {libelleDateLimite(r.aide_date_limite)}
+          </span>
+        )}
+      </div>
+      {details && (
+        <details className="pj-subv-aide-details">
+          <summary>Informations sur l&apos;aide</summary>
+          {infos?.description && <p className="pj-subv-aide-desc">{infos.description}</p>}
+          {tags.length > 0 && (
+            <ul className="pj-piste-tags" aria-label="Thématiques">
+              {tags.map((t) => <li key={t.label} className={`pj-piste-tag is-${t.famille}`}>{t.label}</li>)}
+            </ul>
+          )}
+          <dl className="pj-subv-aide-faits">
+            {infos?.types_aide && infos.types_aide.length > 0 && <div><dt>Nature</dt><dd>{infos.types_aide.join(", ")}</dd></div>}
+            {infos?.financeurs && infos.financeurs.length > 1 && <div><dt>Porteurs</dt><dd>{infos.financeurs.join(", ")}</dd></div>}
+            {infos?.perimetre && <div><dt>Périmètre</dt><dd>{infos.perimetre}</dd></div>}
+            {infos?.recurrence && <div><dt>Récurrence</dt><dd>{infos.recurrence}</dd></div>}
+            {infos?.appel_a_projets && <div><dt>Forme</dt><dd>Appel à projets</dd></div>}
+          </dl>
+          <p className="pj-subv-aide-source">Source : Aides-territoires (ANCT), Licence Ouverte v2.0. À vérifier auprès du financeur.</p>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function EtapeFriseItem({ e }: { e: EtapeFrise }) {
+  const Icone = e.etat === "fait" ? CheckCircle2 : e.etat === "refus" ? XCircle : Circle;
+  return (
+    <li className={`pj-subv-frise-etape is-${e.etat}`}>
+      <Icone size={15} aria-hidden="true" /> {e.texte}
+    </li>
   );
 }
 

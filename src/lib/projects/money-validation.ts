@@ -4,6 +4,9 @@
 // une subvention est en jeu ; le TTC est toujours dérivé côté serveur.
 // ═══════════════════════════════════════════════════════════════
 
+import { urlAbsolue } from "@/lib/aides/aides";
+import { lireInfosAide, type InfosAide } from "@/lib/aides/presentation";
+
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -176,6 +179,11 @@ export interface FinancingFields {
   source?: "api" | "local" | "saisie_libre";
   aide_ref?: string | null;
   financeur_local_id?: string | null;
+  /** Aide Aides-territoires : lien, dépôt, date limite, informations (migration 053). */
+  aide_url?: string | null;
+  aide_url_candidature?: string | null;
+  aide_date_limite?: string | null;
+  aide_infos?: InfosAide | null;
 }
 
 export function parseFinancing(body: Record<string, unknown>, creation: boolean): Parsed<FinancingFields> {
@@ -223,6 +231,18 @@ export function parseFinancing(body: Record<string, unknown>, creation: boolean)
   }
   const ref = text(body.aide_ref, 80);
   if (ref !== undefined) f.aide_ref = ref;
+  // Liens externes : http(s) uniquement, rendus absolus (jamais javascript:).
+  for (const k of ["aide_url", "aide_url_candidature"] as const) {
+    if (!(k in body)) continue;
+    const brut = text(body[k], 1000);
+    f[k] = brut ? urlAbsolue(brut) : null;
+  }
+  if ("aide_date_limite" in body) {
+    const d = parseDate(body.aide_date_limite);
+    if (d === "invalid") return { ok: false, error: "Date limite invalide." };
+    if (d !== undefined) f.aide_date_limite = d;
+  }
+  if ("aide_infos" in body) f.aide_infos = lireInfosAide(body.aide_infos);
   if ("financeur_local_id" in body) {
     const v = body.financeur_local_id;
     if (v === null || v === "") f.financeur_local_id = null;

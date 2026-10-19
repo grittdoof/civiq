@@ -109,7 +109,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
       getCommuneSettings(ctx.communeId),
       service.rpc("project_financement", { p_project_id: id }),
       service.from("financings")
-        .select("id, financeur, dispositif, statut, assiette_ht, montant_demande, montant_obtenu, date_demande, date_ar, date_decision, notes, aide_ref")
+        .select("id, financeur, dispositif, statut, assiette_ht, montant_demande, montant_obtenu, date_demande, date_ar, date_decision, notes, aide_ref, aide_url, aide_url_candidature, aide_date_limite, aide_infos")
         .is("deleted_at", null).eq("project_id", id).order("created_at"),
     ]);
   const budgetRows = (budgetData ?? []) as unknown as BudgetRow[];
