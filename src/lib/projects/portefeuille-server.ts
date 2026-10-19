@@ -75,6 +75,7 @@ export async function chargerPortefeuille(communeId: string): Promise<Portefeuil
       emprunt_prevu?: number | null;
       autofinancement_invest?: number | null;
       autofinancement_fonct?: number | null;
+      clos_at?: string | null;
     };
     // Commission pilote (lot B), à défaut la première commission de suivi.
     const c = (ext.commission_pilote_id && commissionDe.get(ext.commission_pilote_id)) || (p.commissions ?? [])[0] || null;
@@ -90,6 +91,7 @@ export async function chargerPortefeuille(communeId: string): Promise<Portefeuil
       emprunt_prevu: ext.emprunt_prevu ?? null,
       autofinancement_invest: ext.autofinancement_invest ?? null,
       autofinancement_fonct: ext.autofinancement_fonct ?? null,
+      clos_at: ext.clos_at ?? null,
     };
   });
 
@@ -98,7 +100,7 @@ export async function chargerPortefeuille(communeId: string): Promise<Portefeuil
   const alertes = new Map<string, AlertesProjet>();
   for (const p of projets) {
     const etapes = etapesParProjet.get(p.id) ?? [];
-    statuts.set(p.id, statutProjet(etapes));
+    statuts.set(p.id, statutProjet(etapes, p.clos_at));
     alertes.set(p.id, alertesProjet({
       projet: p,
       etapes,

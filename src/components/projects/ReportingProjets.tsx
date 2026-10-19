@@ -62,6 +62,7 @@ export default function ReportingProjets({ items, filtres, commissions, sousTitr
             <option value="">Tous</option>
             <option value="en_cours">En cours</option>
             <option value="termine">Terminé</option>
+            <option value="cloture">Clôturé</option>
           </select>
         </div>
         <button type="submit" className="civiq-btn civiq-btn-outline civiq-btn-sm">Appliquer</button>

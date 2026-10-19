@@ -6,6 +6,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { STAKEHOLDER_COLUMNS } from "@/lib/projects/queries";
 import type { Stakeholder } from "@/lib/projects/types";
+import RetourContextuel from "@/components/projects/RetourContextuel";
 import ProjectWizard, { type WizardTypeRow } from "@/components/projects/ProjectWizard";
 import "../projects.css";
 
@@ -59,9 +60,7 @@ export default async function NewProjectPage({ searchParams }: Props) {
   return (
     <main className="civiq-main pj-wiz-page">
       <div className="pj-detail-back">
-        <Link href="/admin/projects" className="civiq-btn civiq-btn-ghost civiq-btn-sm">
-          <ArrowLeft size={14} aria-hidden="true" /> Tous les projets
-        </Link>
+        <RetourContextuel base="/admin/projects/nouveau" />
       </div>
       <h1 className="civiq-page-title">Nouveau projet</h1>
       {ticket && (

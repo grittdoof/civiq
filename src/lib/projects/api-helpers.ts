@@ -12,7 +12,7 @@ import { contributeursConfidentiels, peutVoirProjet } from "./confidentialite";
 // ═══════════════════════════════════════════════════════════════
 
 export type ProjectAccess =
-  | { ok: true; communeId: string; role: string; userId: string }
+  | { ok: true; communeId: string; role: string; userId: string; closAt?: string | null }
   | { ok: false; response: NextResponse };
 
 export async function requireProjectAccess(projectId: string): Promise<ProjectAccess> {
@@ -25,7 +25,7 @@ export async function requireProjectAccess(projectId: string): Promise<ProjectAc
   const service = await createServiceClient();
   const { data } = await service
     .from("projects")
-    .select("id, commune_id, confidentiel, pilote_elu, pilote_agent")
+    .select("id, commune_id, confidentiel, pilote_elu, pilote_agent, clos_at")
     .is("deleted_at", null)
     .eq("id", projectId)
     .maybeSingle();
@@ -41,16 +41,33 @@ export async function requireProjectAccess(projectId: string): Promise<ProjectAc
     return { ok: false, response: NextResponse.json({ error: "Accès refusé" }, { status: 403 }) };
   }
 
-  return { ok: true, communeId: data.commune_id, role: guard.role, userId: guard.userId };
+  return { ok: true, communeId: data.commune_id, role: guard.role, userId: guard.userId, closAt: data.clos_at ?? null };
 }
 
-export async function requireProjectEdit(projectId: string): Promise<ProjectAccess> {
+/**
+ * Écriture sur un projet. Un dossier clôturé est en lecture seule :
+ * 409 tant qu'il n'est pas rouvert, sauf pour les routes qui gèrent
+ * elles-mêmes ce cas (clôture / réouverture, mise à la corbeille).
+ */
+export async function requireProjectEdit(
+  projectId: string,
+  opts: { autoriserClos?: boolean } = {},
+): Promise<ProjectAccess> {
   const access = await requireProjectAccess(projectId);
   if (!access.ok) return access;
   if (!["admin", "editor", "super_admin"].includes(access.role)) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Permissions insuffisantes" }, { status: 403 }),
+    };
+  }
+  if (access.closAt && !opts.autoriserClos) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Ce projet est clôturé : rouvrez-le pour le modifier." },
+        { status: 409 },
+      ),
     };
   }
   return access;

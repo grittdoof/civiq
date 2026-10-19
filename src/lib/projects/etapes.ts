@@ -169,3 +169,19 @@ export function parseEtapeFields(body: Record<string, unknown>): { ok: true; fie
   }
   return { ok: true, fields: f };
 }
+
+// ─── Réordonnancement (glisser-déposer) ───
+
+/** Déplace `id` à la position `vers` (index dans la liste finale). */
+export function deplacerEtape(ids: string[], id: string, vers: number): string[] {
+  const de = ids.indexOf(id);
+  if (de < 0) return ids;
+  const reste = ids.filter((x) => x !== id);
+  const cible = Math.max(0, Math.min(reste.length, vers));
+  return [...reste.slice(0, cible), id, ...reste.slice(cible)];
+}
+
+/** Ordre enregistré : 10, 20, 30… (laisse de la place aux insertions). */
+export function ordresPour(ids: string[]): Map<string, number> {
+  return new Map(ids.map((id, i) => [id, (i + 1) * 10]));
+}

@@ -23,6 +23,7 @@ import { projetsCampagne } from "@/lib/aides/campagne-server";
 import { chargerPortefeuille } from "@/lib/projects/portefeuille-server";
 import { calculerStatistiques, construireReporting, filtrerProjets, libelleFiltres, lireFiltres } from "@/lib/projects/pilotage";
 import StatistiquesProjets from "@/components/projects/StatistiquesProjets";
+import { CLE_PREFS_LISTE, lirePreferencesListe } from "@/lib/projects/preferences";
 import ReportingProjets from "@/components/projects/ReportingProjets";
 
 const VALID_TYPES: ProjectType[] = ["investment", "event", "tracking"];
@@ -98,6 +99,9 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
     : null;
 
   const service = await createServiceClient();
+  // Filtres mémorisés de l'utilisateur (statut, types, commissions).
+  const { data: monProfil } = await service.from("profiles").select("preferences").eq("id", ctx.userId).maybeSingle();
+  const preferencesListe = lirePreferencesListe((monProfil?.preferences as Record<string, unknown> | null)?.[CLE_PREFS_LISTE]);
   const projIds = projects.length > 0 ? projects.map((p) => p.id) : ["__none__"];
   const [{ data: allFinancings }, { data: allBudgetLines }] = await Promise.all([
     service
@@ -324,6 +328,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           totalDemande={totalDemande}
           totalObtenu={totalObtenu}
           budgetTotalsByProject={Object.fromEntries(budgetByProject)}
+          preferences={preferencesListe}
         />
       ) : (
         <div className="pj-lanes">

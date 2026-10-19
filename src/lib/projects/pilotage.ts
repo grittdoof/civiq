@@ -48,17 +48,23 @@ export interface ProjetPilotage {
   emprunt_prevu?: number | null;
   autofinancement_invest?: number | null;
   autofinancement_fonct?: number | null;
+  /** Date de clôture du dossier (null = ouvert). */
+  clos_at?: string | null;
 }
 
-export type StatutProjet = "en_cours" | "termine";
+export type StatutProjet = "en_cours" | "termine" | "cloture";
 
-export const STATUT_PROJET_LABEL: Record<StatutProjet, string> = { en_cours: "En cours", termine: "Terminé" };
+export const STATUT_PROJET_LABEL: Record<StatutProjet, string> = { en_cours: "En cours", termine: "Terminé", cloture: "Clôturé" };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const typeDe = (p: ProjetPilotage): TypeProjetCode => p.type_code ?? "suivi_simple";
 
-/** Terminé : au moins une étape, et toutes terminées. */
-export function statutProjet(etapes: EtapePilotage[]): StatutProjet {
+/**
+ * Clôturé : le dossier a été clôturé (il sort des projets ouverts).
+ * Terminé : au moins une étape, et toutes terminées.
+ */
+export function statutProjet(etapes: EtapePilotage[], closAt?: string | null): StatutProjet {
+  if (closAt) return "cloture";
   if (etapes.length === 0) return "en_cours";
   return etapes.every((e) => statutOf(adapt(e)) === "termine") ? "termine" : "en_cours";
 }
@@ -86,6 +92,8 @@ export function alertesProjet(input: {
   tauxFctva: number;
   now?: Date;
 }): AlertesProjet {
+  // Dossier clôturé : plus d'alerte (il n'est plus suivi au quotidien).
+  if (input.projet.clos_at) return { retards: 0, subventionsSansAr: 0, partCommuneKo: false, delegationDepassee: false };
   const now = input.now ?? new Date();
   const type = typeDe(input.projet);
   const retards = input.etapes.filter((e) => isEnRetard(adapt(e), now)).length;
@@ -272,7 +280,7 @@ const TYPES_OK: TypeProjetCode[] = ["investissement", "evenementiel", "suivi_sim
 /** Filtres lus dans l'URL (valeurs inconnues ignorées). */
 export function lireFiltres(q: Record<string, string | undefined>): FiltresPilotage {
   const type = TYPES_OK.includes(q.type as TypeProjetCode) ? (q.type as TypeProjetCode) : "";
-  const statut = q.statut === "en_cours" || q.statut === "termine" ? q.statut : "";
+  const statut = q.statut === "en_cours" || q.statut === "termine" || q.statut === "cloture" ? q.statut : "";
   const commissionId = q.commission && /^[\w-]{1,64}$/.test(q.commission) ? q.commission : undefined;
   return { commissionId, type, statut };
 }

@@ -241,6 +241,10 @@ export interface Project {
   /** Archivé : consultable, exclu des listes actives. */
   archived_at?: string | null;
   archive_motif?: string | null;
+  /** Clôture du dossier (migration 050) : hors des projets ouverts, lecture seule. */
+  clos_at?: string | null;
+  clos_par?: string | null;
+  clos_bilan?: string | null;
   /** Jalons terminés / jalons, en %. null = « non renseigné » (aucun jalon). */
   avancement_pct?: number | null;
   avancement_manuel_pct?: number | null;

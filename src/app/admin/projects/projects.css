@@ -2504,6 +2504,27 @@ a.pj-commission-badge:hover {
 .pj-etape-extras li { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pj-etape-interne { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--fg-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
 .pj-etape-tools { display: flex; gap: 2px; flex: none; }
+/* Glisser-déposer des étapes (appui long ou poignée) */
+.pj-etape-grip { cursor: grab; touch-action: none; }
+.pj-etapes-list.is-sorting { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+.pj-etape.is-dragging { opacity: .55; border-style: dashed; border-color: var(--accent); }
+.pj-etape.drop-before { box-shadow: 0 -3px 0 0 var(--accent); }
+.pj-etape.drop-after { box-shadow: 0 3px 0 0 var(--accent); }
+@media (pointer: coarse) {
+  .pj-etape-row { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
+
+/* Envoi d'une étape par email */
+.pj-envoi { border-top: 1px solid var(--border-light); padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--bg); border-radius: 0 0 var(--radius) var(--radius); }
+.pj-envoi-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pj-envoi-titre { margin: 0; font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; color: var(--fg); }
+.pj-envoi-chargement { margin: 0; display: inline-flex; gap: 6px; align-items: center; color: var(--fg-muted); font-size: 14px; }
+.pj-envoi-suggestions { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pj-envoi-message { font-family: inherit; line-height: 1.5; }
+.pj-envoi-historique { margin: 0; padding-left: 18px; font-size: 13px; color: var(--fg-muted); }
+.pj-envoi-ok { margin: 0; display: flex; gap: 6px; align-items: flex-start; color: var(--fg); }
+.pj-envoi-ok svg { color: var(--success); flex: none; margin-top: 2px; }
+
 .pj-etape-details { border-top: 1px solid var(--border-light); padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--bg); border-radius: 0 0 var(--radius) var(--radius); }
 .pj-etape-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 .pj-etape-details-wide { grid-column: 1 / -1; }
@@ -2920,3 +2941,8 @@ a.pj-commission-badge:hover {
   cursor: not-allowed;
   opacity: 0.65;
 }
+
+/* Clôture d'un projet */
+.pj-badge-clos { display: inline-flex; align-items: center; gap: 4px; background: var(--border-light); color: var(--fg-muted); }
+.pj-clos-banner p { margin: 0; }
+.pj-clos-banner .pj-clos-bilan { margin-top: 6px; color: var(--fg-muted); white-space: pre-line; }
