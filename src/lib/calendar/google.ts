@@ -175,6 +175,8 @@ interface LienGoogle {
   calendar_id: string | null;
   refresh_token_enc: string | null;
   perimetre: "tout" | "mes";
+  /** Commissions choisies (NULL = toutes, migration 051). */
+  commissions?: string[] | null;
   disconnected_at: string | null;
 }
 
@@ -191,7 +193,7 @@ async function ecrire(access: string, calendarId: string, r: GoogleEventResource
 export async function synchroniserProfil(service: SupabaseClient, profileId: string): Promise<GoogleSyncResult> {
   const { data } = await service
     .from("google_calendar_links")
-    .select("profile_id, commune_id, calendar_id, refresh_token_enc, perimetre, disconnected_at")
+    .select("profile_id, commune_id, calendar_id, refresh_token_enc, perimetre, commissions, disconnected_at")
     .eq("profile_id", profileId)
     .maybeSingle();
   const lien = data as LienGoogle | null;
@@ -226,7 +228,7 @@ export async function synchroniserProfil(service: SupabaseClient, profileId: str
     }
 
     const site = getSiteUrl();
-    const events = (await evenementsPourProfil(service, lien.commune_id, { id: profileId, role: acces.role }, lien.perimetre)).filter((e) => dansFenetreExterne(e));
+    const events = (await evenementsPourProfil(service, lien.commune_id, { id: profileId, role: acces.role }, lien.perimetre, lien.commissions ?? null)).filter((e) => dansFenetreExterne(e));
     const actuels = new Map(events.map((e) => {
       const r = versGoogle(e, profileId, site);
       return [e.id, { r, h: empreinte(r) }] as const;

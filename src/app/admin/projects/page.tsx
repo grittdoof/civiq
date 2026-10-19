@@ -329,6 +329,7 @@ export default async function ProjectsPage({ searchParams }: PageProps) {
           totalObtenu={totalObtenu}
           budgetTotalsByProject={Object.fromEntries(budgetByProject)}
           preferences={preferencesListe}
+          utilisateurId={ctx.userId}
         />
       ) : (
         <div className="pj-lanes">

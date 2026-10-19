@@ -38,6 +38,7 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<CommissionMemberRole>("membre");
+  const [suppleant, setSuppleant] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function reset() {
@@ -48,12 +49,13 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
     setEmail("");
     setPhone("");
     setRole("membre");
+    setSuppleant(false);
     setError(null);
   }
 
   async function add() {
     setError(null);
-    const body: Record<string, unknown> = { role };
+    const body: Record<string, unknown> = { role, statut_membre: suppleant ? "suppleant" : "titulaire" };
     if (noAccount) {
       if (!name.trim()) {
         setError("Le nom du conseiller est obligatoire");
@@ -93,6 +95,18 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
       setRows(rows.filter((r) => r.id !== mid));
       router.refresh();
     }
+  }
+
+  async function basculerStatut(m: Row) {
+    const statut = m.statut_membre === "suppleant" ? "titulaire" : "suppleant";
+    setRows((r) => r.map((x) => (x.id === m.id ? { ...x, statut_membre: statut } : x)));
+    const res = await fetch(`/api/commissions/${commissionId}/members/${m.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statut_membre: statut }),
+    });
+    if (!res.ok) {
+      setRows((r) => r.map((x) => (x.id === m.id ? { ...x, statut_membre: m.statut_membre } : x)));
+      setError("Le statut n'a pas été modifié.");
+    } else router.refresh();
   }
 
   const takenUserIds = new Set(rows.map((r) => r.user_id).filter((u): u is string => !!u));
@@ -137,6 +151,18 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
                     )}
                   </span>
                 </span>
+                {canEdit ? (
+                  <button type="button" className={`pj-statut-membre${m.statut_membre === "suppleant" ? " is-suppleant" : ""}`}
+                    onClick={() => basculerStatut(m)}
+                    aria-label={`${memberDisplayName(m)} : ${m.statut_membre === "suppleant" ? "suppléant" : "titulaire"}. Changer`}
+                    title="Cliquer pour changer : titulaire / suppléant">
+                    {m.statut_membre === "suppleant" ? "Suppléant" : "Titulaire"}
+                  </button>
+                ) : (
+                  <span className={`pj-statut-membre${m.statut_membre === "suppleant" ? " is-suppleant" : ""}`}>
+                    {m.statut_membre === "suppleant" ? "Suppléant" : "Titulaire"}
+                  </span>
+                )}
                 {canEdit && (
                   <button type="button" onClick={() => remove(m.id)} className="civiq-icon-btn" aria-label="Retirer">
                     <Trash2 size={12} />
@@ -148,6 +174,7 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
         </ul>
       )}
 
+      {!adding && error && <p className="pj-modal-error" role="alert">{error}</p>}
       {canEdit && !adding && (
         <button
           type="button"
@@ -219,6 +246,11 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
             <option value="vice_president">Rôle : Vice-président·e</option>
             <option value="president">Rôle : Président·e</option>
           </select>
+
+          <label className="pj-checkbox" style={{ gridColumn: "1 / -1" }}>
+            <input type="checkbox" checked={suppleant} onChange={(e) => setSuppleant(e.target.checked)} />
+            <span>Membre suppléant (sinon titulaire)</span>
+          </label>
 
           {error && (
             <div className="pj-modal-error" style={{ gridColumn: "1 / -1" }}>

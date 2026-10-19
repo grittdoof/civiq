@@ -144,3 +144,16 @@ export function peutPointer(input: {
   if (input.secretaireId && input.secretaireId === input.userId) return true;
   return input.cible.user_id === input.userId;
 }
+
+// ─── Titulaires / suppléants (migration 051) ───
+
+/**
+ * Membre présélectionné pour une convocation : il a un email, et il est
+ * titulaire — ou suppléant si la commission convoque ses suppléants.
+ */
+export function convoqueParDefaut(
+  m: { email: string | null; suppleant?: boolean },
+  convoquerSuppleants: boolean,
+): boolean {
+  return !!m.email && (!m.suppleant || convoquerSuppleants);
+}

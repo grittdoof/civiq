@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lireListeEmails, MAX_COPIE } from "@/lib/projects/copie";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { getCommission } from "@/lib/projects/queries";
@@ -24,6 +25,9 @@ interface PatchBody {
   color?: string;
   icon?: string;
   parent_id?: string | null;
+  /** null = liste de la commune ; texte ou tableau = liste propre. */
+  copie_emails?: string | string[] | null;
+  convoquer_suppleants?: boolean;
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteParams) {
@@ -42,6 +46,16 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   if ("description" in body) updates.description = body.description?.trim() || null;
   if ("responsable_user_id" in body) updates.responsable_user_id = body.responsable_user_id || null;
   if (typeof body.active === "boolean") updates.active = body.active;
+  if (typeof body.convoquer_suppleants === "boolean") updates.convoquer_suppleants = body.convoquer_suppleants;
+  if ("copie_emails" in body) {
+    if (body.copie_emails === null) updates.copie_emails = null;
+    else {
+      const { valides, invalides } = lireListeEmails(body.copie_emails);
+      if (invalides.length) return NextResponse.json({ error: `Adresse invalide : ${invalides.join(", ")}` }, { status: 400 });
+      if (valides.length > MAX_COPIE) return NextResponse.json({ error: `${MAX_COPIE} adresses au maximum.` }, { status: 400 });
+      updates.copie_emails = valides;
+    }
+  }
   if (typeof body.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(body.color)) {
     updates.color = body.color;
   }

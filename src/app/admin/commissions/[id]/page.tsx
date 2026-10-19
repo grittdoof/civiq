@@ -6,7 +6,7 @@ import "../../projects/projects.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { getCommission } from "@/lib/projects/queries";
+import { getCommission, getCommuneSettings } from "@/lib/projects/queries";
 import CommissionMembersEditor from "@/components/projects/CommissionMembersEditor";
 import CommissionProjectsEditor from "@/components/projects/CommissionProjectsEditor";
 import CommissionAdminActions from "@/components/projects/CommissionAdminActions";
@@ -32,6 +32,7 @@ export default async function CommissionDetailPage({ params }: PageProps) {
   if (!detail.commission) notFound();
 
   const service = await createServiceClient();
+  const reglages = await getCommuneSettings(ctx.communeId);
   const [
     { data: profilesDir },
     { data: projectsDir },
@@ -113,7 +114,10 @@ export default async function CommissionDetailPage({ params }: PageProps) {
                 color: detail.commission.color,
                 icon: detail.commission.icon,
                 active: detail.commission.active,
+                copie_emails: (detail.commission as { copie_emails?: string[] | null }).copie_emails ?? null,
+                convoquer_suppleants: !!(detail.commission as { convoquer_suppleants?: boolean }).convoquer_suppleants,
               }}
+              copieCommune={reglages.copie_emails}
               profiles={(profilesDir ?? []) as { id: string; full_name: string | null }[]}
               canEdit={canEditCommission}
               canDelete={canDeleteCommission}

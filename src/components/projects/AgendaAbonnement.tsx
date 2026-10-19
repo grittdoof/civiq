@@ -16,12 +16,13 @@ import { lienAbonnementGoogle, lienWebcal } from "@/lib/projects/calendar";
 type Perimetre = "tout" | "mes";
 type Vue = "menu" | "google" | "apple" | "outlook" | "autre";
 interface Etat {
-  feed: { url: string; perimetre: Perimetre; created_at: string; last_accessed_at: string | null } | null;
+  feed: { url: string; nom: string; perimetre: Perimetre; commissions: string[] | null; created_at: string; last_accessed_at: string | null } | null;
   google: {
     configured: boolean;
     connected: boolean;
     email: string | null;
     perimetre: Perimetre;
+    commissions: string[] | null;
     last_sync_at: string | null;
     last_sync_ok: boolean | null;
     last_error: string | null;
@@ -54,8 +55,8 @@ function ilYa(iso: string): string {
 }
 
 /** Abonnement Outlook web (Microsoft 365, le plus courant en mairie). */
-const lienOutlook = (url: string) =>
-  `https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(url)}&name=${encodeURIComponent("GoCiviq")}`;
+const lienOutlook = (url: string, nom: string) =>
+  `https://outlook.office.com/calendar/0/addfromweb?url=${encodeURIComponent(url)}&name=${encodeURIComponent(nom)}`;
 
 const DESTINATIONS: Array<{ vue: Exclude<Vue, "menu">; titre: string; detail: string; logo: string; cls: string }> = [
   { vue: "google", titre: "Google Agenda", detail: "Mis à jour en quelques minutes", logo: "G", cls: "is-google" },
@@ -64,11 +65,15 @@ const DESTINATIONS: Array<{ vue: Exclude<Vue, "menu">; titre: string; detail: st
   { vue: "autre", titre: "Autre application", detail: "Copier le lien d'abonnement", logo: "+", cls: "is-other" },
 ];
 
-export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: string | null }) {
+export default function AgendaAbonnement({
+  retourGoogle, commissions = [],
+}: { retourGoogle?: string | null; commissions?: Array<{ id: string; nom: string; color?: string | null }> }) {
   const [open, setOpen] = useState(!!retourGoogle);
   const [vue, setVue] = useState<Vue>("menu");
   const [etat, setEtat] = useState<Etat | null>(null);
   const [perimetre, setPerimetre] = useState<Perimetre>("tout");
+  /** Commissions choisies ; null = toutes. */
+  const [choix, setChoix] = useState<string[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(retourGoogle ? RETOUR_GOOGLE[retourGoogle]?.texte ?? null : null);
@@ -82,6 +87,7 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
     if (!res.ok || !j) { setError(j?.error ?? "Impossible de charger vos réglages d'agenda."); return null; }
     setEtat(j);
     setPerimetre(j.google.connected ? j.google.perimetre : j.feed?.perimetre ?? "tout");
+    setChoix(j.google.connected ? j.google.commissions : j.feed?.commissions ?? null);
     return j;
   }, []);
 
@@ -121,6 +127,20 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
     if (etat.feed || etat.google.connected) await charger();
   }
 
+  /** Coche / décoche une commission ; aucune cochée = toutes. Enregistré aussitôt. */
+  async function basculerCommission(id: string) {
+    if (busy) return;
+    const base = choix ?? [];
+    const suivant = base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+    const valeur = suivant.length ? suivant : null;
+    setChoix(valeur);
+    if (!etat) return;
+    const body = JSON.stringify({ commissions: valeur });
+    if (etat.feed) await appel("commissions", "/api/calendar/feed", { method: "PATCH", body });
+    if (etat.google.connected) await appel("commissions", "/api/google-calendar", { method: "PATCH", body });
+    if (etat.feed || etat.google.connected) await charger();
+  }
+
   /** Ouvre la vue d'une destination ; crée le lien d'abonnement au besoin. */
   async function choisir(v: Exclude<Vue, "menu">) {
     if (!etat) return;
@@ -129,7 +149,7 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
       return;
     }
     if (v !== "google" || !etat.google.configured) {
-      if (!etat.feed && !(await appel("creer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) }))) return;
+      if (!etat.feed && !(await appel("creer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre, commissions: choix }) }))) return;
       await charger();
     }
     setVue(v);
@@ -146,6 +166,8 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
     }
   }
 
+  const nomsCommissions = (ids: string[]) =>
+    ids.map((id) => commissions.find((c) => c.id === id)?.nom).filter(Boolean).join(", ");
   const g = etat?.google;
   const feed = etat?.feed ?? null;
   const connecte = !!g?.connected;
@@ -153,7 +175,7 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
   const ouvrir =
     !feed ? null
       : vue === "apple" ? { href: lienWebcal(feed.url), label: "Ouvrir dans Apple Calendrier", externe: false }
-      : vue === "outlook" ? { href: lienOutlook(feed.url), label: "Ouvrir dans Outlook", externe: true }
+      : vue === "outlook" ? { href: lienOutlook(feed.url, feed.nom), label: "Ouvrir dans Outlook", externe: true }
       : vue === "google" ? { href: lienAbonnementGoogle(feed.url), label: "Ouvrir dans Google Agenda", externe: true }
       : null;
 
@@ -190,6 +212,22 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
                   ))}
                 </div>
                 <p className="pj-agenda-help">{AIDE_PERIMETRE[perimetre]}</p>
+                {commissions.length > 0 && (
+                  <fieldset className="pj-agenda-commissions">
+                    <legend className="pj-agenda-label">Commissions</legend>
+                    <p className="pj-agenda-help">
+                      {choix?.length ? "Seulement les commissions cochées." : "Toutes les commissions. Cochez-en pour n'afficher qu'elles."}
+                    </p>
+                    {commissions.map((c) => (
+                      <label key={c.id} className="pj-agenda-commission">
+                        <input type="checkbox" checked={!!choix?.includes(c.id)} disabled={busy === "commissions"}
+                          onChange={() => void basculerCommission(c.id)} />
+                        <span className="pj-agenda-commission-dot" style={{ background: c.color ?? "var(--fg-muted)" }} aria-hidden="true" />
+                        {c.nom}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
               </div>
               <div className="pj-agenda-sep" />
               <div className="pj-agenda-list">
@@ -223,7 +261,7 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
               </div>
               <dl className="pj-agenda-facts">
                 <div><dt>Agenda</dt><dd>« GoCiviq »</dd></div>
-                <div><dt>Contenu</dt><dd>{COURT[g!.perimetre]}</dd></div>
+                <div><dt>Contenu</dt><dd>{COURT[g!.perimetre]}{g?.commissions?.length ? ` · ${nomsCommissions(g.commissions)}` : ""}</dd></div>
                 <div><dt>Dernière synchro</dt><dd className={g?.last_sync_ok === false ? "pj-text-danger" : undefined}>
                   {g?.last_sync_at ? `${ilYa(g.last_sync_at)}${g.last_sync_ok === false ? " (échec)" : ""}` : "—"}
                 </dd></div>
@@ -268,13 +306,18 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
                       <p className="pj-agenda-or"><span aria-hidden="true" />ou copiez le lien<span aria-hidden="true" /></p>
                     </>
                   )}
-                  <div className="pj-agenda-copy">
+                  <div className="pj-agenda-nom">
+                    <span className="pj-agenda-label">Nom de l&apos;agenda</span>
+                    <strong>{feed.nom}</strong>
+                  </div>
+                  <button type="button" className={`civiq-btn civiq-btn-outline pj-agenda-copy-main ${copie ? "is-done" : ""}`} onClick={copier}>
+                    {copie ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copie ? "Lien copié" : "Copier le lien d'abonnement"}
+                  </button>
+                  <details className="pj-agenda-lien">
+                    <summary>Afficher le lien</summary>
                     <label htmlFor="agenda-url" className="pj-sr-only">Lien d&apos;abonnement personnel</label>
                     <input id="agenda-url" className="pj-agenda-url" readOnly value={feed.url} onFocus={(e) => e.currentTarget.select()} />
-                    <button type="button" className={`pj-agenda-copy-btn ${copie ? "is-done" : ""}`} onClick={copier}>
-                      {copie ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />} {copie ? "Copié" : "Copier"}
-                    </button>
-                  </div>
+                  </details>
                   {vue === "autre" && (
                     <ol className="pj-agenda-steps">
                       <li>Copiez le lien ci-dessus</li>
@@ -283,14 +326,15 @@ export default function AgendaAbonnement({ retourGoogle }: { retourGoogle?: stri
                     </ol>
                   )}
                   <p className="pj-agenda-help">
-                    Contenu : {COURT[feed.perimetre]}. Mise à jour toutes les quelques heures selon l&apos;application.
+                    Contenu : {COURT[feed.perimetre]}{feed.commissions?.length ? ` · ${nomsCommissions(feed.commissions)}` : ""}. Si votre agenda affiche
+                    l&apos;adresse au lieu du nom, renommez l&apos;abonnement « {feed.nom} » dans ses réglages. Mise à jour toutes les quelques heures selon l&apos;application.
                     Lien personnel, ne le partagez pas.
                   </p>
                   <div className="pj-agenda-row pj-agenda-discret">
                     <button type="button" className="pj-link-btn" disabled={!!busy}
                       onClick={async () => {
                         if (!window.confirm("Changer de lien ? L'ancien cessera aussitôt de fonctionner : il faudra réabonner vos agendas.")) return;
-                        if (await appel("changer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre }) }, "Nouveau lien créé. Réabonnez vos agendas avec ce lien.")) await charger();
+                        if (await appel("changer", "/api/calendar/feed", { method: "POST", body: JSON.stringify({ perimetre, commissions: choix }) }, "Nouveau lien créé. Réabonnez vos agendas avec ce lien.")) await charger();
                       }}>
                       Changer de lien
                     </button>

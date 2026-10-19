@@ -2800,16 +2800,10 @@ a.pj-commission-badge:hover {
 .pj-agenda-back-title { margin: 0; font-size: 14.5px; font-weight: 700; color: var(--fg); }
 .pj-agenda-or { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 12px; color: var(--fg-muted); }
 .pj-agenda-or span { flex: 1; height: 1px; background: var(--border-light); }
-.pj-agenda-copy { display: flex; gap: 6px; }
 .pj-agenda-url {
   flex: 1; min-width: 0; height: 38px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg);
   padding: 0 10px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--fg); text-overflow: ellipsis;
 }
-.pj-agenda-copy-btn {
-  flex: none; height: 38px; padding: 0 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--card);
-  color: var(--fg); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-}
-.pj-agenda-copy-btn.is-done { border-color: var(--success); background: var(--success-light); color: var(--success); }
 .pj-agenda-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.4; color: var(--fg); }
 .pj-agenda-steps li::marker { color: var(--accent); font-weight: 700; }
 .pj-agenda-ok { display: flex; align-items: center; gap: 12px; }
@@ -2952,3 +2946,26 @@ a.pj-commission-badge:hover {
 .pj-recherche-aides-form { display: flex; gap: 8px; flex-wrap: wrap; }
 .pj-recherche-aides-form .civiq-input { flex: 1 1 260px; min-width: 0; }
 .pj-recherche-aides .pj-pistes { margin-top: 8px; }
+
+/* Titulaire / suppléant d'une commission */
+.pj-statut-membre { flex: none; border: 1px solid var(--border); background: var(--card); color: var(--fg-muted); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; font-family: inherit; }
+button.pj-statut-membre { cursor: pointer; }
+.pj-statut-membre.is-suppleant { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light); }
+
+/* Compte rendu déposé en fichier */
+.pj-cr-mode { margin-bottom: 12px; }
+.pj-cr-depot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.pj-cr-fichier { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.pj-cr-fichier svg { color: var(--accent); flex: none; }
+
+/* Agenda : nom lisible, lien replié, choix des commissions */
+.pj-agenda-nom { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+.pj-agenda-nom strong { font-size: 14px; color: var(--fg); overflow-wrap: anywhere; }
+.pj-agenda-copy-main { justify-content: center; }
+.pj-agenda-copy-main.is-done { border-color: var(--success); background: var(--success-light); color: var(--success); }
+.pj-agenda-lien summary { cursor: pointer; font-size: 13px; color: var(--fg-muted); }
+.pj-agenda-lien .pj-agenda-url { width: 100%; margin-top: 6px; }
+.pj-agenda-commissions { border: 0; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.pj-agenda-commission { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.pj-agenda-commission input { accent-color: var(--accent); }
+.pj-agenda-commission-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }

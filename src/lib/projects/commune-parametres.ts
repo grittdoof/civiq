@@ -7,6 +7,8 @@
 //   C. Taux FCTVA, code INSEE
 // ═══════════════════════════════════════════════════════════════
 
+import { lireListeEmails, MAX_COPIE } from "./copie";
+
 export interface CommuneParametres {
   commune_id: string;
   seuil_delegation_maire_ht: number | null;
@@ -19,6 +21,8 @@ export interface CommuneParametres {
   code_insee: string | null;
   taux_inflation: number;
   taux_actualisation: number;
+  /** Secrétariat / agents en copie des emails des commissions (migration 051). */
+  copie_emails: string[];
   updated_at: string | null;
 }
 
@@ -33,6 +37,7 @@ export const DEFAULT_PARAMETRES: Omit<CommuneParametres, "commune_id"> = {
   code_insee: null,
   taux_inflation: 2,
   taux_actualisation: 4,
+  copie_emails: [],
   updated_at: null,
 };
 
@@ -104,6 +109,13 @@ export function validateParametresPatch(body: Record<string, unknown>, current: 
     const up = insee?.toUpperCase() ?? null;
     if (up !== null && !INSEE_RE.test(up)) errors.code_insee = "Le code INSEE compte 5 caractères (ex. 85065, ou 2A004 en Corse).";
     else updates.code_insee = up;
+  }
+
+  if (body.copie_emails !== undefined) {
+    const { valides, invalides } = lireListeEmails(body.copie_emails);
+    if (invalides.length) errors.copie_emails = `Adresse invalide : ${invalides.join(", ")}`;
+    else if (valides.length > MAX_COPIE) errors.copie_emails = `${MAX_COPIE} adresses au maximum.`;
+    else updates.copie_emails = valides;
   }
 
   // Le seuil n'a de valeur que rattaché à sa délibération (état final).

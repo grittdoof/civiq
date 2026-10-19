@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase-server";
 import {
   construireEvenements,
+  nomAgenda,
+  slugAgenda,
   restreindreAuProfil,
+  restreindreAuxCommissions,
   type CalendarEvent,
   type CalendarRaw,
 } from "./calendar";
@@ -109,9 +112,11 @@ export async function evenementsPourProfil(
   communeId: string,
   viewer: Viewer,
   perimetre: "tout" | "mes",
+  commissions?: string[] | null,
 ): Promise<CalendarEvent[]> {
   const raw = await chargerCalendrierBrut(service, communeId, viewer);
-  return construireEvenements(perimetre === "mes" ? restreindreAuProfil(raw, viewer.id) : raw);
+  const parCommission = restreindreAuxCommissions(raw, commissions);
+  return construireEvenements(perimetre === "mes" ? restreindreAuProfil(parCommission, viewer.id) : parCommission);
 }
 
 /**
@@ -132,4 +137,22 @@ export async function profilAccesProjets(
   ]);
   if (!cm || override?.enabled === false) return { ok: false };
   return { ok: true, communeId, role: profile.role as string };
+}
+
+/** Nom lisible de l'agenda d'un utilisateur (commune, commissions choisies, périmètre). */
+export async function infosAgenda(
+  service: SupabaseClient,
+  communeId: string,
+  perimetre: "tout" | "mes",
+  commissions: string[] | null | undefined,
+): Promise<{ nom: string; slug: string }> {
+  const [{ data: commune }, { data: comms }] = await Promise.all([
+    service.from("communes").select("name").eq("id", communeId).maybeSingle(),
+    commissions?.length
+      ? service.from("commissions").select("id, nom").eq("commune_id", communeId).in("id", commissions)
+      : Promise.resolve({ data: [] as Array<{ id: string; nom: string }> }),
+  ]);
+  const noms = (comms ?? []).map((c) => c.nom as string).sort((a, b) => a.localeCompare(b, "fr"));
+  const nom = nomAgenda(commune?.name as string | null, perimetre, noms);
+  return { nom, slug: slugAgenda(nom) };
 }

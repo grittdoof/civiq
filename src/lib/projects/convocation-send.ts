@@ -15,8 +15,10 @@
 // ═══════════════════════════════════════════════════════════════
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { copieSans } from "./copie";
+import { copiePour } from "./copie-server";
 import { getBaseUrl } from "@/lib/base-url";
-import { sendEmailBatch } from "@/lib/email";
+import { sendEmail, sendEmailBatch } from "@/lib/email";
 import { buildConvocationEmail, type ConvocationCommune } from "@/lib/emails/commission-convocation";
 import {
   formatSessionDate,
@@ -35,6 +37,8 @@ export interface ConvocationRecipient {
   name: string;
   email: string | null;
   isExternal: boolean;
+  /** Membre suppléant (sinon titulaire). */
+  suppleant: boolean;
   convocation: {
     status: ConvocationStatus;
     sent_at: string | null;
@@ -50,6 +54,7 @@ interface MemberRow {
   user_id: string | null;
   external_name: string | null;
   external_email: string | null;
+  statut_membre?: string | null;
   profile: { full_name: string | null } | null;
 }
 
@@ -73,7 +78,7 @@ export async function listConvocationRecipients(
 ): Promise<ConvocationRecipient[]> {
   const { data: membersData } = await service
     .from("commission_members")
-    .select("id, user_id, external_name, external_email, profile:profiles!commission_members_user_id_fkey ( full_name )")
+    .select("id, user_id, external_name, external_email, statut_membre, profile:profiles!commission_members_user_id_fkey ( full_name )")
     .eq("commission_id", commissionId)
     .is("deleted_at", null)
     .order("created_at");
@@ -111,6 +116,7 @@ export async function listConvocationRecipients(
       name: m.profile?.full_name?.trim() || m.external_name?.trim() || email || "Membre",
       email,
       isExternal: !m.user_id,
+      suppleant: m.statut_membre === "suppleant",
       convocation: c
         ? {
             status: c.status,
@@ -130,6 +136,8 @@ export interface SendConvocationsResult {
   failed: { name: string; email: string }[];
   skipped: { name: string; reason: "no_email" }[];
   emailConfigured: boolean;
+  /** Secrétariat en copie (envois groupés uniquement). */
+  copie?: { emails: string[]; sent: boolean };
 }
 
 /** Données publiques nécessaires à l'email et aux liens agenda. */
@@ -285,6 +293,32 @@ export async function sendSessionConvocations(opts: {
 
   if (result.sent.length > 0) {
     await service.from("commission_sessions").update({ convocation_sent_at: now }).eq("id", sessionId);
+  }
+
+  // Copie au secrétariat : pour les envois groupés (pas pour le renvoi à
+  // un seul membre), un email sans lien personnel de réponse.
+  if (result.sent.length > 0 && !(opts.memberIds && opts.memberIds.length === 1)) {
+    const copie = copieSans(
+      await copiePour(service, ctx.commission.commune_id, ctx.commission.id),
+      withEmail.map((r) => r.email!),
+    );
+    if (copie.length > 0) {
+      const cal = calendarInputFor(ctx);
+      const built = buildConvocationEmail({
+        siteUrl: base,
+        commune,
+        commissionName: ctx.commission.nom,
+        dateLabel,
+        lieu: ctx.lieu,
+        ordreDuJourHtml: ctx.ordre_du_jour,
+        googleUrl: googleCalendarUrl(cal),
+        outlookUrl: outlookCalendarUrl(cal),
+        isReminder: opts.isReminder,
+        copieDe: result.sent.map((x) => x.name),
+      });
+      const r = await sendEmail({ to: copie, subject: built.subject, html: built.html, text: built.text, replyTo: commune.contact_email ?? undefined });
+      result.copie = { emails: copie, sent: r.sent };
+    }
   }
 
   // Push aux membres avec compte (best-effort, n'impacte pas le résultat)

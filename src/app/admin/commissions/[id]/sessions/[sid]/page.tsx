@@ -45,6 +45,13 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
   const isAdmin = ["admin", "super_admin"].includes(ctx.role ?? "");
   const isSecretaire = detail.session.secretaire_de_seance_user_id === ctx.userId;
+  // Compte rendu déposé en fichier : lien signé d'une heure.
+  const crExt = detail.session as typeof detail.session & { cr_fichier_path?: string | null; cr_fichier_nom?: string | null; cr_fichier_le?: string | null };
+  let crFichier: { nom: string; url: string | null; le: string | null } | null = null;
+  if (crExt.cr_fichier_path) {
+    const { data: signe } = await service.storage.from("project-documents").createSignedUrl(crExt.cr_fichier_path, 3600);
+    crFichier = { nom: crExt.cr_fichier_nom ?? "compte-rendu", url: signe?.signedUrl ?? null, le: crExt.cr_fichier_le ?? null };
+  }
   const canEditMinutes = isAdmin || isSecretaire;
   const canManageDocs = ["admin", "editor", "super_admin"].includes(ctx.role ?? "");
 
@@ -141,11 +148,13 @@ export default async function SessionDetailPage({ params }: PageProps) {
             sessionId={sid}
             canSend={canManageDocs}
             closed={convocationsClosed}
+            convoquerSuppleants={!!(detail.commission as { convoquer_suppleants?: boolean } | null)?.convoquer_suppleants}
             rows={convocations.map((c) => ({
               member_id: c.member_id,
               name: c.name,
               email: c.email,
               isExternal: c.isExternal,
+              suppleant: c.suppleant,
               status: c.convocation?.status ?? null,
               sent_at: c.convocation?.sent_at ?? null,
               responded_at: c.convocation?.responded_at ?? null,
@@ -213,6 +222,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
             validated={detail.session.compte_rendu_valide}
             canEdit={canEditMinutes}
             canSend={canManageDocs || isSecretaire}
+            fichier={crFichier}
           />
         </section>
       </div>

@@ -28,7 +28,7 @@ export default async function CalendrierPage({ searchParams }: { searchParams: P
           </p>
         </div>
         <div className="pj-page-header-actions">
-          <AgendaAbonnement retourGoogle={google ?? null} />
+          <AgendaAbonnement retourGoogle={google ?? null} commissions={commissions} />
         </div>
       </header>
 

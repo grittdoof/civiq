@@ -435,6 +435,7 @@ export async function getCommuneSettings(communeId: string): Promise<CommunePara
     taux_fctva: num(row.taux_fctva, DEFAULT_PARAMETRES.taux_fctva),
     taux_inflation: num(row.taux_inflation, DEFAULT_PARAMETRES.taux_inflation),
     taux_actualisation: num(row.taux_actualisation, DEFAULT_PARAMETRES.taux_actualisation),
+    copie_emails: Array.isArray(row.copie_emails) ? row.copie_emails : [],
   };
 }
 
@@ -487,7 +488,10 @@ export async function getCommission(
       .from("commission_projects")
       .select("id, project_id, project:projects!inner ( id, titre, phase, confidentiel, pilote_elu, pilote_agent )")
       .eq("commission_id", commissionId)
-      .is("project.deleted_at", null),
+      .is("project.deleted_at", null)
+      // Projets clôturés ou archivés : plus « suivis » par la commission.
+      .is("project.clos_at", null)
+      .is("project.archived_at", null),
     service
       .from("commission_sessions")
       .select("*")

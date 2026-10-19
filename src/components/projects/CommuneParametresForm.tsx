@@ -25,6 +25,7 @@ type FormState = {
   nb_devis_exige: string;
   seuil_devis_exige_ht: string;
   taux_fctva: string;
+  copie_emails: string;
   code_insee: string;
 };
 
@@ -37,6 +38,7 @@ function toForm(p: CommuneParametres): FormState {
     nb_devis_exige: String(p.nb_devis_exige),
     seuil_devis_exige_ht: String(p.seuil_devis_exige_ht),
     taux_fctva: String(p.taux_fctva),
+    copie_emails: (p.copie_emails ?? []).join("\n"),
     code_insee: p.code_insee ?? "",
   };
 }
@@ -265,6 +267,30 @@ export default function CommuneParametresForm({ initial, canEdit }: Props) {
               />
               {fieldError("taux_fctva")}
             </div>
+          </div>
+        </section>
+
+        {/* ─── Bloc D — Secrétariat en copie ─── */}
+        <section className="civiq-card pj-params-card" aria-labelledby="bloc-d-title">
+          <h2 id="bloc-d-title" className="pj-params-title">Secrétariat en copie</h2>
+          <div className="civiq-field">
+            <label htmlFor="copie_emails" className="civiq-field-label">Adresses en copie des emails des commissions</label>
+            <p id="copie-hint" className="civiq-field-hint">
+              Secrétariat de mairie, agent administratif… Ces personnes reçoivent une copie des convocations, des comptes
+              rendus et des étapes de projet envoyées depuis la plateforme. Une adresse par ligne, 10 au maximum.
+              Chaque commission peut remplacer cette liste par la sienne.
+            </p>
+            <textarea
+              id="copie_emails"
+              className="civiq-textarea"
+              rows={3}
+              value={form.copie_emails}
+              placeholder={"secretariat@mairie-exemple.fr\naccueil@mairie-exemple.fr"}
+              onChange={(e) => set("copie_emails", e.target.value)}
+              aria-invalid={!!errors.copie_emails}
+              aria-describedby={describedBy("copie_emails", "copie-hint")}
+            />
+            {fieldError("copie_emails")}
           </div>
         </section>
       </fieldset>

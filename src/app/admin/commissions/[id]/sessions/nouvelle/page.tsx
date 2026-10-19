@@ -27,7 +27,7 @@ export default async function NewSessionPage({ params }: PageProps) {
   const service = await createServiceClient();
   const { data: commission } = await service
     .from("commissions")
-    .select("nom, commune_id")
+    .select("nom, commune_id, convoquer_suppleants")
     .is("deleted_at", null)
     .eq("id", id)
     .maybeSingle();
@@ -60,7 +60,9 @@ export default async function NewSessionPage({ params }: PageProps) {
           name: r.name,
           email: r.email,
           isExternal: r.isExternal,
+          suppleant: r.suppleant,
         }))}
+        convoquerSuppleants={!!commission.convoquer_suppleants}
       />
     </main>
   );

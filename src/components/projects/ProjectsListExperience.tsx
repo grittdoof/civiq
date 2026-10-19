@@ -19,7 +19,7 @@ import { formatEuros } from "@/lib/projects/cost-calc";
 import { avancementAffiche } from "@/lib/projects/etapes";
 import TypeBadge, { TYPE_META } from "./TypeBadge";
 import {
-  CLE_PREFS_LISTE, FILTRES_STATUT, PREFS_LISTE_DEFAUT, correspondStatut, prefsEgales,
+  CLE_PREFS_LISTE, FILTRES_STATUT, PREFS_LISTE_DEFAUT, correspondStatut, lirePreferencesListe, prefsEgales,
   type FiltreStatutListe, type PreferencesListeProjets,
 } from "@/lib/projects/preferences";
 import type { ProjectListItem } from "@/lib/projects/queries";
@@ -53,6 +53,8 @@ interface Props {
   statuts?: Record<string, StatutProjet>;
   /** Filtres mémorisés de l'utilisateur (profiles.preferences). */
   preferences?: PreferencesListeProjets;
+  /** Identifiant de l'utilisateur : clé de la copie locale des filtres. */
+  utilisateurId?: string;
 }
 
 const PAGE = 30;
@@ -67,6 +69,7 @@ export default function ProjectsListExperience({
   alertes = {},
   statuts = {},
   preferences = PREFS_LISTE_DEFAUT,
+  utilisateurId,
 }: Props) {
   const [statutSelected, setStatutSelected] = useState<FiltreStatutListe>(preferences.statut);
   const [visibles, setVisibles] = useState(PAGE);
@@ -77,9 +80,32 @@ export default function ProjectsListExperience({
     new Set(preferences.commissions),
   );
 
-  // Mémorise les filtres de l'utilisateur (sauf la recherche texte),
-  // 600 ms après le dernier changement ; rien n'est envoyé au chargement.
+  // Copie locale des filtres : la navigation (retour arrière, cache du
+  // routeur) peut réafficher la page avec les préférences d'un rendu
+  // précédent ; la dernière sélection de l'utilisateur fait foi.
+  const cleLocale = utilisateurId ? `civiq:projets-liste:${utilisateurId}` : null;
   const derniereSauvegarde = useRef<PreferencesListeProjets>(preferences);
+  useEffect(() => {
+    if (!cleLocale) return;
+    try {
+      const brut = localStorage.getItem(cleLocale);
+      if (!brut) return;
+      const { prefs, le } = JSON.parse(brut) as { prefs?: unknown; le?: number };
+      // Copie récente seulement (12 h) : un autre appareil a pu changer les filtres depuis.
+      if (!le || Date.now() - le > 12 * 3_600_000) return;
+      const local = lirePreferencesListe(prefs);
+      if (prefsEgales(local, preferences)) return;
+      // Le serveur est en retard : l'effet suivant lui renverra la sélection locale.
+      setStatutSelected(local.statut);
+      setTypesSelected(new Set(local.types));
+      setCommissionsSelected(new Set(local.commissions));
+    } catch { /* stockage indisponible : préférences du serveur */ }
+    // Une seule fois, au montage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mémorise les filtres de l'utilisateur (sauf la recherche texte) :
+  // aussitôt en local, 600 ms après le dernier changement sur le serveur.
   useEffect(() => {
     const prefs: PreferencesListeProjets = {
       statut: statutSelected,
@@ -87,6 +113,9 @@ export default function ProjectsListExperience({
       commissions: [...commissionsSelected],
     };
     if (prefsEgales(prefs, derniereSauvegarde.current)) return;
+    if (cleLocale) {
+      try { localStorage.setItem(cleLocale, JSON.stringify({ prefs, le: Date.now() })); } catch { /* sans conséquence */ }
+    }
     const t = setTimeout(() => {
       derniereSauvegarde.current = prefs;
       fetch("/api/preferences", {
@@ -96,7 +125,7 @@ export default function ProjectsListExperience({
       }).catch(() => { /* préférence non enregistrée : sans conséquence */ });
     }, 600);
     return () => clearTimeout(t);
-  }, [statutSelected, typesSelected, commissionsSelected]);
+  }, [statutSelected, typesSelected, commissionsSelected, cleLocale]);
 
   // Liste des commissions présentes dans le portefeuille
   // (dérivée des projets pour ne proposer que des filtres utiles).

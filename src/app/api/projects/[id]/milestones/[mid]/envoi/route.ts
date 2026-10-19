@@ -5,6 +5,9 @@ import { writeAudit } from "@/lib/audit";
 import { getSiteUrl, sendEmail, type EmailAttachment } from "@/lib/email";
 import { communeEmailShell, esc, paragraph, type EmailCommune } from "@/lib/emails/commune-shell";
 import { ETAPE_STATUT_META, statutOf } from "@/lib/projects/etapes";
+import { copieSans } from "@/lib/projects/copie";
+import { FONCTION_LABEL, groupeDe } from "@/lib/profils/fonctions";
+import { copiePour } from "@/lib/projects/copie-server";
 import {
   MAX_DESTINATAIRES, MAX_PIECES_OCTETS, messageEtape, messageVersHtml, validerDestinataires,
 } from "@/lib/projects/envoi-etape";
@@ -94,15 +97,37 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
     for (const pr of data ?? []) noms.set(pr.id as string, (pr.full_name as string | null) ?? "");
   }
 
+  // Utilisateurs de la commune (élus, services), classés par groupe de fonction.
+  const { data: profs } = await service
+    .from("profiles")
+    .select("id, full_name, job_title, role")
+    .eq("commune_id", access.communeId)
+    .in("role", ["admin", "editor"])
+    .neq("id", access.userId)
+    .order("full_name");
+  const utilisateurs = (await Promise.all((profs ?? []).map(async (pr) => {
+    const email = await emailDe(service, pr.id as string);
+    if (!email) return null;
+    return {
+      email: email.toLowerCase(),
+      nom: (pr.full_name as string | null) ?? email,
+      fonction: FONCTION_LABEL[pr.job_title as string] ?? null,
+      groupe: groupeDe(pr.job_title as string | null),
+    };
+  }))).filter((u): u is NonNullable<typeof u> => !!u);
+
   return NextResponse.json({
     objet,
     message,
+    utilisateurs,
     suggestions,
     // Présélection : les parties prenantes de l'étape (envoi en un clic).
     preselection: suggestions.filter((s) => s.source === "etape").map((s) => s.email),
     pieces: d.pieces.map((p) => ({ id: p.id, nom: p.nom })),
     historique: d.envois.map((e) => ({ le: e.created_at, destinataires: e.destinataires, par: noms.get(e.envoye_par as string) ?? null, envoye: e.envoye !== false })),
     expediteur: await emailDe(service, access.userId),
+    // Secrétariat en copie (liste de la commission pilote, sinon de la commune).
+    copieSecretariat: await copiePour(service, access.communeId, d.projet.commission_pilote_id),
   });
 }
 
@@ -113,6 +138,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
   const body = (await req.json().catch(() => ({}))) as {
     destinataires?: unknown; objet?: unknown; message?: unknown; documents?: unknown; copie_moi?: unknown;
+    copie_secretariat?: unknown;
   };
   const { valides, invalides } = validerDestinataires(body.destinataires);
   if (invalides.length) return NextResponse.json({ error: `Adresse invalide : ${invalides.join(", ")}` }, { status: 400 });
@@ -140,7 +166,11 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const expediteur = await emailDe(service, access.userId);
-  const copie = body.copie_moi === true && expediteur && !valides.includes(expediteur.toLowerCase()) ? [expediteur] : [];
+  const copieMoi = body.copie_moi === true && expediteur ? [expediteur.toLowerCase()] : [];
+  const secretariat = body.copie_secretariat === true
+    ? await copiePour(service, access.communeId, d.projet.commission_pilote_id)
+    : [];
+  const copie = copieSans([...new Set([...copieMoi, ...secretariat])], valides);
   const html = communeEmailShell({
     siteUrl: getSiteUrl(),
     commune: d.commune,
