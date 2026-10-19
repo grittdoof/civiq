@@ -36,10 +36,12 @@ interface Props {
   canEdit: boolean;
   isSuperAdmin?: boolean;
   hasReport: boolean;
+  /** Signalement suivi dans un projet : ni clôture ni réouverture ici. */
+  verrouParProjet?: boolean;
 }
 
 export default function TicketMobileActions({
-  ticketId, ticketNumero, statut, canEdit, isSuperAdmin, hasReport,
+  ticketId, ticketNumero, statut, canEdit, isSuperAdmin, hasReport, verrouParProjet,
 }: Props) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -48,6 +50,7 @@ export default function TicketMobileActions({
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const isClosed = groupOf(statut) === "cloture";
+  const canReopen = canEdit && !verrouParProjet;
 
   useEffect(() => {
     if (!toast) return;
@@ -106,7 +109,7 @@ export default function TicketMobileActions({
             <span>{hasReport ? "Modifier le rapport" : "Clôturer + rapport"}</span>
           </Link>
         )}
-        {isClosed && canEdit && (
+        {isClosed && canReopen && (
           <button
             type="button"
             onClick={reopen}
@@ -117,10 +120,10 @@ export default function TicketMobileActions({
             <span>Rouvrir le ticket</span>
           </button>
         )}
-        {isClosed && !canEdit && (
+        {isClosed && !canReopen && (
           <div className="tk-mobile-actions-status" aria-live="polite">
             <CheckCircle2 size={16} style={{ color: "var(--success)" }} />
-            <strong>Ticket clôturé</strong>
+            <strong>{verrouParProjet ? "Converti en projet" : "Ticket clôturé"}</strong>
           </div>
         )}
         <button
@@ -140,6 +143,7 @@ export default function TicketMobileActions({
           ticketNumero={ticketNumero}
           isClosed={isClosed}
           canEdit={canEdit}
+          canReopen={canReopen}
           isSuperAdmin={!!isSuperAdmin}
           hasReport={hasReport}
           onClose={() => setMenuOpen(false)}
@@ -172,13 +176,14 @@ export default function TicketMobileActions({
 // ─── Menu sheet ──────────────────────────────────────────────────
 
 function ActionsMenuSheet({
-  ticketId, ticketNumero, isClosed, canEdit, isSuperAdmin, hasReport,
+  ticketId, ticketNumero, isClosed, canEdit, canReopen, isSuperAdmin, hasReport,
   onClose, onReopen, onAskDelete,
 }: {
   ticketId: string;
   ticketNumero: number;
   isClosed: boolean;
   canEdit: boolean;
+  canReopen: boolean;
   isSuperAdmin: boolean;
   hasReport: boolean;
   onClose: () => void;
@@ -237,7 +242,7 @@ function ActionsMenuSheet({
             </SheetSection>
           )}
 
-          {isClosed && canEdit && (
+          {isClosed && canReopen && (
             <SheetSection title="Réouverture">
               <button
                 type="button"

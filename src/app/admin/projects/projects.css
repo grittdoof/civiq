@@ -4732,6 +4732,7 @@ a.pj-commission-badge:hover {
 .pj-wiz-offset { display: inline-block; min-width: 52px; color: var(--accent); }
 .pj-wiz-date { color: var(--fg-muted); font-size: 14px; }
 .pj-wiz-aide { display: block; font-size: 13px; color: var(--fg-muted); margin-top: 2px; }
+.pj-wiz-demandeur { margin-top: 20px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--accent-light); }
 
 /* ─── Écran de vie ─── */
 .pj-life { display: flex; flex-direction: column; gap: 16px; }

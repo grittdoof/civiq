@@ -6,6 +6,8 @@ import { listProjects } from "@/lib/projects/queries";
 import type { ProjectPhase } from "@/lib/projects/types";
 import { validateWizard, type WizardInput } from "@/lib/projects/wizard";
 import { synchroniserAgendasApres } from "@/lib/calendar/after-change";
+import { erreurConversion } from "@/lib/projects/passerelle";
+import { notifierConversion } from "@/lib/projects/passerelle-server";
 
 // ═══════════════════════════════════════════════════════════════
 // GET  /api/projects             — liste des projets de la commune
@@ -60,6 +62,8 @@ export async function POST(req: NextRequest) {
   const { data: id, error } = await service.rpc("create_project_from_wizard", {
     p: { ...result.payload, commune_id: guard.communeId, created_by: guard.userId },
   });
+  const refus = erreurConversion(error?.message);
+  if (refus) return NextResponse.json({ error: refus }, { status: 409 });
   if (error || !id) {
     console.error("[projects] create_project_from_wizard:", error);
     return NextResponse.json({ error: "La création a échoué. Vos saisies sont conservées : réessayez." }, { status: 500 });
@@ -73,6 +77,18 @@ export async function POST(req: NextRequest) {
     metadata: { type_code: result.payload.type_code, jalons: result.payload.jalons.length },
   });
 
+  // Signalement d'origine : push à son auteur, email au demandeur si
+  // l'agent l'a choisi. Attendu avant la réponse (Vercel gèle le reste).
+  let demandeurPrevenu: boolean | null = null;
+  if (result.payload.source_ticket_id) {
+    demandeurPrevenu = await notifierConversion({
+      ticketId: result.payload.source_ticket_id,
+      projectId: id as string,
+      communeId: guard.communeId,
+      prevenirDemandeur: body.prevenir_demandeur === true,
+    });
+  }
+
   synchroniserAgendasApres(guard.communeId);
-  return NextResponse.json({ id });
+  return NextResponse.json({ id, demandeur_prevenu: demandeurPrevenu });
 }

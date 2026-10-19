@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Lock, MapPin, Pencil, UserRound, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Lock, MapPin, MessageSquareWarning, Pencil, UserRound, Users } from "lucide-react";
 import "../projects.css";
 import "../flow.css";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -88,6 +88,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
 
   const [detail, directory] = await Promise.all([getProject(ctx.communeId, id), listStakeholders(ctx.communeId)]);
   const p = detail.project;
+  const ticketsActif = !!detail.source_ticket && (ctx.role === "super_admin" || (await isModuleActive("tickets")));
   if (!p) notFound();
 
   const service = await createServiceClient();
@@ -254,6 +255,14 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
               <li><CalendarDays size={14} aria-hidden="true" /> {formatEtapeDate(ext.evenement_debut)}{ext.evenement_fin ? ` → ${ext.evenement_fin.slice(11, 16)}` : ""}</li>
             )}
             {type === "evenementiel" && ext.lieu && <li><MapPin size={14} aria-hidden="true" /> {ext.lieu}{ext.jauge ? ` · ${ext.jauge} personnes attendues` : ""}</li>}
+            {detail.source_ticket && (
+              <li>
+                <MessageSquareWarning size={14} aria-hidden="true" /> Issu du signalement{" "}
+                {ticketsActif
+                  ? <Link href={`/admin/tickets/${detail.source_ticket.id}`}>n° {detail.source_ticket.numero} « {detail.source_ticket.titre} »</Link>
+                  : <>n° {detail.source_ticket.numero} « {detail.source_ticket.titre} »</>}
+              </li>
+            )}
           </ul>
           {canEdit && !archived && (type === "investissement" || type === "evenementiel") && (
             <ProjectDatesEditor

@@ -44,11 +44,16 @@ export default async function NewProjectPage({ searchParams }: Props) {
     service.from("contacts").select(STAKEHOLDER_COLUMNS).eq("commune_id", ctx.communeId).eq("type", "association")
       .is("deleted_at", null).order("nom"),
     from_ticket
-      ? service.from("tickets").select("id, titre, description").eq("id", from_ticket).eq("commune_id", ctx.communeId).maybeSingle()
+      ? service.from("tickets").select("id, titre, description, project_id, demandeur_nom, demandeur_email").eq("id", from_ticket).eq("commune_id", ctx.communeId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
-  const ticket = ticketRes.data as { id: string; titre: string; description: string | null } | null;
+  const ticket = ticketRes.data as {
+    id: string; titre: string; description: string | null; project_id: string | null;
+    demandeur_nom: string | null; demandeur_email: string | null;
+  } | null;
+  // Un signalement ne donne qu'un projet : retour au projet existant.
+  if (ticket?.project_id) redirect(`/admin/projects/${ticket.project_id}`);
   const commissionOk = from_commission && (commissions ?? []).some((c) => c.id === from_commission);
 
   return (
@@ -68,6 +73,7 @@ export default async function NewProjectPage({ searchParams }: Props) {
         people={people ?? []}
         associations={(associations ?? []) as unknown as Stakeholder[]}
         currentUserId={ctx.userId}
+        demandeur={ticket?.demandeur_email?.trim() ? { nom: ticket.demandeur_nom } : null}
         prefill={{
           titre: ticket?.titre,
           description: ticket?.description ?? undefined,

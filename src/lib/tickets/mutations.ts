@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
-import type { TicketCanal, TicketCategorie, TicketPriorite, TicketStatut } from "./types";
+import { CLOTURE_STATUTS, type TicketCanal, type TicketCategorie, type TicketPriorite, type TicketStatut } from "./types";
 import {
   notifyTicketAssigned,
   notifyUrgentUnassigned,
@@ -201,7 +201,7 @@ async function authorizeTicketMutation(ticketId: string) {
   const service = await createServiceClient();
   const { data: ticket } = await service
     .from("tickets")
-    .select("id, commune_id, assigne_a, created_by, statut")
+    .select("id, commune_id, assigne_a, created_by, statut, project_id")
     .eq("id", ticketId)
     .maybeSingle();
 
@@ -244,10 +244,20 @@ const ALLOWED_TRANSITIONS: Record<TicketStatut, TicketStatut[]> = {
   resolu: ["clos", "en_cours"], // possibilité de réouvrir
   clos: [], // terminal sauf super-admin
   annule: ["nouveau"], // possibilité de désannuler
+  converti_en_projet: [], // posé et levé uniquement par la passerelle projet
 };
 
 export async function updateTicketStatus(ticketId: string, newStatut: TicketStatut): Promise<void> {
   const { ctx, ticket, service, isSuperAdmin } = await authorizeTicketMutation(ticketId);
+
+  // « Converti en projet » n'est jamais posé à la main (même super-admin) :
+  // il naît de la création du projet, qui fixe aussi le lien.
+  if (newStatut === "converti_en_projet") {
+    throw new Error("Pour convertir ce signalement, créez le projet depuis le bouton « Transformer en projet ».");
+  }
+  if (ticket.statut === "converti_en_projet" && ticket.project_id) {
+    throw new Error("Ce signalement est suivi dans un projet : son statut ne se modifie plus ici.");
+  }
 
   const allowed = ALLOWED_TRANSITIONS[ticket.statut as TicketStatut] ?? [];
   if (!isSuperAdmin && !allowed.includes(newStatut)) {
@@ -297,9 +307,12 @@ export async function reopenTicket(ticketId: string, reason?: string): Promise<v
   }
 
   // Seuls les tickets terminaux peuvent être rouverts
-  const terminal = ["resolu", "clos", "annule"];
-  if (!terminal.includes(ticket.statut)) {
+  if (!CLOTURE_STATUTS.includes(ticket.statut as TicketStatut)) {
     throw new Error("Ce ticket n'est pas clôturé.");
+  }
+  // Converti : rouvrir n'a de sens que si le projet a disparu (purge de la corbeille).
+  if (ticket.statut === "converti_en_projet" && ticket.project_id) {
+    throw new Error("Ce signalement est suivi dans un projet : rouvrez plutôt une étape du projet.");
   }
 
   const target: TicketStatut = ticket.assigne_a ? "en_cours" : "nouveau";

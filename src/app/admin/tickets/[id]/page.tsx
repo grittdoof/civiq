@@ -20,6 +20,7 @@ import TicketActions from "@/components/tickets/TicketActions";
 import TicketMobileActions from "@/components/tickets/TicketMobileActions";
 import TicketCommentForm from "@/components/tickets/TicketCommentForm";
 import TransformTicketButton from "@/components/projects/TransformTicketButton";
+import { chargerPasserelle } from "@/lib/projects/passerelle-server";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/tickets/[id] — Détail interactif (Session 3)
@@ -59,6 +60,11 @@ export default async function TicketDetailPage({ params }: Props) {
   const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
   const canAssign = isSuperAdmin || isAdmin || isEditor;
   const canComment = canEdit;
+  const projectId = (ticket as { project_id?: string | null }).project_id ?? null;
+  // Passerelle projet : réservée à l'équipe, module Projets actif.
+  const passerelle = (isSuperAdmin || isAdmin || isEditor) && (await isModuleActive("projects"))
+    ? await chargerPasserelle({ statut: ticket.statut, project_id: projectId }, ctx.communeId!, { id: ctx.userId, role: ctx.role })
+    : null;
 
   // URLs signées pour les photos
   const photoUrls = await Promise.all(
@@ -254,18 +260,16 @@ export default async function TicketDetailPage({ params }: Props) {
             canAssign={canAssign}
             agents={agents}
             hasReport={!!rapport}
+            verrouParProjet={!!projectId}
           />
 
           {/* Lien vers le module Gestion de projet (commit 12) */}
-          {(isSuperAdmin || isAdmin || isEditor) && (await isModuleActive("projects")) && (
+          {passerelle && (
             <div className="civiq-card" style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
               <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)" }}>
-                Module projet
+                Projet
               </h2>
-              <TransformTicketButton
-                ticketId={ticket.id}
-                existingProjectId={(ticket as { project_id?: string | null }).project_id ?? null}
-              />
+              <TransformTicketButton ticketId={ticket.id} etat={passerelle} />
             </div>
           )}
 
@@ -309,6 +313,7 @@ export default async function TicketDetailPage({ params }: Props) {
         canEdit={canEdit}
         isSuperAdmin={isSuperAdmin}
         hasReport={!!rapport}
+        verrouParProjet={!!projectId}
       />
 
       <TicketsRealtime communeId={ctx.communeId!} ticketId={ticket.id} />
