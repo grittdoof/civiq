@@ -8,7 +8,6 @@
 
 export type BudgetBase = "ht" | "ttc";
 export type BudgetEtat = "previsionnel" | "engage" | "mandate";
-export type BudgetSection = "investissement" | "fonctionnement";
 
 export const BUDGET_ETAT_META: Record<BudgetEtat, { label: string; aide: string }> = {
   previsionnel: { label: "Prévu", aide: "Une estimation : rien n'est encore signé." },
