@@ -55,6 +55,38 @@ export async function recupererAides(token: string, codeInsee: string): Promise<
   return [...out.values()];
 }
 
+/**
+ * Recherche par mots-clés (paramètre `keyword`, API v1.8 ; `text` est
+ * l'ancien nom) parmi les aides ouvertes aux communes du périmètre.
+ * Deux pages au plus : la recherche se fait à la demande de l'élu.
+ */
+export async function rechercherAidesApi(token: string, codeInsee: string, motsCles: string): Promise<AideCache[]> {
+  const params = new URLSearchParams({ keyword: motsCles, perimeter_codes: codeInsee, organization_type_slugs: "commune" });
+  let url: string | null = `${BASE}/api/aids/?${params}`;
+  const out: AideCache[] = [];
+  for (let page = 0; url && page < 2; page++) {
+    const json = await fetchJson(url, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+    const { items, next } = lirePage(json);
+    for (const raw of items) {
+      const a = normaliserAide(raw);
+      if (a) out.push(a);
+    }
+    url = next ? new URL(next, BASE).toString() : null;
+  }
+  return out;
+}
+
+// Jeton Bearer (24 h) gardé en mémoire de l'instance serveur : une
+// recherche n'en redemande pas un à chaque fois.
+let jetonMemo: { valeur: string; expire: number } | null = null;
+export async function jetonEnCache(apiKey: string): Promise<string> {
+  if (jetonMemo && jetonMemo.expire > Date.now()) return jetonMemo.valeur;
+  const valeur = await obtenirJeton(apiKey);
+  jetonMemo = { valeur, expire: Date.now() + 20 * 60 * 60 * 1000 };
+  return valeur;
+}
+export function oublierJeton() { jetonMemo = null; }
+
 export type SyncResult = { ok: true; nb: number } | { ok: false; erreur: string };
 
 export async function synchroniserCommune(

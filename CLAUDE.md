@@ -1027,3 +1027,19 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - **Toute nouvelle route d'écriture sur un projet passe par `requireProjectEdit`** (verrou des dossiers clôturés).
 - **Toute nouvelle lecture de projets pour l'agenda, les alertes ou les sélecteurs** filtre `clos_at` (et `archived_at`).
 - `profiles.preferences` : n'ajouter une clé qu'avec son lecteur normalisateur dans `/api/preferences`.
+
+## Session 27 — Financeurs : recherche par mots-clés, onglet pour les suivis simples (2026-10-19)
+
+### Prompt de départ (lot 2 sur 3)
+> « Dans Financeurs, pouvoir rechercher un financement par mots-clés dans Aides-territoires : beaucoup de financeurs proposés ne correspondent pas. Les projets simples peuvent aussi avoir l'onglet Financeurs. »
+
+### Livrés
+- **Recherche à la demande** : `GET /api/aides/recherche?q=` → API Aides-territoires **côté serveur** (clé jamais exposée), paramètre **`keyword`** (API v1.8 ; `text` est l'ancien nom), périmètre = code INSEE des paramètres, `organization_type_slugs=commune`, 2 pages au plus. Aides closes écartées, doublons retirés, ordre de pertinence de l'API conservé, 30 résultats max, liens absolus, ni montant ni taux. Messages clairs si la clé ou le code INSEE manquent, ou si l'API ne répond pas.
+- Jeton Bearer gardé en mémoire de l'instance (20 h) ; nouvel essai avec un jeton neuf sur 401/403 (`jetonEnCache`, `oublierJeton` dans `lib/aides/sync.ts`).
+- `RechercheAides` dans l'onglet Financeurs, au-dessus des suggestions automatiques ; les résultats réutilisent `PistesFinancement` (props `titre`, `deja`) : « Voir la démarche », « Préparer une demande », aides déjà ajoutées signalées.
+- **Suivi simple** : onglet Financeurs (demandes de subvention, recherche, suggestions, fiches locales cochées « Suivi simple »).
+- Logique pure : `normaliserMotsCles`, `filtrerResultats` (`lib/aides/aides.ts`). Tests : `financeurs-recherche.test.ts` (3) → 256 ✓ ; `next build` OK.
+
+### Points d'attention
+- La recherche appelle l'API à la demande de l'utilisateur : ce n'est pas un appel « pendant le rendu » (règle du lot D), qui reste réservée au cache.
+- Non testable en local (clé seulement sur Vercel) : vérifier en production qu'une recherche ramène des résultats pertinents ; si l'API ignorait `keyword`, la liste serait celle du périmètre entier.

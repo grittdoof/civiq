@@ -2946,3 +2946,9 @@ a.pj-commission-badge:hover {
 .pj-badge-clos { display: inline-flex; align-items: center; gap: 4px; background: var(--border-light); color: var(--fg-muted); }
 .pj-clos-banner p { margin: 0; }
 .pj-clos-banner .pj-clos-bilan { margin-top: 6px; color: var(--fg-muted); white-space: pre-line; }
+
+/* Recherche de financements par mots-clés (Aides-territoires) */
+.pj-recherche-aides { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.pj-recherche-aides-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.pj-recherche-aides-form .civiq-input { flex: 1 1 260px; min-width: 0; }
+.pj-recherche-aides .pj-pistes { margin-top: 8px; }

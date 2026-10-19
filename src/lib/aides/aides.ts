@@ -215,3 +215,25 @@ export function messageCampagne(n: number, annee: number) {
     ],
   };
 }
+
+// ─── Recherche par mots-clés (lot Financeurs) ───
+
+/** Mots-clés nettoyés pour l'API (2 à 100 caractères), ou null. */
+export function normaliserMotsCles(q: unknown): string | null {
+  if (typeof q !== "string") return null;
+  const t = q.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+  return t.length >= 2 ? t : null;
+}
+
+/** Résultats de recherche : aides encore ouvertes, sans doublon, ordre de l'API conservé. */
+export function filtrerResultats(aides: AideCache[], aujourdhui: string, max = 30): AideCache[] {
+  const vus = new Set<string>();
+  const out: AideCache[] = [];
+  for (const a of aides) {
+    if (vus.has(a.aide_id) || (a.date_limite && a.date_limite < aujourdhui)) continue;
+    vus.add(a.aide_id);
+    out.push({ ...a, url: urlAbsolue(a.url) ?? (a.slug ? `${ATTRIBUTION.url}/aides/${a.slug}/` : null) });
+    if (out.length >= max) break;
+  }
+  return out;
+}
