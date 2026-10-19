@@ -488,7 +488,10 @@ export async function getCommission(
       .from("commission_projects")
       .select("id, project_id, project:projects!inner ( id, titre, phase, confidentiel, pilote_elu, pilote_agent )")
       .eq("commission_id", commissionId)
-      .is("project.deleted_at", null),
+      .is("project.deleted_at", null)
+      // Projets clôturés ou archivés : plus « suivis » par la commission.
+      .is("project.clos_at", null)
+      .is("project.archived_at", null),
     service
       .from("commission_sessions")
       .select("*")

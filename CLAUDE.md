@@ -1066,3 +1066,12 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - Une copie au secrétariat n'est **jamais** l'email personnel d'un membre (liens de réponse = jeton personnel).
 - Le dernier segment de l'adresse du flux est décoratif : seul le jeton compte. Changer de commissions change l'adresse affichée, pas le jeton (les abonnements existants continuent).
 - Certaines applications (iOS notamment) nomment un abonnement d'après l'adresse : l'aide du panneau invite à le renommer.
+
+### Correctifs (même session, retours de l'utilisateur)
+- **Projet clôturé** : retiré des « Projets suivis » des commissions (`getCommission` filtre `clos_at` et `archived_at`).
+- **Suppression d'un compte en échec** (« Database error deleting user ») : 14 clés étrangères « auteur » en NO ACTION bloquaient dès qu'il y avait de l'historique (signalements clôturés, rapports…). À l'inverse, `commission_members.user_id` et `session_attendance.conseiller_user_id` étaient en CASCADE : supprimer un élu aurait effacé ses appartenances et ses émargements. **Migration 052** (appliquée en prod après essai à blanc : compte bloquant supprimé, 3 signalements conservés ; élu de test : 5 émargements et nom conservés) : toutes en `ON DELETE SET NULL` ; déclencheur `trg_profiles_conserver_historique` (avant suppression du profil) qui transforme ses appartenances en membres nommés et rattache ses émargements anciens ; rattrapage des 17 émargements anciens sans membre. Message d'erreur en français côté route.
+- **Envoi d'une étape** : liste « Ajouter un utilisateur (services, élus)… » des comptes de la commune, groupés par fonction (référentiel partagé `lib/profils/fonctions.ts`, repris par la page super-admin).
+- **Filtres de la liste non conservés** : la sauvegarde serveur fonctionnait, mais un rendu en cache (retour arrière, cache du routeur) remontait le composant avec les préférences d'un rendu précédent. Copie locale horodatée (`localStorage`, 12 h, par utilisateur) appliquée au montage et renvoyée au serveur si celui-ci est en retard. Vérifié dans le navigateur (démontage / remontage avec préférences périmées).
+
+#### Point d'attention
+- **Toute nouvelle clé étrangère vers `profiles` ou `auth.users`** : `on delete set null` pour un auteur ou un historique, jamais NO ACTION (bloque la suppression du compte) ni CASCADE sur des archives.

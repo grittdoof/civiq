@@ -274,7 +274,11 @@ export async function DELETE(request: Request) {
   // Supprimer le compte auth (cascade via FK sur profiles)
   const { error: authErr } = await service.auth.admin.deleteUser(userId);
   if (authErr) {
-    return NextResponse.json({ error: authErr.message }, { status: 500 });
+    console.error("[super-admin] suppression utilisateur:", authErr);
+    return NextResponse.json(
+      { error: `La suppression du compte a échoué (${authErr.message}). Son historique est conservé ; réessayez ou contactez le support.` },
+      { status: 500 },
+    );
   }
 
   // Belt-and-suspenders : on s'assure que le profil est supprimé

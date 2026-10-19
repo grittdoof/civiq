@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, Mail, Paperclip, Send, X } from "lucide-react";
+import { ORDRE_GROUPES } from "@/lib/profils/fonctions";
 
 // ═══════════════════════════════════════════════════════════════
 // Envoi d'une étape par email (secrétariat, prestataire, agent…).
@@ -19,6 +20,7 @@ interface Prep {
   historique: Array<{ le: string; destinataires: string[]; par: string | null; envoye: boolean }>;
   expediteur: string | null;
   copieSecretariat: string[];
+  utilisateurs: Array<{ email: string; nom: string; fonction: string | null; groupe: string }>;
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -141,11 +143,29 @@ export default function EnvoiEtape({
               <ul className="pj-etape-chips">
                 {choisis.filter((c) => !prep.suggestions.some((s) => s.email === c)).map((c) => (
                   <li key={c} className="pj-etape-chip">
-                    {c}
+                    {prep.utilisateurs.find((u) => u.email === c)?.nom ?? c}
                     <button type="button" onClick={() => basculer(c)} aria-label={`Retirer ${c}`}><X size={12} aria-hidden="true" /></button>
                   </li>
                 ))}
               </ul>
+            )}
+            {prep.utilisateurs.length > 0 && (
+              <div className="pj-wiz-inline">
+                <label className="pj-sr-only" htmlFor={`${id}-util`}>Ajouter un utilisateur de la commune</label>
+                <select id={`${id}-util`} className="civiq-select" value=""
+                  onChange={(e) => { const v = e.target.value; if (v && !choisis.includes(v)) setChoisis((l) => [...l, v]); }}>
+                  <option value="">Ajouter un utilisateur (services, élus)…</option>
+                  {ORDRE_GROUPES.filter((g) => prep.utilisateurs.some((u) => u.groupe === g)).map((g) => (
+                    <optgroup key={g} label={g}>
+                      {prep.utilisateurs.filter((u) => u.groupe === g).map((u) => (
+                        <option key={u.email} value={u.email} disabled={choisis.includes(u.email)}>
+                          {u.nom}{u.fonction ? ` — ${u.fonction}` : ""}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
             )}
             <div className="pj-wiz-inline">
               <label className="pj-sr-only" htmlFor={`${id}-autre`}>Autre adresse email</label>

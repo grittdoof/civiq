@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { FONCTIONS, FONCTION_LABEL } from "@/lib/profils/fonctions";
 import {
   Search, Shield, ShieldCheck, Edit3, Eye, Download, Trash2, PencilLine, X, Save, History, Mail,
 } from "lucide-react";
@@ -33,20 +34,9 @@ const ROLES: Array<{ value: string; label: string; color: string }> = [
   { value: "pending", label: "Profil incomplet", color: "civiq-badge-warning" },
 ];
 
-// ─── Fonctions (job titles) ───
-const JOB_TITLES: Array<{ value: string; label: string; group: string }> = [
-  { value: "maire", label: "Maire", group: "Élus" },
-  { value: "adjoint", label: "Adjoint au maire", group: "Élus" },
-  { value: "conseiller", label: "Conseiller municipal", group: "Élus" },
-  { value: "dgs", label: "Directeur Général des Services", group: "Services" },
-  { value: "secretaire", label: "Secrétaire de mairie", group: "Services" },
-  { value: "agent", label: "Agent territorial", group: "Services" },
-  { value: "agent_technique", label: "Agent technique", group: "Services" },
-  { value: "citoyen", label: "Administré", group: "Citoyens" },
-  { value: "autre", label: "Autre", group: "Autres" },
-];
-
-const JOB_LABEL: Record<string, string> = Object.fromEntries(JOB_TITLES.map((j) => [j.value, j.label]));
+// ─── Fonctions (job titles) : référentiel partagé ───
+const JOB_TITLES = FONCTIONS;
+const JOB_LABEL = FONCTION_LABEL;
 const JOB_GROUP_ORDER = ["Élus", "Services", "Citoyens", "Autres", "Non renseigné"];
 
 function getGroup(u: UserRow): string {
