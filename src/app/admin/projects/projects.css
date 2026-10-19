@@ -2651,8 +2651,6 @@ a.pj-commission-badge:hover {
 .pj-plan-reste-ok td { color: var(--success); }
 .pj-plan-assume { display: flex; flex-direction: column; gap: 6px; }
 
-.pj-subv-item { display: flex; flex-direction: column; }
-.pj-subv-sans-ar { color: var(--destructive); }
 .pj-subv-add summary { list-style: none; display: inline-flex; cursor: pointer; }
 .pj-subv-add summary::-webkit-details-marker { display: none; }
 .pj-subv-add[open] summary { margin-bottom: 8px; }
@@ -2670,18 +2668,39 @@ a.pj-commission-badge:hover {
 /* ═══════════════════════════════════════════════════════════════
    Lot D — pistes de financement, alerte de campagne
    ═══════════════════════════════════════════════════════════════ */
-.pj-pistes { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
-.pj-pistes-avertissement { margin: 0; font-size: 14px; color: var(--fg-muted); font-style: italic; }
-.pj-pistes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.pj-piste { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
-.pj-piste-main { flex: 1 1 260px; min-width: 0; }
-.pj-piste-nom { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
-.pj-piste-meta { margin: 2px 0 0; font-size: 13px; color: var(--fg-muted); }
-.pj-piste-meta strong { color: var(--fg); }
-.pj-piste-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--fg-muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
-.pj-piste-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.pj-piste-ok { font-size: 13px; font-weight: 700; color: var(--success); }
+/* Pistes de financement (maquette 2026-10-19) */
+.pj-pistes { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border-light); }
+.pj-pistes-head { display: flex; flex-direction: column; gap: 4px; }
+.pj-pistes-titre { margin: 0; font-size: 17px; font-weight: 800; color: var(--fg); }
+.pj-pistes-sous { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--fg-muted); }
+.pj-pistes-sous p { margin: 0; display: inline-flex; align-items: center; gap: 6px; }
+.pj-pistes-tri { font-weight: 600; color: var(--fg-muted); }
+.pj-pistes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pj-piste { display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 16px 14px; background: var(--card); transition: border-color .15s ease, box-shadow .15s ease; }
+.pj-piste:hover { border-color: var(--fg-xmuted); }
+.pj-piste.is-proche { border-color: var(--warning); box-shadow: 0 0 0 3px var(--warning-light); }
+.pj-piste-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.pj-piste-main { flex: 1 1 auto; min-width: 0; }
+.pj-piste-financeur { margin: 0 0 2px; font-size: 13px; font-weight: 700; color: var(--marine); overflow-wrap: anywhere; }
+.pj-piste-nom { margin: 0; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--fg); overflow-wrap: anywhere; }
+.pj-piste-meta { margin: 4px 0 0; font-size: 13px; color: var(--fg-muted); }
+.pj-piste-echeance { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 12.5px; font-weight: 600; color: var(--fg-muted); white-space: nowrap; }
+.pj-piste-echeance.is-proche { border-color: transparent; background: var(--warning-light); color: var(--fg); }
+.pj-piste-echeance.is-proche svg { color: var(--warning); }
+.pj-piste-bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.pj-piste-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.pj-piste-tag { padding: 2px 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600; background: var(--border-light); color: var(--fg-muted); }
+.pj-piste-tag.is-mobilite { background: var(--success-light); color: var(--success); }
+.pj-piste-tag.is-amenagement { background: var(--accent-light); color: var(--accent-hover); }
+.pj-piste-tag.is-transition { background: var(--type-event-light); color: var(--type-event); }
+.pj-piste-tag.is-social { background: var(--warning-light); color: var(--fg); }
+.pj-piste-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.pj-piste-ajout { border-color: var(--accent); color: var(--accent); }
+.pj-piste-ajout:hover:not(:disabled) { background: var(--accent-light); }
+.pj-piste-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--success); padding: 0 10px; animation: pj-apparition .25s ease-out; }
+.pj-pistes-suite { margin: 0; font-size: 13px; color: var(--fg-muted); }
 .pj-pistes-attribution { margin: 0; font-size: 12px; color: var(--fg-muted); }
+@keyframes pj-apparition { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 .pj-campagne { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .pj-campagne-actions { margin: 0; }
 
@@ -2942,10 +2961,12 @@ a.pj-commission-badge:hover {
 .pj-clos-banner .pj-clos-bilan { margin-top: 6px; color: var(--fg-muted); white-space: pre-line; }
 
 /* Recherche de financements par mots-clés (Aides-territoires) */
-.pj-recherche-aides { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.pj-recherche-aides { margin-top: 24px; padding: 24px; display: flex; flex-direction: column; gap: 10px; }
 .pj-recherche-aides-form { display: flex; gap: 8px; flex-wrap: wrap; }
-.pj-recherche-aides-form .civiq-input { flex: 1 1 260px; min-width: 0; }
-.pj-recherche-aides .pj-pistes { margin-top: 8px; }
+.pj-recherche-aides-champ { position: relative; flex: 1 1 260px; min-width: 0; display: flex; }
+.pj-recherche-aides-champ .civiq-input { flex: 1; min-width: 0; padding-left: 36px; }
+.pj-recherche-aides-icone { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--fg-muted); pointer-events: none; }
+.pj-recherche-aides .pj-pistes { margin-top: 6px; }
 
 /* Titulaire / suppléant d'une commission */
 .pj-statut-membre { flex: none; border: 1px solid var(--border); background: var(--card); color: var(--fg-muted); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; font-family: inherit; }
@@ -2969,3 +2990,47 @@ button.pj-statut-membre { cursor: pointer; }
 .pj-agenda-commission { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 .pj-agenda-commission input { accent-color: var(--accent); }
 .pj-agenda-commission-dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+
+/* Demandes de subvention groupées par état (maquette 2026-10-19) */
+.pj-subv-liste { display: flex; flex-direction: column; gap: 10px; }
+.pj-subv-groupe { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: var(--border-light); color: var(--fg-muted); }
+.pj-subv-groupe.is-danger { background: color-mix(in oklch, var(--destructive) 10%, var(--card)); color: var(--destructive); }
+.pj-subv-groupe.is-info { background: var(--accent-light); color: var(--accent-hover); }
+.pj-subv-groupe.is-succes { background: var(--success-light); color: var(--success); }
+.pj-subv-groupe.is-warning { background: var(--warning-light); color: var(--fg); }
+.pj-subv-groupe-point { width: 7px; height: 7px; border-radius: 999px; background: currentColor; }
+.pj-subv-cartes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pj-subv-carte { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.pj-subv-carte.is-danger { border-color: color-mix(in oklch, var(--destructive) 30%, var(--card)); background: color-mix(in oklch, var(--destructive) 4%, var(--card)); }
+.pj-subv-carte.is-nouveau { animation: pj-subv-arrivee 2s ease-out .35s backwards; }
+@keyframes pj-subv-arrivee {
+  0% { box-shadow: 0 0 0 0 var(--accent-light); border-color: var(--accent); background: var(--accent-light); }
+  70% { box-shadow: 0 0 0 6px var(--accent-light); border-color: var(--accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pj-subv-carte-corps { display: flex; gap: 16px; align-items: center; padding: 14px 16px; flex-wrap: wrap; }
+.pj-subv-carte-main { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pj-subv-financeur { margin: 0; font-size: 15.5px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pj-subv-sigle { font-size: 11.5px; font-weight: 800; letter-spacing: .02em; padding: 1px 7px; border-radius: 5px; background: var(--accent-light); color: var(--marine); }
+.pj-subv-dispositif { margin: 0; font-size: 13.5px; color: var(--fg-muted); overflow-wrap: anywhere; }
+.pj-subv-frise { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.pj-subv-frise-etape { display: inline-flex; align-items: center; gap: 5px; color: var(--fg); }
+.pj-subv-frise-etape.is-fait svg { color: var(--success); }
+.pj-subv-frise-etape.is-attente { color: var(--fg-muted); }
+.pj-subv-frise-etape.is-alerte { color: var(--destructive); font-weight: 700; }
+.pj-subv-frise-etape.is-refus { color: var(--destructive); }
+.pj-subv-montant { flex: none; display: flex; flex-direction: column; align-items: flex-end; text-align: right; min-width: 110px; }
+.pj-subv-montant-label { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); }
+.pj-subv-montant strong { font-size: 16px; color: var(--fg); }
+.pj-subv-montant .is-succes { color: var(--success); }
+.pj-subv-montant-sur { font-size: 12.5px; color: var(--fg-muted); }
+.pj-subv-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.pj-subv-btn-alerte { border-color: var(--destructive); color: var(--destructive); }
+.pj-subv-btn-alerte:hover { background: color-mix(in oklch, var(--destructive) 8%, var(--card)); }
+@media (max-width: 640px) {
+  .pj-subv-montant { align-items: flex-start; text-align: left; }
+  .pj-piste-top { flex-direction: column-reverse; align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pj-subv-carte.is-nouveau, .pj-piste-ok { animation: none; }
+}
