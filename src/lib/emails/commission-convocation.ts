@@ -32,12 +32,15 @@ export interface ConvocationEmailParams {
   lieu?: string | null;
   /** HTML assaini (sanitizeRichText) */
   ordreDuJourHtml?: string | null;
-  acceptUrl: string;
-  declineUrl: string;
-  icsUrl: string;
+  /** Absents pour la copie au secrétariat (pas de réponse de présence, pas de lien personnel). */
+  acceptUrl?: string;
+  declineUrl?: string;
+  icsUrl?: string;
   googleUrl: string | null;
   outlookUrl: string | null;
   isReminder?: boolean;
+  /** Copie pour information (secrétariat) : noms des membres convoqués. */
+  copieDe?: string[];
 }
 
 // Boutons en inline-block (et non en cellules de tableau) : ils passent
@@ -53,19 +56,21 @@ function calendarButton(url: string, label: string): string {
 export function buildConvocationEmail(p: ConvocationEmailParams): { subject: string; html: string; text: string } {
   const { siteUrl, commune } = p;
   const hello = p.recipientName?.trim() ? `Bonjour ${esc(p.recipientName.trim())},` : "Bonjour,";
-  const intro = p.isReminder
+  const intro = p.copieDe
+    ? `Copie pour information de la convocation adressée aux membres de la commission <strong>${esc(p.commissionName)}</strong>${p.copieDe.length ? ` (${p.copieDe.length} destinataire${p.copieDe.length > 1 ? "s" : ""} : ${esc(p.copieDe.join(", "))})` : ""}.`
+    : p.isReminder
     ? `Pour rappel, vous êtes convoqué·e à la séance de la commission <strong>${esc(p.commissionName)}</strong>.`
     : `Vous êtes convoqué·e à la prochaine séance de la commission <strong>${esc(p.commissionName)}</strong>.`;
 
   const odj = p.ordreDuJourHtml?.trim() ? panel("Ordre du jour", p.ordreDuJourHtml) : "";
 
   const calendarButtons = [
-    calendarButton(p.icsUrl, "Apple"),
+    p.icsUrl ? calendarButton(p.icsUrl, "Apple") : "",
     p.googleUrl ? calendarButton(p.googleUrl, "Google") : "",
     p.outlookUrl ? calendarButton(p.outlookUrl, "Outlook") : "",
   ].join("");
 
-  const title = p.isReminder ? "Rappel de convocation" : "Convocation";
+  const title = p.copieDe ? "Copie de convocation" : p.isReminder ? "Rappel de convocation" : "Convocation";
 
   const rows = `
     <tr>
@@ -79,7 +84,7 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
         ${odj}
       </td>
     </tr>
-    <tr>
+    ${p.acceptUrl && p.declineUrl ? `<tr>
       <td style="padding:0 32px 8px; text-align:center;">
         <p style="margin:0 0 10px; color:${EMAIL.TITLE}; font-size:16px; font-weight:800;">Merci de confirmer votre présence</p>
         <div style="margin:0 0 22px; text-align:center;">
@@ -87,7 +92,7 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
           ${pillButton(p.declineUrl, "✕ Je ne pourrai pas venir", DECLINE)}
         </div>
       </td>
-    </tr>
+    </tr>` : ""}
     <tr>
       <td style="padding:0 32px 28px; text-align:center;">
         <p style="margin:0 0 8px; color:${EMAIL.MUTED}; font-size:13px; font-weight:700;">Ajouter à mon agenda</p>
@@ -113,10 +118,10 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
     `Date : ${p.dateLabel}`,
     p.lieu ? `Lieu : ${p.lieu}` : null,
     "",
-    `Je serai présent·e : ${p.acceptUrl}`,
-    `Je ne pourrai pas venir : ${p.declineUrl}`,
+    p.acceptUrl ? `Je serai présent·e : ${p.acceptUrl}` : null,
+    p.declineUrl ? `Je ne pourrai pas venir : ${p.declineUrl}` : null,
     "",
-    `Ajouter à mon agenda (.ics) : ${p.icsUrl}`,
+    p.icsUrl ? `Ajouter à mon agenda (.ics) : ${p.icsUrl}` : null,
     p.googleUrl ? `Google Agenda : ${p.googleUrl}` : null,
     p.outlookUrl ? `Outlook : ${p.outlookUrl}` : null,
     "",
@@ -126,7 +131,7 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
     .join("\n");
 
   return {
-    subject: `${p.isReminder ? "Rappel — " : ""}Convocation : ${p.commissionName} — ${p.dateLabel}`,
+    subject: `${p.copieDe ? "Copie — " : p.isReminder ? "Rappel — " : ""}Convocation : ${p.commissionName} — ${p.dateLabel}`,
     html,
     text,
   };

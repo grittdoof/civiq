@@ -18,6 +18,7 @@ interface Prep {
   pieces: Array<{ id: string; nom: string }>;
   historique: Array<{ le: string; destinataires: string[]; par: string | null; envoye: boolean }>;
   expediteur: string | null;
+  copieSecretariat: string[];
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -41,6 +42,7 @@ export default function EnvoiEtape({
   const [message, setMessage] = useState("");
   const [pieces, setPieces] = useState<Set<string>>(new Set());
   const [copieMoi, setCopieMoi] = useState(true);
+  const [copieSecretariat, setCopieSecretariat] = useState(true);
   const [busy, setBusy] = useState(false);
   const [envoye, setEnvoye] = useState<string[] | null>(null);
 
@@ -82,7 +84,7 @@ export default function EnvoiEtape({
       const res = await fetch(`/api/projects/${projectId}/milestones/${etapeId}/envoi`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destinataires, objet, message, documents: [...pieces], copie_moi: copieMoi }),
+        body: JSON.stringify({ destinataires, objet, message, documents: [...pieces], copie_moi: copieMoi, copie_secretariat: copieSecretariat }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error ?? "L'email n'est pas parti.");
@@ -181,6 +183,13 @@ export default function EnvoiEtape({
             <label className="pj-wiz-check">
               <input type="checkbox" checked={copieMoi} onChange={(e) => setCopieMoi(e.target.checked)} />
               M&apos;envoyer une copie ({prep.expediteur}) — les réponses arrivent à cette adresse
+            </label>
+          )}
+
+          {prep.copieSecretariat.length > 0 && (
+            <label className="pj-wiz-check">
+              <input type="checkbox" checked={copieSecretariat} onChange={(e) => setCopieSecretariat(e.target.checked)} />
+              Mettre le secrétariat en copie ({prep.copieSecretariat.join(", ")})
             </label>
           )}
 

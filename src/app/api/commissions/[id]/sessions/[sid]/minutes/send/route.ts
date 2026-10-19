@@ -5,7 +5,9 @@ import { writeAudit } from "@/lib/audit";
 import { getBaseUrl } from "@/lib/base-url";
 import { sendEmail } from "@/lib/email";
 import { buildMinutesEmail } from "@/lib/emails/commission-minutes";
-import { buildMinutesPdf } from "@/lib/projects/minutes-pdf";
+import { documentCompteRendu } from "@/lib/projects/minutes-pdf";
+import { copieSans } from "@/lib/projects/copie";
+import { copiePour } from "@/lib/projects/copie-server";
 import { formatSessionDate } from "@/lib/projects/convocation";
 import { listConvocationRecipients, loadSessionContext } from "@/lib/projects/convocation-send";
 
@@ -114,7 +116,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const [pdf, ctx, recipients, { data: sender }] = await Promise.all([
-    buildMinutesPdf(g.guard.communeId, sid),
+    documentCompteRendu(g.guard.communeId, sid),
     loadSessionContext(g.service, sid),
     listConvocationRecipients(g.service, id),
     g.service.from("profiles").select("full_name").eq("id", g.guard.userId).maybeSingle(),
@@ -170,6 +172,37 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     });
   }
 
+  // Copie au secrétariat : envois groupés uniquement, un seul email.
+  let copie: { emails: string[]; sent: boolean } | undefined;
+  if (result.sent.length > 0 && wanted.size > 1) {
+    const emails = copieSans(
+      await copiePour(g.service, g.guard.communeId, ctx.commission.id),
+      result.sent.map((x) => x.email),
+    );
+    if (emails.length > 0) {
+      const built = buildMinutesEmail({
+        siteUrl: base,
+        commune,
+        commissionName: ctx.commission.nom,
+        recipientName: null,
+        dateLabel,
+        lieu: ctx.lieu,
+        message: body.message?.slice(0, 2000) ?? null,
+        senderName: sender?.full_name ?? null,
+        pdfFilename: pdf.filename,
+      });
+      const r = await sendEmail({
+        to: emails,
+        subject: `Copie — ${built.subject}`,
+        html: built.html,
+        text: built.text,
+        replyTo: commune.contact_email ?? undefined,
+        attachments: [{ filename: pdf.filename, content: pdf.buffer }],
+      });
+      copie = { emails, sent: r.sent };
+    }
+  }
+
   if (log.length > 0) {
     const { error } = await g.service.from("session_minutes_sends").insert(log);
     if (error) console.error("[minutes] historique:", error);
@@ -183,5 +216,5 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     metadata: { session_id: sid, sent: result.sent.length, failed: result.failed.length },
   });
 
-  return NextResponse.json({ result });
+  return NextResponse.json({ result: { ...result, copie } });
 }

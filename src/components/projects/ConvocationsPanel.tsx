@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Send, Loader2, AlertTriangle, CheckCircle2, XCircle, Clock, MailX } from "lucide-react";
+import { convoqueParDefaut } from "@/lib/projects/emargement";
 
 export interface ConvocationRow {
   member_id: string;
   name: string;
   email: string | null;
   isExternal: boolean;
+  suppleant?: boolean;
   status: "pending" | "accepted" | "declined" | null;
   sent_at: string | null;
   responded_at: string | null;
@@ -23,6 +25,8 @@ interface Props {
   canSend: boolean;
   /** Séance passée ou CR validé : plus d'envoi proposé */
   closed: boolean;
+  /** Réglage de la commission : suppléants convoqués par défaut. */
+  convoquerSuppleants?: boolean;
 }
 
 type Target = { kind: "all" | "unanswered" | "one"; memberIds: string[]; label: string; reminder: boolean };
@@ -38,13 +42,17 @@ function fmt(iso: string): string {
 // (saisies par les membres depuis l'email) + (ré)envoi avec
 // confirmation explicite.
 // ═══════════════════════════════════════════════════════════════
-export default function ConvocationsPanel({ commissionId, sessionId, rows, canSend, closed }: Props) {
+export default function ConvocationsPanel({ commissionId, sessionId, rows, canSend, closed, convoquerSuppleants = false }: Props) {
   const router = useRouter();
   const [target, setTarget] = useState<Target | null>(null);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const reachable = rows.filter((r) => r.email);
+  // Envoi groupé : titulaires (et suppléants si la commission le prévoit),
+  // plus ceux qui l'ont déjà reçue. Un suppléant s'ajoute ligne par ligne.
+  const groupe = reachable.filter((r) => convoqueParDefaut(r, convoquerSuppleants) || r.sent_at);
+  const suppleantsHors = reachable.length - groupe.length;
   const neverSent = reachable.every((r) => !r.sent_at);
   const unanswered = reachable.filter((r) => r.sent_at && r.status === "pending");
   const accepted = rows.filter((r) => r.status === "accepted").length;
@@ -114,6 +122,7 @@ export default function ConvocationsPanel({ commissionId, sessionId, rows, canSe
                 <td data-label="Membre">
                   {r.name}
                   {r.isExternal && <span className="civiq-badge" style={{ marginLeft: 6 }}>Sans compte</span>}
+                  {r.suppleant && <span className="civiq-badge" style={{ marginLeft: 6 }}>Suppléant</span>}
                 </td>
                 <td data-label="Email" className="pj-table-sub">
                   {r.email ?? (
@@ -181,13 +190,19 @@ export default function ConvocationsPanel({ commissionId, sessionId, rows, canSe
             className="civiq-btn civiq-btn-default"
             onClick={() => setTarget({
               kind: "all",
-              memberIds: reachable.map((r) => r.member_id),
-              label: `${reachable.length} membre(s)`,
+              memberIds: groupe.map((r) => r.member_id),
+              label: `${groupe.length} membre(s)`,
               reminder: !neverSent,
             })}
+            disabled={groupe.length === 0}
           >
-            <Send size={14} /> {neverSent ? "Envoyer la convocation" : "Renvoyer à tous"} ({reachable.length})
+            <Send size={14} /> {neverSent ? "Envoyer la convocation" : "Renvoyer à tous"} ({groupe.length})
           </button>
+          {suppleantsHors > 0 && (
+            <p className="pj-table-sub" style={{ margin: 0 }}>
+              {suppleantsHors} suppléant(s) non inclus : utilisez « Envoyer » sur leur ligne si besoin.
+            </p>
+          )}
         </div>
       )}
 

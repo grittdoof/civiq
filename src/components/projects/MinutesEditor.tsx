@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, CheckCircle2, Lock, Loader2, Send, Mail, AlertTriangle, X } from "lucide-react";
+import { Save, CheckCircle2, Lock, Loader2, Send, Mail, AlertTriangle, X, Paperclip, FileText, Trash2 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import { toRichHtml } from "@/lib/projects/rich-text";
 
@@ -14,7 +14,11 @@ interface Props {
   canEdit: boolean;
   /** Peut envoyer le PDF par email (admin, éditeur, secrétaire) */
   canSend: boolean;
+  /** Compte rendu déposé en fichier (PDF / Word) au lieu d'être rédigé. */
+  fichier?: { nom: string; url: string | null; le: string | null } | null;
 }
+
+interface Fichier { nom: string; url: string | null; le: string | null }
 
 interface Recipient {
   member_id: string;
@@ -42,8 +46,12 @@ interface SendReport {
 //     fois que nécessaire, aux destinataires choisis.
 // ═══════════════════════════════════════════════════════════════
 
-export default function MinutesEditor({ commissionId, sessionId, initial, validated, canEdit, canSend }: Props) {
+export default function MinutesEditor({ commissionId, sessionId, initial, validated, canEdit, canSend, fichier: fichierInitial = null }: Props) {
   const router = useRouter();
+  const [fichier, setFichier] = useState<Fichier | null>(fichierInitial);
+  const [mode, setMode] = useState<"rediger" | "fichier">(fichierInitial ? "fichier" : "rediger");
+  const [depot, setDepot] = useState(false);
+  useEffect(() => { setFichier(fichierInitial); }, [fichierInitial]);
   const [html, setHtml] = useState(() => toRichHtml(initial));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -93,6 +101,46 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
     }
   }
 
+  async function deposer(file: File) {
+    setDepot(true);
+    setError(null);
+    try {
+      if (file.size > 20 * 1024 * 1024) throw new Error("Fichier trop volumineux (20 Mo au maximum).");
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${url}/fichier`, { method: "POST", body: fd });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.fichier) throw new Error(j.error ?? "Le fichier n'a pas été enregistré.");
+      setFichier(j.fichier as Fichier);
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Le fichier n'a pas été enregistré.");
+    } finally {
+      setDepot(false);
+    }
+  }
+
+  async function retirerFichier() {
+    if (!window.confirm("Retirer le fichier du compte rendu ? Vous pourrez en déposer un autre ou rédiger le compte rendu.")) return;
+    setError(null);
+    const res = await fetch(`${url}/fichier`, { method: "DELETE" });
+    if (!res.ok) { setError("Le fichier n'a pas été retiré."); return; }
+    setFichier(null);
+    router.refresh();
+  }
+
+  const carteFichier = fichier ? (
+    <p className="pj-cr-fichier">
+      <FileText size={16} aria-hidden="true" />
+      <span>
+        Compte rendu joint :{" "}
+        {fichier.url
+          ? <a href={fichier.url} target="_blank" rel="noopener noreferrer">{fichier.nom}</a>
+          : <strong>{fichier.nom}</strong>}
+      </span>
+    </p>
+  ) : null;
+
   // ── Lecture seule (validé, ou pas les droits d'édition) ──
   if (validated || !canEdit) {
     const display = toRichHtml(initial);
@@ -104,7 +152,8 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
             <span>Compte rendu validé et verrouillé.</span>
           </div>
         )}
-        {display ? (
+        {carteFichier}
+        {fichier && !display ? null : display ? (
           // Contenu assaini à l'écriture et ré-assaini par toRichHtml
           <div className="pj-rich pj-cr-rich" dangerouslySetInnerHTML={{ __html: display }} />
         ) : (
@@ -134,12 +183,43 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
   // ── Brouillon ──
   return (
     <>
-      <RichTextEditor
-        value={html}
-        onChange={setHtml}
-        rows={14}
-        placeholder="Rédigez le compte rendu : présents, points de l'ordre du jour, délibérations, relevé de décisions, prochaine réunion…"
-      />
+      <div className="pj-view-toggle pj-cr-mode" role="tablist" aria-label="Compte rendu">
+        <button type="button" role="tab" aria-selected={mode === "rediger"}
+          className={`pj-view-toggle-btn${mode === "rediger" ? " is-active" : ""}`} onClick={() => setMode("rediger")}>
+          Rédiger
+        </button>
+        <button type="button" role="tab" aria-selected={mode === "fichier"}
+          className={`pj-view-toggle-btn${mode === "fichier" ? " is-active" : ""}`} onClick={() => setMode("fichier")}>
+          <Paperclip size={13} aria-hidden="true" /> Joindre un fichier
+        </button>
+      </div>
+
+      {mode === "rediger" ? (
+        <RichTextEditor
+          value={html}
+          onChange={setHtml}
+          rows={14}
+          placeholder="Rédigez le compte rendu : présents, points de l'ordre du jour, délibérations, relevé de décisions, prochaine réunion…"
+        />
+      ) : (
+        <div className="pj-cr-depot">
+          {carteFichier}
+          {fichier && (
+            <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm pj-danger-text" onClick={retirerFichier}>
+              <Trash2 size={14} aria-hidden="true" /> Retirer le fichier
+            </button>
+          )}
+          <input id={`cr-fichier-${sessionId}`} type="file" className="pj-sr-only" accept=".pdf,.doc,.docx,.odt"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) deposer(f); e.target.value = ""; }} />
+          <label htmlFor={`cr-fichier-${sessionId}`} className="civiq-btn civiq-btn-outline civiq-btn-sm">
+            {depot ? <Loader2 size={14} className="spin" aria-hidden="true" /> : <Paperclip size={14} aria-hidden="true" />}
+            {fichier ? "Remplacer le fichier" : "Choisir le compte rendu (PDF ou Word)"}
+          </label>
+          <p className="civiq-field-hint">
+            Le fichier joint remplace le texte rédigé : c&apos;est lui qui sera envoyé par email et téléchargé. 20 Mo au maximum.
+          </p>
+        </div>
+      )}
       {error && <div className="pj-modal-error" role="alert">{error}</div>}
 
       {dialog === "validate" ? (
@@ -148,23 +228,25 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
           sessionId={sessionId}
           mode="validate"
           onClose={closeDialog}
-          onValidate={() => patch({ compte_rendu: html, validate: true })}
+          onValidate={() => patch(mode === "fichier" ? { validate: true } : { compte_rendu: html, validate: true })}
         />
       ) : (
         <div className="pj-save-bar">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="civiq-btn civiq-btn-outline civiq-btn-sm"
-          >
-            {saving ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
-            Enregistrer le brouillon
-          </button>
+          {mode === "rediger" && (
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="civiq-btn civiq-btn-outline civiq-btn-sm"
+            >
+              {saving ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+              Enregistrer le brouillon
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDialog("validate")}
-            disabled={saving || isEmpty}
+            disabled={saving || depot || (mode === "fichier" ? !fichier : isEmpty)}
             className="civiq-btn civiq-btn-default civiq-btn-sm"
           >
             <CheckCircle2 size={14} />

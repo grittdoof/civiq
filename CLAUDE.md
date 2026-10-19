@@ -1043,3 +1043,26 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 ### Points d'attention
 - La recherche appelle l'API à la demande de l'utilisateur : ce n'est pas un appel « pendant le rendu » (règle du lot D), qui reste réservée au cache.
 - Non testable en local (clé seulement sur Vercel) : vérifier en production qu'une recherche ramène des résultats pertinents ; si l'API ignorait `keyword`, la liste serait celle du périmètre entier.
+
+## Session 28 — Commissions & agenda : secrétariat en copie, titulaires / suppléants, compte rendu en pièce jointe, agenda nommé et filtré (2026-10-19)
+
+### Prompt de départ (lot 3 sur 3)
+> « Permettre au secrétariat et/ou aux agents de la mairie (plusieurs, à configurer) d'être en copie des convocations, comptes rendus et mails échangés via la plateforme. Signaler si un membre est titulaire ou suppléant, pour choisir l'envoi de la convocation selon le statut. Joindre le compte rendu en PJ (PDF ou Word) au lieu de le rédiger. Le partage iCal doit afficher un nom propre, et l'utilisateur choisit les commissions à ajouter. »
+> Choix de l'utilisateur : liste commune + ajustable par commission ; suppléants convoqués selon un réglage par commission.
+
+### Livrés
+- **Migration 051** (appliquée en prod après essai à blanc, additive) : `commune_settings.copie_emails`, `commissions.copie_emails` (NULL = liste de la commune) et `convoquer_suppleants`, `commission_members.statut_membre` (`titulaire|suppleant`, CHECK), `commission_sessions.cr_fichier_*`, `calendar_feeds.commissions` et `google_calendar_links.commissions` (NULL = toutes).
+- **Secrétariat en copie** (`lib/projects/copie.ts`, `copie-server.ts`) : liste dans les paramètres du module (admin), remplaçable par commission (dialogue « Modifier la commission »).
+  - Convocations : un email **séparé** au secrétariat, sans lien personnel de réponse (`buildConvocationEmail({ copieDe })`), pour les envois groupés seulement (pas pour le renvoi à un membre).
+  - Comptes rendus : un email avec la pièce jointe, envois groupés seulement.
+  - Étapes de projet envoyées par email : case « Mettre le secrétariat en copie » (liste de la commission pilote, sinon de la commune), en `cc`.
+- **Titulaires / suppléants** : choix à l'ajout, bascule d'un clic sur le badge (`PATCH /api/commissions/:id/members/:mid`, rôle et statut) ; réglage « Convoquer aussi les suppléants par défaut ». `convoqueParDefaut` (`emargement.ts`, module sans dépendance serveur) : présélection à la création de séance (+ bouton « Ajouter les suppléants ») et envoi groupé du panneau Convocations ; un suppléant reste convocable ligne par ligne.
+- **Compte rendu en fichier** : onglets « Rédiger / Joindre un fichier » ; `POST|DELETE …/minutes/fichier` (PDF, DOC, DOCX, ODT ; 20 Mo ; secrétaire de séance ou admin ; verrouillé une fois validé) ; bucket privé `project-documents`, ancien fichier conservé. `documentCompteRendu()` : le fichier déposé prime pour le téléchargement et l'envoi par email, sinon PDF généré. Nom de fichier ASCII + `filename*` UTF-8.
+- **Agenda** : nom lisible `nomAgenda()` (« GoCiviq — Châteauneuf · Voirie · mes projets ») dans `X-WR-CALNAME` ; adresse lisible `…/api/agenda/<jeton>/<nom>.ics` (nouvelle route, l'ancienne forme reste valable ; handler commun `lib/calendar/flux.ts`) ; nom transmis à Outlook ; panneau : nom mis en avant, « Copier le lien d'abonnement », lien brut replié. Choix des commissions (cases à cocher, enregistré aussitôt) appliqué au flux iCal **et** à Google (`restreindreAuxCommissions`).
+- Correctifs au passage : `PATCH …/minutes` vérifie que la séance appartient à la commission de l'URL ; les notifications de validation ignorent les membres retirés.
+- Tests : `commissions-agenda.test.ts` (10) → 265 ✓ ; `next build` OK ; agenda (filtre, vue Apple), dépôt du compte rendu et badges vérifiés dans le navigateur (page de test temporaire, données factices, non commitée).
+
+### Points d'attention
+- Une copie au secrétariat n'est **jamais** l'email personnel d'un membre (liens de réponse = jeton personnel).
+- Le dernier segment de l'adresse du flux est décoratif : seul le jeton compte. Changer de commissions change l'adresse affichée, pas le jeton (les abonnements existants continuent).
+- Certaines applications (iOS notamment) nomment un abonnement d'après l'adresse : l'aide du panneau invite à le renommer.

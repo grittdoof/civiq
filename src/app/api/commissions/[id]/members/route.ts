@@ -14,6 +14,7 @@ interface Body {
   external_email?: string;
   external_phone?: string;
   role?: CommissionMemberRole;
+  statut_membre?: "titulaire" | "suppleant";
 }
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       external_email: body.external_email?.trim() || null,
       external_phone: body.external_phone?.trim() || null,
       role: body.role ?? "membre",
+      statut_membre: body.statut_membre === "suppleant" ? "suppleant" : "titulaire",
     })
     .select("*, profile:profiles!commission_members_user_id_fkey ( id, full_name, job_title )")
     .maybeSingle();

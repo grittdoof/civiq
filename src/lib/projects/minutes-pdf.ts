@@ -95,3 +95,42 @@ export async function buildMinutesPdf(communeId: string, sid: string): Promise<M
     .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return { ok: true, buffer: Buffer.from(buffer), filename: `compte-rendu-${slug}-${day}.pdf` };
 }
+
+// ─── Compte rendu déposé en fichier (PDF / Word, migration 051) ───
+
+export type DocumentCrResult =
+  | { ok: true; buffer: Buffer; filename: string; contentType: string; depose: boolean }
+  | { ok: false; status: 404 | 409 | 500; error: string };
+
+/**
+ * Le compte rendu à transmettre : le fichier déposé s'il existe, sinon
+ * le PDF généré à partir du texte rédigé. Validé dans les deux cas.
+ */
+export async function documentCompteRendu(communeId: string, sid: string): Promise<DocumentCrResult> {
+  const service = await createServiceClient();
+  const { data: s } = await service
+    .from("commission_sessions")
+    .select("id, commission_id, compte_rendu_valide, cr_fichier_path, cr_fichier_nom, cr_fichier_type")
+    .eq("id", sid)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!s) return { ok: false, status: 404, error: "Séance introuvable" };
+  const { data: c } = await service.from("commissions").select("commune_id").eq("id", s.commission_id).maybeSingle();
+  if (!c || c.commune_id !== communeId) return { ok: false, status: 404, error: "Séance introuvable" };
+
+  if (s.cr_fichier_path) {
+    if (!s.compte_rendu_valide) return { ok: false, status: 409, error: "Le compte rendu n'est pas encore validé" };
+    const { data: blob, error } = await service.storage.from("project-documents").download(s.cr_fichier_path as string);
+    if (error || !blob) return { ok: false, status: 500, error: "Le fichier du compte rendu est introuvable." };
+    return {
+      ok: true,
+      buffer: Buffer.from(await blob.arrayBuffer()),
+      filename: (s.cr_fichier_nom as string | null) ?? "compte-rendu",
+      contentType: (s.cr_fichier_type as string | null) ?? "application/octet-stream",
+      depose: true,
+    };
+  }
+  const pdf = await buildMinutesPdf(communeId, sid);
+  if (!pdf.ok) return pdf;
+  return { ...pdf, contentType: "application/pdf", depose: false };
+}

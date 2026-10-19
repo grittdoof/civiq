@@ -435,6 +435,7 @@ export async function getCommuneSettings(communeId: string): Promise<CommunePara
     taux_fctva: num(row.taux_fctva, DEFAULT_PARAMETRES.taux_fctva),
     taux_inflation: num(row.taux_inflation, DEFAULT_PARAMETRES.taux_inflation),
     taux_actualisation: num(row.taux_actualisation, DEFAULT_PARAMETRES.taux_actualisation),
+    copie_emails: Array.isArray(row.copie_emails) ? row.copie_emails : [],
   };
 }
 

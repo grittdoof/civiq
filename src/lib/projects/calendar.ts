@@ -268,6 +268,46 @@ export function construireEvenements(raw: CalendarRaw, now: Date = new Date()): 
   return out.sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title, "fr"));
 }
 
+// ─── Filtre par commission(s) (migration 051) ───
+
+/**
+ * Ne garde que les projets dont la commission pilote est choisie, leurs
+ * étapes et relances, et les séances de ces commissions. `null` ou
+ * liste vide = toutes les commissions.
+ */
+export function restreindreAuxCommissions(raw: CalendarRaw, ids: string[] | null | undefined): CalendarRaw {
+  if (!ids || ids.length === 0) return raw;
+  const choisies = new Set(ids);
+  const projets = new Set(raw.projects.filter((p) => p.commission_pilote_id && choisies.has(p.commission_pilote_id)).map((p) => p.id));
+  return {
+    ...raw,
+    projects: raw.projects.filter((p) => projets.has(p.id)),
+    milestones: raw.milestones.filter((m) => projets.has(m.project_id)),
+    sessions: raw.sessions.filter((s) => choisies.has(s.commission_id)),
+    financings: raw.financings.filter((f) => projets.has(f.project_id)),
+  };
+}
+
+/** Nom affiché de l'agenda : « GoCiviq — Châteauneuf · Voirie, Écoles ». */
+export function nomAgenda(commune: string | null | undefined, perimetre: "tout" | "mes", commissions: string[] = []): string {
+  const base = `GoCiviq — ${commune?.trim() || "Projets"}`;
+  const precisions: string[] = [];
+  if (commissions.length) {
+    const noms = commissions.slice(0, 3).join(", ");
+    precisions.push(commissions.length > 3 ? `${noms} +${commissions.length - 3}` : noms);
+  }
+  if (perimetre === "mes") precisions.push("mes projets");
+  return precisions.length ? `${base} · ${precisions.join(" · ")}` : base;
+}
+
+/** Nom de fichier lisible pour l'adresse du flux (« gociviq-chateauneuf-voirie »). */
+export function slugAgenda(nom: string): string {
+  return nom
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "agenda";
+}
+
 // ─── Périmètre « mes projets et mes commissions » ───
 
 export function restreindreAuProfil(raw: CalendarRaw, profileId: string): CalendarRaw {

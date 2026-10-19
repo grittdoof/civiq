@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Save, Loader2, Mail, AlertTriangle, ArrowLeft, Send } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
+import { convoqueParDefaut } from "@/lib/projects/emargement";
 
 interface Profile { id: string; full_name: string | null; }
 
@@ -12,6 +13,7 @@ export interface ConvocationRecipientPreview {
   name: string;
   email: string | null;
   isExternal: boolean;
+  suppleant?: boolean;
 }
 
 interface ConvocationReport {
@@ -24,11 +26,13 @@ interface ConvocationReport {
 export default function NewSessionForm({
   commissionId,
   profiles,
-  recipients,
+  recipients, convoquerSuppleants = false,
 }: {
   commissionId: string;
   profiles: Profile[];
   recipients: ConvocationRecipientPreview[];
+  /** Réglage de la commission : suppléants présélectionnés ou non. */
+  convoquerSuppleants?: boolean;
 }) {
   const router = useRouter();
   const [date, setDate] = useState("");
@@ -37,7 +41,7 @@ export default function NewSessionForm({
   const [secretaire, setSecretaire] = useState("");
   const [sendConvocation, setSendConvocation] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(recipients.filter((r) => r.email).map((r) => r.member_id)),
+    () => new Set(recipients.filter((r) => convoqueParDefaut(r, convoquerSuppleants)).map((r) => r.member_id)),
   );
   const [confirming, setConfirming] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -228,6 +232,7 @@ export default function NewSessionForm({
                     <span className="pj-convoc-name">
                       {r.name}
                       {r.isExternal && <span className="civiq-badge">Sans compte</span>}
+                      {r.suppleant && <span className="civiq-badge">Suppléant</span>}
                     </span>
                     <span className="pj-convoc-email">
                       {r.email ?? (
@@ -239,6 +244,12 @@ export default function NewSessionForm({
               ))}
             </ul>
           )
+        )}
+        {sendConvocation && recipients.some((r) => r.suppleant && r.email && !selected.has(r.member_id)) && (
+          <button type="button" className="civiq-btn civiq-btn-ghost civiq-btn-sm"
+            onClick={() => { setSelected((prev) => new Set([...prev, ...recipients.filter((r) => r.suppleant && r.email).map((r) => r.member_id)])); setConfirming(false); }}>
+            Ajouter les suppléants
+          </button>
         )}
         {sendConvocation && withoutEmail.length > 0 && (
           <p className="pj-table-sub">

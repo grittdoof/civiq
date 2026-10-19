@@ -15,6 +15,8 @@ interface Initial {
   color: string;
   icon: string;
   active: boolean;
+  copie_emails: string[] | null;
+  convoquer_suppleants: boolean;
 }
 
 interface Props {
@@ -23,6 +25,8 @@ interface Props {
   profiles: Profile[];
   canEdit: boolean;
   canDelete: boolean;
+  /** Liste de copie de la commune (paramètres du module). */
+  copieCommune: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -34,7 +38,7 @@ interface Props {
 // ═══════════════════════════════════════════════════════════════
 
 export default function CommissionAdminActions({
-  commissionId, initial, profiles, canEdit, canDelete,
+  commissionId, initial, profiles, canEdit, canDelete, copieCommune,
 }: Props) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -44,6 +48,9 @@ export default function CommissionAdminActions({
   const [color, setColor] = useState(initial.color);
   const [icon, setIcon] = useState<CommissionIconName>(initial.icon as CommissionIconName);
   const [active, setActive] = useState(initial.active);
+  const [copiePropre, setCopiePropre] = useState(initial.copie_emails !== null);
+  const [copie, setCopie] = useState((initial.copie_emails ?? []).join("\n"));
+  const [suppleants, setSuppleants] = useState(initial.convoquer_suppleants);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +69,8 @@ export default function CommissionAdminActions({
         color,
         icon,
         active,
+        copie_emails: copiePropre ? copie : null,
+        convoquer_suppleants: suppleants,
       }),
     });
     setSaving(false);
@@ -69,7 +78,7 @@ export default function CommissionAdminActions({
       setEditOpen(false);
       router.refresh();
     } else {
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       setError(data.error ?? "Erreur");
     }
   }
@@ -87,7 +96,7 @@ export default function CommissionAdminActions({
       router.push("/admin/commissions");
       router.refresh();
     } else {
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       alert(data.error ?? "Suppression échouée");
     }
   }
@@ -165,6 +174,40 @@ export default function CommissionAdminActions({
                 <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
                 <span>Commission active (visible dans le calendrier et le menu)</span>
               </label>
+
+              <fieldset className="pj-wiz-fieldset" style={{ marginTop: 14 }}>
+                <legend className="civiq-field-label">Convocations</legend>
+                <label className="pj-checkbox">
+                  <input type="checkbox" checked={suppleants} onChange={(e) => setSuppleants(e.target.checked)} />
+                  <span>Convoquer aussi les suppléants par défaut</span>
+                </label>
+                <p className="civiq-field-hint">
+                  Sinon, seuls les titulaires sont présélectionnés ; les suppléants restent ajoutables séance par séance.
+                </p>
+              </fieldset>
+
+              <fieldset className="pj-wiz-fieldset">
+                <legend className="civiq-field-label">Copie des emails (convocations, comptes rendus)</legend>
+                <label className="pj-checkbox">
+                  <input type="radio" name="copie-mode" checked={!copiePropre} onChange={() => setCopiePropre(false)} />
+                  <span>
+                    Liste de la commune
+                    {copieCommune.length ? ` : ${copieCommune.join(", ")}` : " (vide — à renseigner dans les paramètres du module Projets)"}
+                  </span>
+                </label>
+                <label className="pj-checkbox">
+                  <input type="radio" name="copie-mode" checked={copiePropre} onChange={() => setCopiePropre(true)} />
+                  <span>Liste propre à cette commission</span>
+                </label>
+                {copiePropre && (
+                  <>
+                    <label htmlFor="commission-copie" className="pj-sr-only">Adresses en copie, une par ligne</label>
+                    <textarea id="commission-copie" rows={3} className="pj-input" value={copie}
+                      placeholder={"secretariat@mairie-exemple.fr"} onChange={(e) => setCopie(e.target.value)} />
+                    <p className="civiq-field-hint">Une adresse par ligne, 10 au maximum. Laissez vide pour ne mettre personne en copie.</p>
+                  </>
+                )}
+              </fieldset>
 
               {error && <div className="pj-modal-error">{error}</div>}
             </div>

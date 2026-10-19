@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     commission: { commune_id: string; nom: string } | null;
   };
   const sess = session as SessRow | null;
-  if (!sess || sess.commission?.commune_id !== guard.communeId) {
+  if (!sess || sess.commission_id !== commissionId || sess.commission?.commune_id !== guard.communeId) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
   const isAdmin = ["admin", "super_admin"].includes(guard.role);
@@ -83,7 +83,8 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     const { data: members } = await service
       .from("commission_members")
       .select("user_id")
-      .eq("commission_id", commissionId);
+      .eq("commission_id", commissionId)
+      .is("deleted_at", null);
     // Push attendu (pas de fire-and-forget : Vercel gèle la fonction
     // dès la réponse envoyée). L'email avec PDF est un envoi distinct,
     // choisi par l'utilisateur (POST …/minutes/send).

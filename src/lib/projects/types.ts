@@ -425,6 +425,8 @@ export interface CommissionMember {
   external_email: string | null;
   external_phone: string | null;
   created_at: string;
+  /** Titulaire (défaut) ou suppléant (migration 051). */
+  statut_membre?: "titulaire" | "suppleant";
 }
 
 export interface CommissionSession {
