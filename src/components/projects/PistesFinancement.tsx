@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Loader2, Plus } from "lucide-react";
 import { ATTRIBUTION, AVERTISSEMENT_SUGGESTION } from "@/lib/aides/aides";
@@ -36,14 +36,22 @@ interface Props {
   canEdit: boolean;
   /** Assistant de création : pas encore de projet, pas de bouton d'ajout. */
   compact?: boolean;
+  /** Titre de la section (suggestions automatiques par défaut). */
+  titre?: string;
+  /** Aides déjà ajoutées aux demandes du projet. */
+  deja?: string[];
 }
 
 const dateFr = (d: string) => new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" });
 
-export default function PistesFinancement({ projectId, aides, locaux, miseAJour, canEdit, compact = false }: Props) {
+export default function PistesFinancement({
+  projectId, aides, locaux, miseAJour, canEdit, compact = false,
+  titre = "Ces financeurs pourraient correspondre", deja = [],
+}: Props) {
   const router = useRouter();
+  const titreId = useId();
   const [busy, setBusy] = useState<string | null>(null);
-  const [ajoutes, setAjoutes] = useState<Set<string>>(new Set());
+  const [ajoutes, setAjoutes] = useState<Set<string>>(() => new Set(deja));
   const [error, setError] = useState<string | null>(null);
 
   async function ajouter(key: string, body: Record<string, unknown>) {
@@ -61,8 +69,8 @@ export default function PistesFinancement({ projectId, aides, locaux, miseAJour,
 
   if (aides.length === 0 && locaux.length === 0) {
     return compact ? null : (
-      <section className="pj-pistes" aria-labelledby="pistes-titre">
-        <h3 id="pistes-titre" className="pj-budget-section-title">Ces financeurs pourraient correspondre</h3>
+      <section className="pj-pistes" aria-labelledby={titreId}>
+        <h3 id={titreId} className="pj-budget-section-title">{titre}</h3>
         <p className="pj-section-empty">
           Aucune piste pour l&apos;instant. Les aides publiques sont mises à jour chaque semaine dès que le code INSEE de la commune est
           renseigné dans les paramètres.
@@ -72,8 +80,8 @@ export default function PistesFinancement({ projectId, aides, locaux, miseAJour,
   }
 
   return (
-    <section className="pj-pistes" aria-labelledby="pistes-titre">
-      <h3 id="pistes-titre" className="pj-budget-section-title">Ces financeurs pourraient correspondre</h3>
+    <section className="pj-pistes" aria-labelledby={titreId}>
+      <h3 id={titreId} className="pj-budget-section-title">{titre}</h3>
       <p className="pj-pistes-avertissement">{AVERTISSEMENT_SUGGESTION}</p>
       {error && <p className="pj-modal-error" role="alert">{error}</p>}
       <ul className="pj-pistes-list">

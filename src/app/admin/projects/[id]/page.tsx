@@ -24,6 +24,7 @@ import BudgetEditor, { type BudgetRow } from "@/components/projects/BudgetEditor
 import SubventionsEditor, { type SubventionRow } from "@/components/projects/SubventionsEditor";
 import PlanFinancement from "@/components/projects/PlanFinancement";
 import PistesFinancement from "@/components/projects/PistesFinancement";
+import RechercheAides from "@/components/projects/RechercheAides";
 import ProjectDatesEditor from "@/components/projects/ProjectDatesEditor";
 import { suggererAides, type AideCache } from "@/lib/aides/aides";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
@@ -69,7 +70,10 @@ const ONGLETS: Record<TypeProjetCode, Array<{ key: Onglet; label: string }>> = {
     { key: "partenaires", label: "Partenaires" },
     { key: "documents", label: "Documents" },
   ],
-  suivi_simple: [{ key: "etapes", label: "Étapes" }],
+  suivi_simple: [
+    { key: "etapes", label: "Étapes" },
+    { key: "financeurs", label: "Financeurs" },
+  ],
 };
 
 interface PageProps {
@@ -171,8 +175,8 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   const subventionsSansAr = subventions.filter((s) => subventionSansAr(s, now)).length;
   // Pistes de financement : lues dans le cache (jamais l'API en direct),
   // uniquement quand l'onglet Financeurs est affiché.
-  const pistes: { aides: AideCache[]; locaux: Array<{ id: string; nom: string; periode_depot: string | null; lien: string | null; notes: string | null }>; miseAJour: string | null } =
-    { aides: [], locaux: [], miseAJour: null };
+  const pistes: { aides: AideCache[]; locaux: Array<{ id: string; nom: string; periode_depot: string | null; lien: string | null; notes: string | null }>; miseAJour: string | null; deja: Set<string> } =
+    { aides: [], locaux: [], miseAJour: null, deja: new Set() };
   if (current === "financeurs") {
     const [{ data: cache }, { data: locaux }, { data: sync }] = await Promise.all([
       service.from("aides_cache").select("*").eq("commune_id", ctx.communeId),
@@ -181,7 +185,8 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
       service.from("aides_sync_log").select("finished_at").eq("commune_id", ctx.communeId).eq("ok", true)
         .order("finished_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
-    const deja = new Set(subventions.map((f) => (f as unknown as { aide_ref?: string | null }).aide_ref).filter(Boolean));
+    const deja = new Set(subventions.map((f) => (f as unknown as { aide_ref?: string | null }).aide_ref).filter((x): x is string => !!x));
+    pistes.deja = deja;
     pistes.aides = suggererAides((cache ?? []) as unknown as AideCache[], { titre: p.titre, description: p.description }, now.toISOString().slice(0, 10))
       .filter((a) => !deja.has(a.aide_id));
     pistes.locaux = ((locaux ?? []) as Array<{ id: string; nom: string; periode_depot: string | null; lien: string | null; notes: string | null; types_projet: string[] }>)
@@ -441,6 +446,11 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         {current === "financeurs" && (
           <>
             <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !fige} />
+            <RechercheAides
+              projectId={id}
+              canEdit={canEdit && !fige}
+              deja={[...pistes.deja]}
+            />
             <PistesFinancement
               projectId={id}
               aides={pistes.aides}
