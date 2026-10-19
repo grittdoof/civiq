@@ -39,8 +39,9 @@ export async function GET(req: NextRequest) {
       oublierJeton();
       aides = await rechercherAidesApi(await jetonEnCache(apiKey), settings.code_insee, q);
     }
+    // Description raccourcie : elle est conservée sur la demande si l'élu en prépare une.
     const resultats = filtrerResultats(aides, new Date().toISOString().slice(0, 10))
-      .map(({ description: _d, ...a }) => a);
+      .map((a) => ({ ...a, description: a.description ? a.description.slice(0, 1200) : null }));
     return NextResponse.json({ q, resultats }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     console.error("[aides] recherche:", e);

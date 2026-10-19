@@ -56,3 +56,35 @@ describe("demandes de subvention : présentation", () => {
     expect(sigleDispositif(null)).toEqual({ sigle: null, libelle: null });
   });
 });
+
+import { infosAideDepuis, lireInfosAide } from "@/lib/aides/presentation";
+import { parseFinancing } from "@/lib/projects/money-validation";
+
+describe("demande créée depuis une aide : lien et informations conservés", () => {
+  const aide = {
+    url: "https://aides-territoires.beta.gouv.fr/aides/x/", url_candidature: "https://www.cerema.fr/depot",
+    date_limite: "2026-12-31", description: "Texte", categories: ["Mobilité / transports / Mobilité partagée"],
+    types_aide: ["Subvention"], financeurs: ["Cerema"], perimetre: "France", recurrence: "Permanente", appel_a_projets: true,
+  };
+  it("copie le lien, le dépôt, la date limite et les informations", () => {
+    const f = parseFinancing({ financeur: "Cerema", aide_ref: "42", ...infosAideDepuis(aide) }, true);
+    expect(f.ok).toBe(true);
+    if (!f.ok) return;
+    expect(f.value.aide_url).toBe("https://aides-territoires.beta.gouv.fr/aides/x/");
+    expect(f.value.aide_url_candidature).toBe("https://www.cerema.fr/depot");
+    expect(f.value.aide_date_limite).toBe("2026-12-31");
+    expect(f.value.aide_infos?.types_aide).toEqual(["Subvention"]);
+    expect(f.value.aide_infos?.appel_a_projets).toBe(true);
+  });
+  it("rend absolu un lien relatif et refuse un schéma non web", () => {
+    const f = parseFinancing({ financeur: "X", aide_url: "/aides/y/", aide_url_candidature: "javascript:alert(1)" }, true);
+    expect(f.ok && f.value.aide_url).toBe("https://aides-territoires.beta.gouv.fr/aides/y/");
+    expect(f.ok && f.value.aide_url_candidature).toBeNull();
+  });
+  it("borne les informations reçues", () => {
+    const i = lireInfosAide({ description: "x".repeat(5000), categories: Array(30).fill("a"), autre: "ignoré" });
+    expect(i?.description?.length).toBe(1200);
+    expect(i?.categories).toHaveLength(12);
+    expect(lireInfosAide("pas un objet")).toBeNull();
+  });
+});

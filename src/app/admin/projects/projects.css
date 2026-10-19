@@ -3034,3 +3034,17 @@ button.pj-statut-membre { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .pj-subv-carte.is-nouveau, .pj-piste-ok { animation: none; }
 }
+
+/* Demande : liens et informations de l'aide d'origine */
+.pj-subv-aide { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.pj-subv-aide-liens { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.pj-subv-lien { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.pj-subv-lien:hover { text-decoration: underline; }
+.pj-subv-aide-details summary { cursor: pointer; font-size: 13px; color: var(--fg-muted); }
+.pj-subv-aide-details[open] { padding: 10px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+.pj-subv-aide-desc { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--fg); white-space: pre-line; }
+.pj-subv-aide-faits { margin: 0; display: grid; gap: 4px; font-size: 13px; }
+.pj-subv-aide-faits div { display: flex; gap: 8px; }
+.pj-subv-aide-faits dt { flex: none; min-width: 84px; color: var(--fg-muted); }
+.pj-subv-aide-faits dd { margin: 0; color: var(--fg); }
+.pj-subv-aide-source { margin: 0; font-size: 12px; color: var(--fg-muted); }

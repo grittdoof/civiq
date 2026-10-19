@@ -57,3 +57,65 @@ export function echeanceProche(dateLimite: string | null, aujourdhui: string, jo
 
 export const libelleDateLimite = (d: string) =>
   `Avant le ${new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString("fr-FR", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" })}`;
+
+// ─── Informations conservées sur une demande créée depuis une aide (migration 053) ───
+
+export interface InfosAide {
+  description?: string | null;
+  categories?: string[];
+  types_aide?: string[];
+  financeurs?: string[];
+  perimetre?: string | null;
+  recurrence?: string | null;
+  appel_a_projets?: boolean;
+}
+
+export interface AideSource {
+  url: string | null;
+  url_candidature?: string | null;
+  date_limite: string | null;
+  description?: string | null;
+  categories: string[];
+  types_aide?: string[];
+  financeurs: string[];
+  perimetre?: string | null;
+  recurrence?: string | null;
+  appel_a_projets?: boolean;
+}
+
+/** Champs copiés sur la demande de subvention à sa création. */
+export function infosAideDepuis(a: AideSource) {
+  return {
+    aide_url: a.url,
+    aide_url_candidature: a.url_candidature ?? null,
+    aide_date_limite: a.date_limite,
+    aide_infos: {
+      description: a.description ?? null,
+      categories: a.categories,
+      types_aide: a.types_aide ?? [],
+      financeurs: a.financeurs,
+      perimetre: a.perimetre ?? null,
+      recurrence: a.recurrence ?? null,
+      appel_a_projets: a.appel_a_projets ?? false,
+    } satisfies InfosAide,
+  };
+}
+
+const textes = (v: unknown, max: number) =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim().slice(0, 200)).slice(0, max) : [];
+const texte = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+
+/** Lecture tolérante et bornée des informations d'aide reçues du client. */
+export function lireInfosAide(v: unknown): InfosAide | null {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  return {
+    description: texte(o.description, 1200),
+    categories: textes(o.categories, 12),
+    types_aide: textes(o.types_aide, 8),
+    financeurs: textes(o.financeurs, 8),
+    perimetre: texte(o.perimetre, 200),
+    recurrence: texte(o.recurrence, 100),
+    appel_a_projets: o.appel_a_projets === true,
+  };
+}

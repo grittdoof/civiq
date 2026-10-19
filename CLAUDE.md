@@ -1088,3 +1088,10 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - **Correctif** : une demande préparée depuis une piste n'apparaissait dans la liste qu'après rechargement (état local jamais resynchronisé) ; la liste suit désormais les données du serveur.
 - Couleurs : uniquement les tokens existants (`--marine`, `--accent(-light|-hover)`, `--success(-light)`, `--warning(-light)`, `--type-event(-light)`, `--destructive` via `color-mix`).
 - Logique pure : `lib/aides/presentation.ts`, `lib/projects/subventions-vue.ts`. Tests : `financeurs-design.test.ts` (6) → 271 ✓ ; `next build` OK ; rendu et animation vérifiés dans le navigateur (page de test temporaire, données des maquettes).
+
+### Itération (même session) — l'aide d'origine reste attachée à la demande
+> « Quand j'ajoute un financeur depuis l'API Aides-territoires, il faut garder le lien externe vers la démarche et toutes informations utiles. »
+- **Migration 053** (appliquée en prod après essai à blanc, additive) : `financings.aide_url`, `aide_url_candidature`, `aide_date_limite`, `aide_infos` (description, thématiques, nature, porteurs, périmètre, récurrence, appel à projets). Rattrapage depuis `aides_cache` des demandes existantes (9, dont 7 actives).
+- À la création depuis une piste (suggestion **ou recherche**, hors cache) : `infosAideDepuis()` copie ces champs ; fiche locale : son lien. Côté serveur (`parseFinancing`) : liens rendus absolus, http(s) seulement (`urlAbsolue`), informations bornées (`lireInfosAide`). La recherche renvoie désormais la description (1 200 caractères).
+- Carte de la demande : « Voir la démarche », « Déposer chez le financeur », date limite (orange si proche et pas encore déposée), « Informations sur l'aide » dépliable avec mention de la source.
+- Tests : 274 ✓ ; `next build` OK ; carte vérifiée dans le navigateur.

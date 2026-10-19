@@ -2,9 +2,10 @@
 
 import { Fragment, useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, CheckCircle2, Circle, Loader2, Plus, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, Circle, Clock, ExternalLink, Loader2, Plus, Send, Trash2, XCircle } from "lucide-react";
 import { GROUPES_SUBVENTION, friseSubvention, groupeSubvention, sigleDispositif, type EtapeFrise } from "@/lib/projects/subventions-vue";
 import { EVT_SUBVENTION_AJOUTEE } from "@/lib/ui/envol";
+import { echeanceProche, etiquettesCategories, libelleDateLimite, type InfosAide } from "@/lib/aides/presentation";
 import { SUBVENTION_STATUTS, SUBVENTION_STATUT_META } from "@/lib/projects/money-validation";
 import { subventionSansAr } from "@/lib/projects/financement";
 import { formatEuros } from "@/lib/projects/cost-calc";
@@ -33,6 +34,11 @@ export interface SubventionRow {
   date_ar: string | null;
   date_decision: string | null;
   notes: string | null;
+  /** Aide Aides-territoires d'origine (migration 053). */
+  aide_url?: string | null;
+  aide_url_candidature?: string | null;
+  aide_date_limite?: string | null;
+  aide_infos?: InfosAide | null;
 }
 
 interface Props {
@@ -136,6 +142,7 @@ export default function SubventionsEditor({ projectId, initial, canEdit }: Props
                             {friseSubvention(r, now).map((e) => <EtapeFriseItem key={e.cle} e={e} />)}
                           </ul>
                           {r.notes && <p className="pj-subv-dispositif">{r.notes}</p>}
+                          <AideLiens r={r} aujourdhui={now.toISOString().slice(0, 10)} />
                         </div>
                         <div className="pj-subv-montant">
                           <span className={`pj-subv-montant-label${accorde ? " is-succes" : ""}`}>{accorde ? "Accordé" : "Demandé"}</span>
@@ -196,6 +203,55 @@ export default function SubventionsEditor({ projectId, initial, canEdit }: Props
         </details>
       )}
     </section>
+  );
+}
+
+/** Liens et informations de l'aide d'origine (Aides-territoires ou fiche locale). */
+function AideLiens({ r, aujourdhui }: { r: SubventionRow; aujourdhui: string }) {
+  const infos = r.aide_infos;
+  const aDeposer = r.statut === "a_demander";
+  const tags = infos?.categories ? etiquettesCategories(infos.categories, 4) : [];
+  const details = infos && (infos.description || tags.length || infos.types_aide?.length || infos.perimetre || infos.recurrence);
+  if (!r.aide_url && !r.aide_url_candidature && !r.aide_date_limite && !details) return null;
+  return (
+    <div className="pj-subv-aide">
+      <div className="pj-subv-aide-liens">
+        {r.aide_url && (
+          <a href={r.aide_url} target="_blank" rel="noopener noreferrer" className="pj-subv-lien">
+            <ExternalLink size={13} aria-hidden="true" /> Voir la démarche<span className="pj-sr-only"> (nouvel onglet)</span>
+          </a>
+        )}
+        {r.aide_url_candidature && (
+          <a href={r.aide_url_candidature} target="_blank" rel="noopener noreferrer" className="pj-subv-lien">
+            <Send size={13} aria-hidden="true" /> Déposer chez le financeur<span className="pj-sr-only"> (nouvel onglet)</span>
+          </a>
+        )}
+        {r.aide_date_limite && (
+          <span className={`pj-piste-echeance${aDeposer && echeanceProche(r.aide_date_limite, aujourdhui) ? " is-proche" : ""}`}>
+            <Clock size={12} aria-hidden="true" /> {libelleDateLimite(r.aide_date_limite)}
+          </span>
+        )}
+      </div>
+      {details && (
+        <details className="pj-subv-aide-details">
+          <summary>Informations sur l&apos;aide</summary>
+          {infos?.description && <p className="pj-subv-aide-desc">{infos.description}</p>}
+          {tags.length > 0 && (
+            <ul className="pj-piste-tags" aria-label="Thématiques">
+              {tags.map((t) => <li key={t.label} className={`pj-piste-tag is-${t.famille}`}>{t.label}</li>)}
+            </ul>
+          )}
+          <dl className="pj-subv-aide-faits">
+            {infos?.types_aide && infos.types_aide.length > 0 && <div><dt>Nature</dt><dd>{infos.types_aide.join(", ")}</dd></div>}
+            {infos?.financeurs && infos.financeurs.length > 1 && <div><dt>Porteurs</dt><dd>{infos.financeurs.join(", ")}</dd></div>}
+            {infos?.perimetre && <div><dt>Périmètre</dt><dd>{infos.perimetre}</dd></div>}
+            {infos?.recurrence && <div><dt>Récurrence</dt><dd>{infos.recurrence}</dd></div>}
+            {infos?.appel_a_projets && <div><dt>Forme</dt><dd>Appel à projets</dd></div>}
+          </dl>
+          <p className="pj-subv-aide-source">Source : Aides-territoires (ANCT), Licence Ouverte v2.0. À vérifier auprès du financeur.</p>
+        </details>
+      )}
+    </div>
   );
 }
 

@@ -4,7 +4,7 @@ import { useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Clock, ExternalLink, Info, Loader2, Plus } from "lucide-react";
 import { ATTRIBUTION } from "@/lib/aides/aides";
-import { echeanceProche, etiquettesCategories, libelleDateLimite, trierParDateLimite } from "@/lib/aides/presentation";
+import { echeanceProche, etiquettesCategories, infosAideDepuis, libelleDateLimite, trierParDateLimite } from "@/lib/aides/presentation";
 import { EVT_SUBVENTION_AJOUTEE, animationsReduites, envolerVers } from "@/lib/ui/envol";
 
 // ═══════════════════════════════════════════════════════════════
@@ -23,6 +23,13 @@ export interface PisteAide {
   financeurs: string[];
   categories: string[];
   date_limite: string | null;
+  // Conservés sur la demande créée depuis cette piste (migration 053).
+  url_candidature?: string | null;
+  description?: string | null;
+  types_aide?: string[];
+  perimetre?: string | null;
+  recurrence?: string | null;
+  appel_a_projets?: boolean;
 }
 export interface PisteLocale {
   id: string;
@@ -165,7 +172,7 @@ export default function PistesFinancement({
                       <ExternalLink size={14} aria-hidden="true" /> Voir la démarche<span className="pj-sr-only"> (nouvel onglet)</span>
                     </a>
                   )}
-                  {boutonAjout(a.aide_id, { financeur: a.financeurs[0] ?? a.nom, dispositif: a.nom, aide_ref: a.aide_id, source: "api" })}
+                  {boutonAjout(a.aide_id, { financeur: a.financeurs[0] ?? a.nom, dispositif: a.nom, aide_ref: a.aide_id, source: "api", ...infosAideDepuis(a) })}
                 </div>
               </div>
             </li>
@@ -189,7 +196,7 @@ export default function PistesFinancement({
                     <ExternalLink size={14} aria-hidden="true" /> En savoir plus<span className="pj-sr-only"> (nouvel onglet)</span>
                   </a>
                 )}
-                {boutonAjout(f.id, { financeur: f.nom, financeur_local_id: f.id, source: "local" })}
+                {boutonAjout(f.id, { financeur: f.nom, financeur_local_id: f.id, source: "local", aide_url: f.lien })}
               </div>
             </div>
           </li>
