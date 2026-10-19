@@ -169,67 +169,6 @@ async function getEmails(profileIds: string[]): Promise<string[]> {
     .map((u) => u.email as string);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Helpers haut-niveau (déclencheurs métier)
-// ═══════════════════════════════════════════════════════════════
-
-/** Changement de phase d'un projet. Notifie les abonnés (pilotes inclus). */
-export async function notifyProjectPhaseChanged(opts: {
-  projectId: string;
-  fromPhase: ProjectPhase;
-  toPhase: ProjectPhase;
-  actorUserId: string;
-}): Promise<void> {
-  try {
-    const service = await createServiceClient();
-    const { data: project } = await service
-      .from("projects")
-      .select("titre")
-      .is("deleted_at", null)
-      .eq("id", opts.projectId)
-      .maybeSingle();
-    const titre = project?.titre ?? "Projet";
-
-    const subs = await getProjectSubscribers(opts.projectId);
-    const recipients = subs.filter((id) => id !== opts.actorUserId);
-    if (recipients.length === 0) return;
-
-    const fromLabel = PROJECT_PHASE_LABELS[opts.fromPhase];
-    const toLabel = PROJECT_PHASE_LABELS[opts.toPhase];
-    const url = `/admin/projects/${opts.projectId}`;
-
-    const push = sendProjectNotification({
-      profileIds: recipients,
-      title: `${titre} — passage en ${toLabel}`,
-      body: `Le projet est passé de « ${fromLabel} » à « ${toLabel} ».`,
-      url,
-      tag: `project-phase-${opts.projectId}`,
-      category: "project_phase",
-    });
-
-    const emails = await getEmails(recipients);
-    if (emails.length > 0) {
-      sendEmail({
-        to: emails,
-        subject: `[GoCiviq] ${titre} — passage en ${toLabel}`,
-        html: `<p>Bonjour,</p>
-<p>Le projet <strong>${escapeHtml(titre)}</strong> est passé de l'étape <em>${escapeHtml(fromLabel)}</em> à <em>${escapeHtml(toLabel)}</em>.</p>
-<p><a href="${baseUrl()}${url}">Voir la fiche projet</a></p>`,
-      }).catch((e) => console.error("[email] project_phase:", e));
-    }
-
-    sendOptInSms({
-      profileIds: recipients,
-      category: CATEGORY_TO_SMS.project_phase,
-      body: `[GoCiviq] Projet « ${titre.slice(0, 60)} » → ${toLabel}`,
-    }).catch(() => {});
-
-    await push;
-  } catch (e) {
-    console.error("[push] notifyProjectPhaseChanged:", e);
-  }
-}
-
 /** Changement de statut d'une subvention (accordée / refusée). */
 export async function notifyFinancingStatusChange(opts: {
   projectId: string;
@@ -278,45 +217,6 @@ export async function notifyFinancingStatusChange(opts: {
     await push;
   } catch (e) {
     console.error("[push] notifyFinancingStatusChange:", e);
-  }
-}
-
-/** Jalon à échéance proche (J-7, J-0) ou en retard. Cron friendly. */
-export async function notifyMilestoneDue(opts: {
-  projectId: string;
-  milestoneId: string;
-  libelle: string;
-  echeance: string;
-  daysToDue: number; // négatif = retard
-}): Promise<void> {
-  try {
-    const subs = await getProjectSubscribers(opts.projectId);
-    if (subs.length === 0) return;
-
-    const url = `/admin/projects/${opts.projectId}`;
-    let title: string;
-    let body: string;
-    if (opts.daysToDue < 0) {
-      title = `⏰ Jalon en retard : ${opts.libelle}`;
-      body = `Échéance dépassée de ${Math.abs(opts.daysToDue)} jour(s).`;
-    } else if (opts.daysToDue === 0) {
-      title = `📌 Jalon aujourd'hui : ${opts.libelle}`;
-      body = "Le jalon arrive à échéance aujourd'hui.";
-    } else {
-      title = `📅 Jalon dans ${opts.daysToDue} jours : ${opts.libelle}`;
-      body = `Échéance prévue le ${new Date(opts.echeance).toLocaleDateString("fr-FR")}.`;
-    }
-
-    await sendProjectNotification({
-      profileIds: subs,
-      title,
-      body,
-      url,
-      tag: `milestone-${opts.milestoneId}`,
-      category: "project_milestone",
-    });
-  } catch (e) {
-    console.error("[push] notifyMilestoneDue:", e);
   }
 }
 

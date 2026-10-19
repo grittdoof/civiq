@@ -3107,20 +3107,6 @@ button.civiq-card,
   .civiq-spin { animation-duration: 0.001s; }
 }
 
-/* PendingLink visual state */
-.civiq-pending-content {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  transition: opacity 0.15s ease;
-}
-.civiq-pending-content.is-pending {
-  opacity: 0.7;
-}
-.civiq-pending-content.is-pending .civiq-pending-label {
-  /* léger fade-in du spinner */
-}
-
 /* Full-page loader overlay (transitions auth/login → admin) */
 .civiq-page-loader {
   position: fixed;

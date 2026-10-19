@@ -154,10 +154,3 @@ const EUR_PRECISE = new Intl.NumberFormat("fr-FR", {
 export function formatEuros(n: number, precise = false): string {
   return precise ? EUR_PRECISE.format(n) : EUR.format(n);
 }
-
-export function formatPercent(n: number): string {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "percent",
-    maximumFractionDigits: 1,
-  }).format(n / 100);
-}

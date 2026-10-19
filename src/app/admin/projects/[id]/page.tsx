@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Lock, MapPin, MessageSquareWarning, Pencil, UserRound, Users } from "lucide-react";
 import "../projects.css";
-import "../flow.css";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";

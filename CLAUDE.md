@@ -996,3 +996,14 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - Vérifié par le graphe des imports depuis les pages et routes : plus aucun fichier du module n'est orphelin. Restent hors module, non proposés : `TicketAssignDialog`, `ui/PendingLink`, `lib/logger`.
 - Non traités (à valider séparément) : exports inutilisés de `lib/projects/types.ts` (guide des phases), règles CSS des écrans supprimés, colonnes/tables liées aux phases (`phase_progress`, `project_lifecycle_costs`…).
 - `npm test` → 238 ✓ (271 − 33 du test de la machine à états) ; `next build` OK.
+
+## Session 25 — Ménage restant du code (2026-10-19)
+
+### Livrés
+- **Fichiers orphelins** (graphe des imports depuis pages et routes) : `components/tickets/TicketAssignDialog.tsx`, `components/ui/PendingLink.tsx` (+ ses règles `.civiq-pending-*`), `lib/logger.ts`.
+- **CSS des écrans supprimés** : classes absentes de tout le code (préfixes dynamiques `xxx-${…}` pris en compte ; `recharts-*`, `leaflet-*`, `legend-item-*` conservées car posées par les bibliothèques) → 548 règles retirées de `projects.css`, animations et commentaires orphelins compris. `flow.css` supprimé : sa seule règle vivante (`.pj-deliv-segment`, parties prenantes) est reprise dans `projects.css`.
+- **Exports morts** retirés itérativement (aucune référence nulle part) : guide des phases, livrables, icônes et libellés de phases, métadonnées de gabarits, libellés autorisations / communications / budget / devis de l'ancienne interface (`types.ts` 1 106 → 482 lignes), `formatPercent`, `BudgetSection`, `notifyProjectPhaseChanged`, `notifyMilestoneDue`.
+- `npm test` → 238 ✓ ; `next build` OK. Environ 4 600 lignes retirées.
+
+### Non fait, volontairement : colonnes et tables de l'ère des phases
+`projects.phase` est encore exigée par `create_project_from_wizard` ; `project_lifecycle_costs` alimente `project_global_cost` (comparatif) ; `project_subscribers` sert aux notifications ; `commune_settings` porte la délégation et le FCTVA ; `project_snapshot()` / `purge_project()` lisent toutes ces tables ; `phase_progress` (31 projets), 3 autorisations, 1 communication et 7 lignes d'historique de phases sont des données réelles. Les retirer demande un lot dédié (archivage préalable, réécriture des fonctions, migration réversible).
