@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase-browser";
 import { usePushNavigationListener } from "@/hooks/usePushNavigationListener";
 import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
 import NavPendingLink from "@/components/ui/NavPendingLink";
+import NavigationTracker from "@/components/ui/NavigationTracker";
 import {
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
@@ -276,6 +277,7 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
           </div>
         </div>
       )}
+      <NavigationTracker />
       <div className="civiq-content">{children}</div>
       {/* Prompt d'activation push : visible sur toutes les pages admin
           (pas seulement /admin/tickets) — caché si déjà souscrit ou refusé */}

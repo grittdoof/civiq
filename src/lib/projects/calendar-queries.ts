@@ -24,7 +24,8 @@ export async function chargerCalendrierBrut(service: SupabaseClient, communeId: 
       .select("id, titre, type_code, commission_pilote_id, pilote_elu, pilote_agent, evenement_debut, evenement_fin, lieu, date_maj, confidentiel")
       .eq("commune_id", communeId)
       .is("deleted_at", null)
-      .is("archived_at", null),
+      .is("archived_at", null)
+      .is("clos_at", null),
     service
       .from("commissions")
       .select("id, nom, color, icon, responsable_user_id")

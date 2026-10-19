@@ -39,7 +39,7 @@ export default async function CommissionDetailPage({ params }: PageProps) {
     { data: parentRow },
   ] = await Promise.all([
     service.from("profiles").select("id, full_name, job_title").eq("commune_id", ctx.communeId),
-    service.from("projects").select("id, titre, phase, confidentiel, pilote_elu, pilote_agent").is("deleted_at", null).is("archived_at", null).eq("commune_id", ctx.communeId).order("titre"),
+    service.from("projects").select("id, titre, phase, confidentiel, pilote_elu, pilote_agent").is("deleted_at", null).is("archived_at", null).is("clos_at", null).eq("commune_id", ctx.communeId).order("titre"),
     service
       .from("commissions")
       .select("id, nom, color, icon, active")

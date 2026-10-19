@@ -24,7 +24,9 @@ export interface EmailAttachment {
 }
 
 interface SendEmailParams {
-  to: string;
+  to: string | string[];
+  /** Destinataires en copie (visibles de tous). */
+  cc?: string[];
   subject: string;
   html: string;
   text?: string;
@@ -40,6 +42,7 @@ interface SendEmailResult {
 
 export async function sendEmail({
   to,
+  cc,
   subject,
   html,
   text,
@@ -65,7 +68,8 @@ export async function sendEmail({
       },
       body: JSON.stringify({
         from,
-        to: [to],
+        to: Array.isArray(to) ? to : [to],
+        ...(cc?.length ? { cc } : {}),
         subject,
         html,
         ...(text ? { text } : {}),

@@ -1007,3 +1007,23 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 
 ### Non fait, volontairement : colonnes et tables de l'ère des phases
 `projects.phase` est encore exigée par `create_project_from_wizard` ; `project_lifecycle_costs` alimente `project_global_cost` (comparatif) ; `project_subscribers` sert aux notifications ; `commune_settings` porte la délégation et le FCTVA ; `project_snapshot()` / `purge_project()` lisent toutes ces tables ; `phase_progress` (31 projets), 3 autorisations, 1 communication et 7 lignes d'historique de phases sont des données réelles. Les retirer demande un lot dédié (archivage préalable, réécriture des fonctions, migration réversible).
+
+## Session 26 — Projets : clôture, retour selon le parcours, filtres mémorisés, envoi d'étape, glisser-déposer (2026-10-19)
+
+### Prompt de départ (lot 1 sur 3 ; ensuite Financeurs, puis Commissions & calendrier)
+> « Quand un dossier est terminé il est possible de le clôturer. Le bouton "Tous les projets" doit renvoyer vers la page d'où l'on vient. La page projet enregistre les préférences de filtres de chaque utilisateur. Chaque étape doit pouvoir être envoyée par email (PJ, message prérédigé, 1 clic). Déplacer les tâches par clic long et glisser-déposer. Remplacer l'icône bulle par un engrenage. »
+
+### Livrés
+- **Migration 050** (appliquée en prod après essai à blanc avec purge réelle annulée, additive) : `projects.clos_at|clos_par|clos_bilan`, `profiles.preferences` (jsonb), table `milestone_envois` (service role seul), `project_snapshot()` / `purge_project()` étendues à `milestone_envois`.
+- **Clôture** : `POST /api/projects/:id/cloture` (`clore` + bilan facultatif / `rouvrir`) ; `ClotureControl` (avertit si des étapes ne sont pas terminées). Un projet clôturé est en **lecture seule** : `requireProjectEdit` renvoie 409 (option `autoriserClos` pour la clôture et la corbeille). Statut `cloture` dans `pilotage.ts` (prime sur l'avancement, coupe les alertes) ; exclu de l'agenda / iCal / Google, de l'alerte de campagne, de la cartographie et du sélecteur de projets des commissions ; filtre « Clôturé » au reporting ; badge dans la liste.
+- **Filtres mémorisés par utilisateur** : `lib/projects/preferences.ts` (statut `ouverts` par défaut — en cours + terminés non clôturés —, types, commissions) ; `PUT /api/preferences` (clés en liste blanche, profil de l'utilisateur connecté uniquement) ; sauvegarde 600 ms après le dernier changement. La recherche texte n'est pas mémorisée.
+- **Retour selon le parcours** : `NavigationTracker` (AdminShell) mémorise page courante et précédente en `sessionStorage` (la navigation Next.js ne met pas à jour `document.referrer`) ; `RetourContextuel` sur l'écran de vie et l'assistant de création : séance, commission, calendrier, signalement, liste filtrée, vues du portefeuille, tableau de bord ; conservé tant qu'on navigue dans le projet (onglets, édition).
+- **Envoi d'une étape par email** : icône enveloppe → `EnvoiEtape` ; `GET|POST /api/projects/:id/milestones/:mid/envoi`. Message prérédigé (`lib/projects/envoi-etape.ts` : projet, commission, échéance, statut, précisions, contacts utiles, pièces, signature), destinataires suggérés (parties prenantes de l'étape présélectionnées, derniers destinataires, élu référent / agent, adresse de la mairie) + adresse libre, pièces jointes de l'étape cochées (20 Mo max), copie à l'expéditeur, `reply_to` = expéditeur. **Jamais de note interne** (commentaire ni pièce). Historique (`milestone_envois`, échecs compris). `sendEmail` accepte plusieurs destinataires et `cc`.
+- **Glisser-déposer** : `useReordonnerEtapes` — appui long 400 ms n'importe où sur la ligne (souris ou doigt ; > 8 px avant le délai = défilement, annulé) ou poignée immédiate ; indicateur d'insertion ; nouvel ordre complet en une requête `POST …/milestones/reorder` (10, 20, 30…). Flèches haut/bas conservées (clavier).
+- Icône « réglages de l'étape » : engrenage (`Settings`) au lieu de la bulle.
+- Tests : `cloture-etapes.test.ts` (15) → 253 ✓ ; `next build` OK. Glisser-déposer (poignée, appui long, annulation au défilement), panneau d'envoi et affichage mobile vérifiés dans le navigateur sur une page de test temporaire (données factices, non commitée).
+
+### Points d'attention
+- **Toute nouvelle route d'écriture sur un projet passe par `requireProjectEdit`** (verrou des dossiers clôturés).
+- **Toute nouvelle lecture de projets pour l'agenda, les alertes ou les sélecteurs** filtre `clos_at` (et `archived_at`).
+- `profiles.preferences` : n'ajouter une clé qu'avec son lecteur normalisateur dans `/api/preferences`.

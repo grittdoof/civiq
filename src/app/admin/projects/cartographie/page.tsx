@@ -54,6 +54,7 @@ export default async function CartographiePage({ searchParams }: Props) {
       .eq("stakeholder.commune_id", ctx.communeId)
       .is("project.deleted_at", null)
       .is("project.archived_at", null)
+      .is("project.clos_at", null)
       .is("stakeholder.deleted_at", null),
     service
       .from("milestone_contacts")
@@ -67,6 +68,7 @@ export default async function CartographiePage({ searchParams }: Props) {
       .is("milestone.deleted_at", null)
       .is("milestone.project.deleted_at", null)
       .is("milestone.project.archived_at", null)
+      .is("milestone.project.clos_at", null)
       .is("stakeholder.deleted_at", null),
   ]);
 

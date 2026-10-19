@@ -290,7 +290,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 // corbeille du super-administrateur, qui peut le restaurer.
 export async function DELETE(req: NextRequest, { params }: RouteParams) {
   const { id } = await params;
-  const access = await requireProjectEdit(id);
+  const access = await requireProjectEdit(id, { autoriserClos: true });
   if (!access.ok) return access.response;
 
   const body = (await req.json().catch(() => ({}))) as { motif?: unknown };

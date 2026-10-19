@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -12,12 +12,16 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
-import { Lock } from "lucide-react";
+import { Archive, Lock } from "lucide-react";
 import type { AlertesProjet, StatutProjet } from "@/lib/projects/pilotage";
 import type { TypeProjetCode } from "@/lib/projects/types";
 import { formatEuros } from "@/lib/projects/cost-calc";
 import { avancementAffiche } from "@/lib/projects/etapes";
 import TypeBadge, { TYPE_META } from "./TypeBadge";
+import {
+  CLE_PREFS_LISTE, FILTRES_STATUT, PREFS_LISTE_DEFAUT, correspondStatut, prefsEgales,
+  type FiltreStatutListe, type PreferencesListeProjets,
+} from "@/lib/projects/preferences";
 import type { ProjectListItem } from "@/lib/projects/queries";
 
 // ═══════════════════════════════════════════════════════════════
@@ -45,8 +49,10 @@ interface Props {
   budgetTotalsByProject?: Record<string, { depense: number; recette: number }>;
   /** Badges d'alerte (retard, subvention sans accusé de réception, part communale, délégation). */
   alertes?: Record<string, AlertesProjet>;
-  /** En cours / terminé (toutes les étapes terminées). */
+  /** En cours / terminé (toutes les étapes terminées) / clôturé. */
   statuts?: Record<string, StatutProjet>;
+  /** Filtres mémorisés de l'utilisateur (profiles.preferences). */
+  preferences?: PreferencesListeProjets;
 }
 
 const PAGE = 30;
@@ -60,15 +66,37 @@ export default function ProjectsListExperience({
   budgetTotalsByProject = {},
   alertes = {},
   statuts = {},
+  preferences = PREFS_LISTE_DEFAUT,
 }: Props) {
-  const [statutSelected, setStatutSelected] = useState<StatutProjet | "">("");
+  const [statutSelected, setStatutSelected] = useState<FiltreStatutListe>(preferences.statut);
   const [visibles, setVisibles] = useState(PAGE);
   const [filtersDrawerOpen, setFiltersDrawerOpen] = useState(false);
-  const [typesSelected, setTypesSelected] = useState<Set<TypeProjetCode>>(new Set());
+  const [typesSelected, setTypesSelected] = useState<Set<TypeProjetCode>>(new Set(preferences.types));
   const [search, setSearch] = useState("");
   const [commissionsSelected, setCommissionsSelected] = useState<Set<string>>(
-    new Set(),
+    new Set(preferences.commissions),
   );
+
+  // Mémorise les filtres de l'utilisateur (sauf la recherche texte),
+  // 600 ms après le dernier changement ; rien n'est envoyé au chargement.
+  const derniereSauvegarde = useRef<PreferencesListeProjets>(preferences);
+  useEffect(() => {
+    const prefs: PreferencesListeProjets = {
+      statut: statutSelected,
+      types: [...typesSelected],
+      commissions: [...commissionsSelected],
+    };
+    if (prefsEgales(prefs, derniereSauvegarde.current)) return;
+    const t = setTimeout(() => {
+      derniereSauvegarde.current = prefs;
+      fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cle: CLE_PREFS_LISTE, valeur: prefs }),
+      }).catch(() => { /* préférence non enregistrée : sans conséquence */ });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [statutSelected, typesSelected, commissionsSelected]);
 
   // Liste des commissions présentes dans le portefeuille
   // (dérivée des projets pour ne proposer que des filtres utiles).
@@ -95,7 +123,7 @@ export default function ProjectsListExperience({
         const ids = (p.commissions ?? []).map((c) => c.id);
         if (!ids.some((id) => commissionsSelected.has(id))) return false;
       }
-      if (statutSelected && (statuts[p.id] ?? "en_cours") !== statutSelected) return false;
+      if (!correspondStatut(statutSelected, statuts[p.id] ?? "en_cours")) return false;
       return true;
     });
   }, [projects, typesSelected, commissionsSelected, search, statutSelected, statuts]);
@@ -122,10 +150,11 @@ export default function ProjectsListExperience({
     setTypesSelected(new Set());
     setCommissionsSelected(new Set());
     setSearch("");
-    setStatutSelected("");
+    setStatutSelected(PREFS_LISTE_DEFAUT.statut);
   };
 
-  const activeFilterCount = typesSelected.size + commissionsSelected.size + (search.trim() ? 1 : 0) + (statutSelected ? 1 : 0);
+  const activeFilterCount = typesSelected.size + commissionsSelected.size + (search.trim() ? 1 : 0) +
+    (statutSelected !== PREFS_LISTE_DEFAUT.statut ? 1 : 0);
 
   return (
     <>
@@ -224,6 +253,7 @@ export default function ProjectsListExperience({
             projects={filteredProjects.slice(0, visibles)}
             budgetTotalsByProject={budgetTotalsByProject}
             alertes={alertes}
+            statuts={statuts}
           />
           {filteredProjects.length > visibles && (
             <div className="pj-list-more">
@@ -258,16 +288,16 @@ function FiltersBar({
   commissions: CommissionDescriptor[];
   commissionsSelected: Set<string>;
   onToggleCommission: (id: string) => void;
-  statut: StatutProjet | "";
-  onStatut: (s: StatutProjet | "") => void;
+  statut: FiltreStatutListe;
+  onStatut: (s: FiltreStatutListe) => void;
 }) {
   return (
     <div className="pj-filters">
       <div className="pj-filters-group">
         <span className="pj-filters-label">Statut</span>
         <div className="pj-filters-chips">
-          {([["", "Tous"], ["en_cours", "En cours"], ["termine", "Terminés"]] as const).map(([v, label]) => (
-            <button key={v || "tous"} type="button" className={`pj-filter-chip${statut === v ? " is-active" : ""}`}
+          {FILTRES_STATUT.map(([v, label]) => (
+            <button key={v} type="button" className={`pj-filter-chip${statut === v ? " is-active" : ""}`}
               onClick={() => onStatut(v)} aria-pressed={statut === v}>
               {label}
             </button>
@@ -340,10 +370,11 @@ function FiltersBar({
 // pj-list-col-*, juste les lignes de projets).
 // ─────────────────────────────────────────────────────────────────
 
-function BadgesAlerte({ a, confidentiel }: { a?: AlertesProjet; confidentiel: boolean }) {
-  if (!a && !confidentiel) return null;
+function BadgesAlerte({ a, confidentiel, clos }: { a?: AlertesProjet; confidentiel: boolean; clos?: boolean }) {
+  if (!a && !confidentiel && !clos) return null;
   return (
     <span className="pj-list-alertes">
+      {clos && <span className="civiq-badge pj-badge-clos"><Archive size={11} aria-hidden="true" /> Clôturé</span>}
       {confidentiel && <span className="civiq-badge pj-badge-confidentiel"><Lock size={11} aria-hidden="true" /> Confidentiel</span>}
       {a && a.retards > 0 && <span className="civiq-badge civiq-badge-warning">{a.retards} en retard</span>}
       {a && a.subventionsSansAr > 0 && <span className="civiq-badge civiq-badge-warning">Subvention sans accusé de réception</span>}
@@ -357,10 +388,12 @@ function CleanProjectList({
   projects,
   budgetTotalsByProject,
   alertes,
+  statuts,
 }: {
   projects: ProjectListItem[];
   budgetTotalsByProject: Record<string, { depense: number; recette: number }>;
   alertes: Record<string, AlertesProjet>;
+  statuts: Record<string, StatutProjet>;
 }) {
   return (
     <ul className="pj-list">
@@ -423,7 +456,7 @@ function CleanProjectList({
                         {p.accompagne_sans_financer ? " · non financé" : ""}
                       </span>
                     )}
-                    <BadgesAlerte a={alertes[p.id]} confidentiel={!!(p as { confidentiel?: boolean }).confidentiel} />
+                    <BadgesAlerte a={alertes[p.id]} confidentiel={!!(p as { confidentiel?: boolean }).confidentiel} clos={statuts[p.id] === "cloture"} />
                     {p.description && (
                       <span className="pj-list-desc">{p.description}</span>
                     )}

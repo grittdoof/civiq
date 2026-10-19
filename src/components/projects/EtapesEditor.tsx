@@ -4,14 +4,16 @@ import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import imageCompression from "browser-image-compression";
 import {
-  AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Circle, CircleDot, Flag, Loader2,
-  MessageSquare, Paperclip, Plus, Trash2, UserRound, X,
+  AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, Circle, CircleDot, Flag, GripVertical, Loader2,
+  Mail, MessageSquare, Paperclip, Plus, Settings, Trash2, UserRound, X,
 } from "lucide-react";
 import type { EtapeStatut, Milestone, ProjectDocument, Stakeholder } from "@/lib/projects/types";
 import {
-  ETAPE_STATUTS, ETAPE_STATUT_META, formatEtapeDate, isEnRetard, nextStatut,
-  sortEtapes, sortRetroplanning, statutOf,
+  ETAPE_STATUTS, ETAPE_STATUT_META, deplacerEtape, formatEtapeDate, isEnRetard, nextStatut,
+  ordresPour, sortEtapes, sortRetroplanning, statutOf,
 } from "@/lib/projects/etapes";
+import EnvoiEtape from "./EnvoiEtape";
+import { useReordonnerEtapes } from "./useReordonnerEtapes";
 import FieldHelp from "./FieldHelp";
 import AlerteBlock from "./AlerteBlock";
 import type { Alerte } from "@/lib/projects/type-change";
@@ -67,6 +69,7 @@ export default function EtapesEditor({
   const [docs, setDocs] = useState<ProjectDocument[]>(documents);
   const [contacts, setContacts] = useState<Record<string, Stakeholder[]>>(contactsByEtape);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [envoiId, setEnvoiId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [blocage, setBlocage] = useState<{ alerte: Alerte; enSavoirPlus: string[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -158,6 +161,35 @@ export default function EtapesEditor({
     await patch(b.id, { ordre: oa }, { ordre: oa });
   }
 
+  // Glisser-déposer : nouvel ordre complet enregistré en une requête.
+  async function reordonner(id: string, vers: number) {
+    const avant = sortEtapes(etapes).map((x) => x.id);
+    const apres = deplacerEtape(avant, id, vers);
+    if (apres.join() === avant.join()) return;
+    const ordres = ordresPour(apres);
+    const before = etapes;
+    setEtapes((l) => l.map((x) => ({ ...x, ordre: ordres.get(x.id) ?? x.ordre })));
+    setError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/milestones/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: apres }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Le nouvel ordre n'a pas été enregistré.");
+      router.refresh();
+    } catch (e) {
+      setEtapes(before);
+      setError(e instanceof Error ? e.message : "Le nouvel ordre n'a pas été enregistré.");
+    }
+  }
+  const glisser = useReordonnerEtapes({
+    actif: canEdit && mode === "etapes",
+    ids: list.map((x) => x.id),
+    onDeposer: reordonner,
+  });
+
   async function attach(e: Milestone, file: File, noteInterne: boolean) {
     setBusy(e.id);
     setError(null);
@@ -233,7 +265,7 @@ export default function EtapesEditor({
           Aucune étape pour l&apos;instant. Ajoutez la première ci-dessous : une réunion, un devis demandé, une date clé…
         </p>
       ) : (
-        <ol className="pj-etapes-list">
+        <ol className={`pj-etapes-list${glisser.glisse ? " is-sorting" : ""}`} ref={glisser.listRef}>
           {list.map((e) => {
             const s = statutOf(e);
             const late = isEnRetard(e, now);
@@ -242,8 +274,9 @@ export default function EtapesEditor({
             const eContacts = contacts[e.id] ?? [];
             const sortedIdx = sortEtapes(etapes).findIndex((x) => x.id === e.id);
             return (
-              <li key={e.id} className={`pj-etape${late ? " is-late" : ""}${s === "termine" ? " is-done" : ""}`}>
-                <div className="pj-etape-row">
+              <li key={e.id} data-etape-id={e.id}
+                className={`pj-etape${late ? " is-late" : ""}${s === "termine" ? " is-done" : ""}${glisser.indicateur(e.id)}`}>
+                <div className="pj-etape-row" onPointerDown={(ev) => glisser.onPointerDown(ev, e.id)}>
                   {canEdit ? (
                     <button
                       type="button"
@@ -296,13 +329,24 @@ export default function EtapesEditor({
                   </div>
                   {canEdit && (
                     <div className="pj-etape-tools">
-                      <button type="button" className="civiq-icon-btn" onClick={() => setOpenId(open ? null : e.id)}
+                      <button type="button" className="civiq-icon-btn" onClick={() => { setEnvoiId(envoiId === e.id ? null : e.id); setOpenId(null); }}
+                        aria-expanded={envoiId === e.id} aria-controls={`envoi-${e.id}`}
+                        aria-label={`Envoyer l'étape « ${e.libelle} » par email`} title="Envoyer par email">
+                        <Mail size={15} aria-hidden="true" />
+                      </button>
+                      <button type="button" className="civiq-icon-btn" onClick={() => { setOpenId(open ? null : e.id); setEnvoiId(null); }}
                         aria-expanded={open} aria-controls={`etape-${e.id}`}
-                        aria-label={`Détails de l'étape « ${e.libelle} » : dates, pièce jointe, partie prenante, commentaire`}>
-                        {busy === e.id ? <Loader2 size={15} className="civiq-spin" aria-hidden="true" /> : <MessageSquare size={15} aria-hidden="true" />}
+                        aria-label={`Réglages de l'étape « ${e.libelle} » : dates, pièce jointe, partie prenante, commentaire`}
+                        title="Réglages de l'étape">
+                        {busy === e.id ? <Loader2 size={15} className="civiq-spin" aria-hidden="true" /> : <Settings size={15} aria-hidden="true" />}
                       </button>
                       {mode === "etapes" && (
                         <>
+                          <button type="button" className="civiq-icon-btn pj-etape-grip"
+                            onPointerDown={(ev) => glisser.onPointerDown(ev, e.id, true)}
+                            aria-label={`Déplacer « ${e.libelle} » (glisser, ou utiliser les flèches)`} title="Glisser pour déplacer">
+                            <GripVertical size={15} aria-hidden="true" />
+                          </button>
                           <button type="button" className="civiq-icon-btn" onClick={() => move(e, -1)} disabled={sortedIdx === 0}
                             aria-label={`Monter « ${e.libelle} »`}><ArrowUp size={15} aria-hidden="true" /></button>
                           <button type="button" className="civiq-icon-btn" onClick={() => move(e, 1)} disabled={sortedIdx === etapes.length - 1}
@@ -312,6 +356,10 @@ export default function EtapesEditor({
                     </div>
                   )}
                 </div>
+
+                {envoiId === e.id && canEdit && (
+                  <EnvoiEtape id={`envoi-${e.id}`} projectId={projectId} etapeId={e.id} libelle={e.libelle} onClose={() => setEnvoiId(null)} />
+                )}
 
                 {open && canEdit && (
                   <EtapeDetails

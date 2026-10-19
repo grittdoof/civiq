@@ -19,7 +19,8 @@ export async function projetsCampagne(service: SupabaseClient, communeId: string
     .eq("commune_id", communeId)
     .eq("type_code", "investissement")
     .is("deleted_at", null)
-    .is("archived_at", null);
+    .is("archived_at", null)
+    .is("clos_at", null);
   type Row = ProjetCampagne & { id: string; confidentiel: boolean; pilote_elu: string | null; pilote_agent: string | null };
   const lignes = (projets ?? []) as Row[];
   const visibles = viewer ? await filtrerProjetsVisibles(service, viewer, lignes) : lignes.filter((p) => !p.confidentiel);

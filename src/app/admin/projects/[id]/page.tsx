@@ -8,7 +8,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 import { getCommuneSettings, getProject, listStakeholders } from "@/lib/projects/queries";
 import type { TypeProjetCode } from "@/lib/projects/types";
 import {
-  avancementAffiche, formatEtapeDate, isEnRetard, joursAvant, libelleCompteARebours,
+  avancementAffiche, formatEtapeDate, isEnRetard, joursAvant, libelleCompteARebours, statutOf,
 } from "@/lib/projects/etapes";
 import { FOURCHETTES } from "@/lib/projects/wizard";
 import { formatEuros } from "@/lib/projects/cost-calc";
@@ -29,6 +29,8 @@ import { suggererAides, type AideCache } from "@/lib/aides/aides";
 import ProjectPhotoUpload from "@/components/projects/ProjectPhotoUpload";
 import ProjectTypeChanger from "@/components/projects/ProjectTypeChanger";
 import AvancementAjuster from "@/components/projects/AvancementAjuster";
+import ClotureControl from "@/components/projects/ClotureControl";
+import RetourContextuel from "@/components/projects/RetourContextuel";
 import SuiviActions from "@/components/projects/SuiviActions";
 import ConfidentielControl from "@/components/projects/ConfidentielControl";
 import FicheExportMenu from "@/components/projects/FicheExportMenu";
@@ -193,14 +195,21 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   }
   const jours = ext.evenement_debut ? joursAvant(ext.evenement_debut, now) : null;
   const archived = !!p.archived_at;
+  const clos = !!p.clos_at;
+  // Archivé ou clôturé : lecture seule (le serveur refuse aussi l'écriture).
+  const fige = archived || clos;
+  const etapesOuvertes = detail.milestones.filter((m) => statutOf(m) !== "termine").length;
+  let closPar: string | null = null;
+  if (p.clos_par) {
+    const { data: prof } = await service.from("profiles").select("full_name").eq("id", p.clos_par).maybeSingle();
+    closPar = (prof?.full_name as string | null) ?? null;
+  }
   const confidentiel = !!(p as { confidentiel?: boolean }).confidentiel;
 
   return (
     <main className="civiq-main pj-life">
       <div className="pj-detail-back">
-        <Link href="/admin/projects" className="civiq-btn civiq-btn-ghost civiq-btn-sm">
-          <ArrowLeft size={14} aria-hidden="true" /> Tous les projets
-        </Link>
+        <RetourContextuel base={`/admin/projects/${id}`} />
       </div>
 
       {archived && (
@@ -209,10 +218,20 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         </p>
       )}
 
+      {clos && (
+        <div className="pj-alerte pj-alerte-information pj-clos-banner" role="status">
+          <p>
+            <strong>Projet clôturé</strong> le {new Date(p.clos_at!).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" })}{closPar ? ` par ${closPar}` : ""}.
+            Il n&apos;apparaît plus dans les projets ouverts ni dans l&apos;agenda, et reste consultable.
+          </p>
+          {p.clos_bilan && <p className="pj-clos-bilan">Bilan : {p.clos_bilan}</p>}
+        </div>
+      )}
+
       {/* ─── Bandeau ─── */}
       <header className="civiq-card pj-life-head">
         <div className="pj-life-photo">
-          <ProjectPhotoUpload projectId={id} current={p.photo_url} canEdit={canEdit && !archived} />
+          <ProjectPhotoUpload projectId={id} current={p.photo_url} canEdit={canEdit && !fige} />
         </div>
         <div className="pj-life-id">
           <div className="pj-life-badges">
@@ -263,7 +282,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
               </li>
             )}
           </ul>
-          {canEdit && !archived && (type === "investissement" || type === "evenementiel") && (
+          {canEdit && !fige && (type === "investissement" || type === "evenementiel") && (
             <ProjectDatesEditor
               projectId={id}
               type={type}
@@ -275,15 +294,18 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
           )}
           {p.description && <p className="pj-life-desc">{p.description}</p>}
           <div className="pj-life-actions">
-            {canEdit && !archived && (
+            {canEdit && !fige && (
               <Link href={`/admin/projects/${id}/edit`} className="civiq-btn civiq-btn-outline civiq-btn-sm">
                 <Pencil size={14} aria-hidden="true" /> Modifier
               </Link>
             )}
-            {canEdit && !archived && <ProjectTypeChanger projectId={id} currentType={type} canEdit />}
+            {canEdit && !fige && <ProjectTypeChanger projectId={id} currentType={type} canEdit />}
             <FicheExportMenu projectId={id} />
-            {peutChangerConfidentialite({ id: ctx.userId, role: ctx.role }) && !archived && (
+            {peutChangerConfidentialite({ id: ctx.userId, role: ctx.role }) && !fige && (
               <ConfidentielControl projectId={id} confidentiel={confidentiel} />
+            )}
+            {canEdit && !archived && (
+              <ClotureControl projectId={id} titre={p.titre} clos={clos} etapesOuvertes={etapesOuvertes} />
             )}
             {peutSupprimerProjet({ id: ctx.userId, role: ctx.role }, p) && (
               <SupprimerProjet projectId={id} titre={p.titre} />
@@ -304,7 +326,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
               pct={avancement.pct}
               hint={avancement.manuel ? `Ajusté : ${p.avancement_manuel_motif ?? ""}` : "Étapes clés terminées"}
             />
-            {canEdit && !archived && (
+            {canEdit && !fige && (
               <AvancementAjuster
                 projectId={id}
                 manuelPct={p.avancement_manuel_pct ?? null}
@@ -349,7 +371,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             documents={detail.documents}
             contactsByEtape={detail.milestone_contacts}
             directory={directory}
-            canEdit={canEdit && !archived}
+            canEdit={canEdit && !fige}
             mode={current === "retroplanning" ? "retroplanning" : "etapes"}
           />
         )}
@@ -359,7 +381,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             projectId={id}
             initial={detail.stakeholders}
             directory={directory}
-            canEdit={canEdit && !archived}
+            canEdit={canEdit && !fige}
             defaultCategorie="citoyenne"
             title="Partenaires"
           />
@@ -368,7 +390,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
         {current === "documents" && (
           <section aria-labelledby="docs-titre">
             <h2 id="docs-titre" className="pj-section-title">Documents</h2>
-            <DocumentsEditor projectId={id} initial={detail.documents} canEdit={canEdit && !archived} />
+            <DocumentsEditor projectId={id} initial={detail.documents} canEdit={canEdit && !fige} />
           </section>
         )}
 
@@ -378,7 +400,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             initial={devisRows}
             documents={detail.documents.map((d) => ({ id: d.id, nom: d.nom, url: d.url }))}
             entreprises={directory.filter((c) => c.nature === "entreprise" || c.type === "technique")}
-            canEdit={canEdit && !archived}
+            canEdit={canEdit && !fige}
             seuils={seuils}
             parametres={parametresMarches}
             categorieAchat={extC.categorie_achat ?? "travaux"}
@@ -393,7 +415,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
               projectId={id}
               mode={type === "evenementiel" ? "evenementiel" : "investissement"}
               initial={budgetRows}
-              canEdit={canEdit && !archived}
+              canEdit={canEdit && !fige}
             />
             {type === "investissement" && (
               <PlanFinancement
@@ -402,7 +424,7 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
                 lignes={budgetRows}
                 subventions={subventions}
                 tauxFctva={settings.taux_fctva}
-                canEdit={canEdit && !archived}
+                canEdit={canEdit && !fige}
                 initial={{
                   emprunt_prevu: extC.emprunt_prevu ?? null,
                   autofinancement_invest: extC.autofinancement_invest ?? null,
@@ -418,19 +440,19 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
 
         {current === "financeurs" && (
           <>
-            <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !archived} />
+            <SubventionsEditor projectId={id} initial={subventions} canEdit={canEdit && !fige} />
             <PistesFinancement
               projectId={id}
               aides={pistes.aides}
               locaux={pistes.locaux}
               miseAJour={pistes.miseAJour}
-              canEdit={canEdit && !archived}
+              canEdit={canEdit && !fige}
             />
           </>
         )}
       </div>
 
-      {type === "suivi_simple" && canEdit && !archived && (
+      {type === "suivi_simple" && canEdit && !fige && (
         <SuiviActions projectId={id} hasDevis={blocsSupp.includes("devis")} />
       )}
     </main>
