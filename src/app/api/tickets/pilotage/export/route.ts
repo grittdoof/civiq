@@ -3,7 +3,7 @@ import { requireModule } from "@/lib/module-guard";
 import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { valeurAction } from "@/lib/tickets/droits";
 import { chargerPilotage, filtrer } from "@/lib/tickets/pilotage-server";
-import { PERIODES, bornesPeriode, formatJours, ouvert, tableau, tendance, versCsv, type Periode } from "@/lib/tickets/pilotage";
+import { PERIODES, bornesPeriode, formatJours, ouvert, priseEnChargeLe, tableau, tendance, versCsv, type Periode } from "@/lib/tickets/pilotage";
 import { URGENCE_LABELS, cheminCategorie, estUrgence } from "@/lib/tickets/categories";
 import { STATUT_LABELS, type TicketStatut } from "@/lib/tickets/types";
 
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       .map((t) => [
         t.numero, t.titre, cheminCategorie(t.categorie_id, categories).libelle, nomService(t.service_id),
         URGENCE_LABELS[t.urgence], STATUT_LABELS[t.statut as TicketStatut] ?? t.statut,
-        t.created_at.slice(0, 10), t.pris_en_charge_at?.slice(0, 10) ?? null, (t.clos_at ?? t.resolu_at)?.slice(0, 10) ?? null,
+        t.created_at.slice(0, 10), priseEnChargeLe(t)?.slice(0, 10) ?? null, (t.clos_at ?? t.resolu_at)?.slice(0, 10) ?? null,
         t.delai_cible_le?.slice(0, 10) ?? null, t.adresse,
       ]);
     csv = versCsv(["N°", "Titre", "Catégorie", "Service", "Urgence", "Statut", "Créé le", "Pris en charge le", "Clôturé le", "Délai cible", "Adresse"], lignes);

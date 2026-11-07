@@ -33,7 +33,7 @@ export async function chargerPilotage(communeId: string, s: Spectateur): Promise
   const [{ data }, categories, { data: services }] = await Promise.all([
     service
       .from("tickets")
-      .select("id, numero, titre, statut, urgence, priorite, categorie, created_at, pris_en_charge_at, clos_at, resolu_at, delai_cible_le, service_id, categorie_id, commune_id, created_by, assigne_a, confidentialite, adresse, latitude, longitude")
+      .select("id, numero, titre, statut, urgence, priorite, categorie, created_at, pris_en_charge_at, assigne_at, clos_at, resolu_at, delai_cible_le, service_id, categorie_id, commune_id, created_by, assigne_a, confidentialite, adresse, latitude, longitude")
       .eq("commune_id", communeId)
       .neq("confidentialite", "confidentiel"),
     listerCategories(service, communeId),
@@ -52,7 +52,7 @@ export async function chargerPilotage(communeId: string, s: Spectateur): Promise
     tickets.push({
       id: t.id as string, numero: t.numero as number, titre: visible ? (t.titre as string) : "",
       statut: t.statut as string, urgence: ((t.urgence as Urgence | null) ?? "normale"),
-      created_at: t.created_at as string, pris_en_charge_at: t.pris_en_charge_at as string | null,
+      created_at: t.created_at as string, pris_en_charge_at: t.pris_en_charge_at as string | null, assigne_at: t.assigne_at as string | null,
       clos_at: t.clos_at as string | null, resolu_at: t.resolu_at as string | null,
       delai_cible_le: t.delai_cible_le as string | null, service_id: t.service_id as string | null,
       categorie_id: t.categorie_id as string | null,

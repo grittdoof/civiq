@@ -1242,10 +1242,17 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Fiche** : carte « Périscolaire » (lieu, moment, enfant ou « Effacé le … », famille, date d'effacement prévue).
 - **Paramètres** : lieux (ajout, renommage, retrait logique), délai d'effacement (fin d'année scolaire par défaut, ou 3 / 6 / 12 mois), « Prévenir automatiquement » sur chaque catégorie.
 - **Effacement** : cron quotidien `/api/cron/purge-periscolaire` (2 h 45) → `purger_donnees_enfants()` + journal ; par défaut le 31 août qui suit la clôture (Europe/Paris). Logique pure miroir `dateEffacementEnfant` (`lib/tickets/periscolaire.ts`).
-- Tests : `periscolaire.test.ts` (5) → 365 ✓ ; `next build` OK. Non vérifié dans le navigateur (recette finale).
+- Tests : `periscolaire.test.ts` (5) → 361 ✓ ; `next build` OK.
 
 #### Points d'attention (lot 5)
 - **Appliquer 060 puis 061 AVANT de déployer le code** (le nouveau code lit `sites`, `ticket_periscolaire`, `notifier_fonctions`). L'ancien code supporte les deux.
 - **Évolution de la règle d'effacement** : des deux côtés (`date_effacement_enfant` SQL et `dateEffacementEnfant` TS).
 - Seul le champ « enfant » est effacé : un prénom écrit dans le titre, la description ou un commentaire ne l'est pas (consigne affichée à la saisie).
 - Durée de conservation à faire valider par le DPO de la commune.
+
+### Recette en production (même session)
+- Vérifié sur www.gociviq.fr (compte super-admin) : liste Interventions (vues, sections par urgence, actions rapides, vignettes), pilotage et exports CSV, paramètres (catégories, « Prévenir automatiquement », lieux, délai d'effacement), étape « Précisions périscolaire » et visibilité pré-réglée (restreint, service Périscolaire).
+- **Prise en charge** : le statut « Pris en charge » n'est jamais utilisé à Châteauneuf (0 ticket sur 103 ; les agents passent d'« Assigné » à « En cours »). Le taux « pris en charge sous 24 h / 48 h » (pilotage, page publique, export) compte désormais la première date entre `pris_en_charge_at` et `assigne_at` (`priseEnChargeLe`). L'alerte « sans réponse » devient « pas encore démarrés » (statut nouveau ou assigné).
+- Tendance des catégories : « ++12 » → « +12 ».
+- **Remontée** : le maire de Châteauneuf a un compte super-admin. Il est désormais prévenu (notification) sans être nommé destinataire (il voit déjà tout). Aucun DGS enregistré à Châteauneuf.
+- Slug réel de la commune : `chateauneuf-85`.
