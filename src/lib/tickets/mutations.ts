@@ -13,6 +13,7 @@ import {
   notifyTicketClosed,
 } from "./push";
 import { writeAudit } from "@/lib/audit";
+import { verifierCheminsPhotos } from "./photos";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -61,6 +62,8 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
 
   const titre = input.titre?.trim();
   if (!titre) throw new Error("Le titre est requis");
+  // Les photos doivent avoir été déposées dans le dossier de la commune.
+  verifierCheminsPhotos(input.photo_paths, ctx.communeId);
 
   const service = await createServiceClient();
 
@@ -573,6 +576,7 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
   if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
     throw new Error("Permissions insuffisantes pour modifier ce ticket");
   }
+  verifierCheminsPhotos(input.new_photo_paths, ticket.commune_id);
 
   // Charge l'état actuel complet pour diffing
   const { data: currentRow } = await service
@@ -836,6 +840,7 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
     throw new Error("Permissions insuffisantes pour clôturer");
   }
+  verifierCheminsPhotos(input.servicePhotoPaths, ticket.commune_id);
 
   // Validation étape 1 : photo OU document OU « pas nécessaire »
   const hasPhoto = input.servicePhotoPaths.length > 0;

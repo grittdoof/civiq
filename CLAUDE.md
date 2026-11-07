@@ -1133,4 +1133,20 @@ Vercel refuse toute requête de plus de **4,5 Mo** et répond en texte (« Reque
 
 ### Points d'attention
 - Un agent **assigné** qui ne serait ni admin ni éditeur peut ouvrir l'assistant de clôture mais pas déposer de document (photo ou « sans pièce jointe » restent possibles).
-- `tickets-photos` reste lisible et inscriptible par **tout compte connecté**, toutes communes confondues (policies de la migration 010) : à resserrer à part.
+- `tickets-photos` était lisible et inscriptible par tout compte connecté (policies de la migration 010) : resserré en Session 32 (migration 056).
+
+## Session 32 — Photos de signalement : accès Storage limité à la commune (2026-11-07)
+
+### Constat
+Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisaient **tout compte connecté**, administré sans commune compris, à lire et déposer des photos de **toutes les communes**. La lecture applicative passe déjà par le service role (`getPhotoSignedUrl`) ; le dépôt, lui, est fait par le navigateur avec la clé utilisateur (`TicketPhotoUpload`, chemin `<commune_id>/<uuid>.jpg`), d'où le choix de **restreindre** les policies plutôt que de les supprimer. Le serveur, qui écrit `ticket_photos` en service role, acceptait n'importe quel `storage_path` reçu.
+
+### Livrés
+- **Migration 056** (essai à blanc en prod avec `DRYRUN_OK`, non appliquée) : `tickets_photos_read|upload` = super-admin, ou admin/éditeur dont le premier dossier du chemin est `my_commune_id()` ; `tickets_photos_delete` = super-admin, ou dans sa commune l'auteur du fichier ou un admin. Policies réservées au rôle `authenticated`. Retour arrière : `supabase/rollback/056_tickets_photos_policies_down.sql`.
+  - Essai : éditeur → voit les photos de sa commune, dépôt dans sa commune accepté, dans une autre refusé (42501) ; compte sans profil → ne voit rien, dépôt refusé ; super-admin → tout.
+- `src/lib/tickets/photos.ts` : `cheminPhotoValide` / `verifierCheminsPhotos` (`<commune_id>/<uuid>.<jpg|png|webp|heic>`, pas de sous-dossier ni `..`) appelés par `createTicket`, `updateTicket` et `closeTicketWithReport` avant toute écriture de `ticket_photos`. Les 57 lignes existantes en prod respectent ce format.
+- Tests : `tests/unit/tickets/photos.test.ts` (6).
+
+### Points d'attention
+- Appliquer 056 en même temps que le déploiement (elle ne casse pas l'ancien code : il dépose déjà sous le dossier de la commune).
+- Un super-admin sans commune ne peut pas créer de signalement (`createTicket`) : le contrôle de chemin n'ajoute pas de restriction pour lui.
+- 12 fichiers orphelins (déposés puis jamais rattachés à un signalement) restent dans le bucket.
