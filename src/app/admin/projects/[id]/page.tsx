@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { chargerSpectateur, chargerTicketVisible } from "@/lib/tickets/droits-server";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, Lock, MapPin, MessageSquareWarning, Pencil, UserRound, Users } from "lucide-react";
 import "../projects.css";
@@ -96,6 +97,9 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
   const [detail, directory] = await Promise.all([getProject(ctx.communeId, id), listStakeholders(ctx.communeId)]);
   const p = detail.project;
   const ticketsActif = !!detail.source_ticket && (ctx.role === "super_admin" || (await isModuleActive("tickets")));
+  // Titre et lien du signalement d'origine : seulement s'il est visible (droits Tickets, lot 1).
+  const sourceVisible = !!detail.source_ticket && ticketsActif
+    && !!(await chargerTicketVisible(await createServiceClient(), detail.source_ticket.id, await chargerSpectateur()));
   if (!p) notFound();
 
   const service = await createServiceClient();
@@ -283,9 +287,9 @@ export default async function ProjectLifePage({ params, searchParams }: PageProp
             {detail.source_ticket && (
               <li>
                 <MessageSquareWarning size={14} aria-hidden="true" /> Issu du signalement{" "}
-                {ticketsActif
+                {sourceVisible
                   ? <Link href={`/admin/tickets/${detail.source_ticket.id}`}>n° {detail.source_ticket.numero} « {detail.source_ticket.titre} »</Link>
-                  : <>n° {detail.source_ticket.numero} « {detail.source_ticket.titre} »</>}
+                  : <>n° {detail.source_ticket.numero}</>}
               </li>
             )}
           </ul>

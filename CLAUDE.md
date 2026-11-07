@@ -1174,3 +1174,19 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Ne jamais remettre de lien signé dans une page** : utiliser `urlPhoto` / `urlDocument` (`lib/tickets/pieces.ts`). Exception : la génération PDF côté serveur (`/api/tickets/pdf`).
 - Toute nouvelle route qui sert un contenu de signalement passe par `accesTicketEnLecture`.
 - 057 appliquée : la lecture directe du bucket `tickets-photos` est limitée à ses propres fichiers.
+
+### Lot 1 — droits de consultation (même session)
+- **Migration 058** (essai à blanc en prod avec scénarios, **non appliquée**) : fonctions `dst`, `accueil`, `responsable_service` ; `ticket_fonction()` ; tables `services`, `service_membres`, `ticket_matrice` (par commune : `voit` rien/siens/service/commune, `voit_restreints`, `actions` jsonb oui/non/si_assigne), `ticket_destinataires` ; `tickets.service_id`, `tickets.confidentialite` ; `user_voit_ticket()` (RLS de tickets et tables filles → temps réel) ; matrice « compatibilité » posée sur les communes où le module est actif (tout le monde voit les tickets standard, comme avant), matrice par défaut ailleurs et sur toute nouvelle commune (trigger).
+- `lib/tickets/droits.ts` (pur, **miroir 1:1 de user_voit_ticket**) : `peutVoirTicket`, `peutAgir`, `peutCreer`, `assignationAutorisee` (« si assigné » = s'ajouter soi-même), `MATRICE_DEFAUT` / `MATRICE_COMPAT` ; test qui compare la matrice par défaut au SQL.
+- `lib/tickets/droits-server.ts` : `chargerSpectateur` (cache par requête), `filtrerVisibles`, `chargerTicketVisible`, `destinatairesVisibles` (notifications), journal `audit_log` (`ticket.consultation` une fois par jour, `ticket.modification`), `journalDesAcces`.
+- Appliqué à : liste, compteurs, carte, statistiques (+ vue reporting filtrée), impression et PDF (droit « exporter »), fiche, modifier, clôturer, dépôt de documents, routes de pièces jointes, tableau de bord, notifications urgentes, module Projets (pré-remplissage, titre du signalement d'origine).
+- Actions (`mutations.ts`) : toutes vérifiées par la matrice ; nouvelles `changerServiceTicket`, `modifierVisibiliteTicket`.
+- Écrans : matrice dans `/super-admin/communes/[id]` (section « Tickets — droits par fonction ») ; `/admin/tickets/parametres` (services et membres, admin de la commune ou super-admin) ; carte « Service et visibilité » + « Journal des accès » sur la fiche ; étape « Service et visibilité » à la création ; badges Restreint / Confidentiel.
+- Tests : `droits.test.ts` (17) → 316 ✓ ; `next build` OK ; composants vérifiés dans le navigateur (page de test temporaire, API simulée, non commitée).
+
+#### Points d'attention (lot 1)
+- **Appliquer 058 AVANT de déployer le code** : sans `ticket_matrice`, le nouveau code ne montre aucun ticket (aucune ligne de matrice = « rien »). L'ancien code supporte 058 (matrice de compatibilité).
+- **Toute nouvelle lecture de tickets en service role** passe par `filtrerVisibles` / `chargerTicketVisible` / `getTicket(…, spectateur)` ; `listTickets` exige le spectateur.
+- **Toute évolution de la règle se fait des deux côtés** : `user_voit_ticket()` (SQL) et `peutVoirTicket()` (TS).
+- `ticket_destinataires` et `services` ont deux FK vers `profiles` : nommer la FK dans les embeds.
+- Le super-admin voit tout, confidentiels compris (décision du 2026-11-07).

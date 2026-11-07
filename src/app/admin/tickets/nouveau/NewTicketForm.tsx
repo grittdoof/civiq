@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { createContext, useContext, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +15,7 @@ import {
 import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { createTicket } from "@/lib/tickets/mutations";
+import VisibiliteChamps, { type Personne } from "@/components/tickets/VisibiliteChamps";
 import {
   CANAL_LABELS,
   CATEGORIE_LABELS,
@@ -43,8 +44,20 @@ import {
 //     les sections empilées en pleine largeur, submit en bas.
 // ═══════════════════════════════════════════════════════════════
 
+// Lot 1 : services de la commune et personnes nommables, partagés
+// avec l'étape « Service et visibilité » sans traverser les écrans.
+interface OptionsVisibilite {
+  services: Array<{ id: string; nom: string }>;
+  personnes: Personne[];
+  moi: string;
+}
+const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "" });
+
 interface Props {
   communeId: string;
+  services?: OptionsVisibilite["services"];
+  personnes?: Personne[];
+  moi?: string;
   agents: Array<{
     id: string;
     full_name: string | null;
@@ -89,7 +102,7 @@ function useIsDesktop(breakpoint = 900): boolean | null {
 
 // ─── Orchestrateur ───────────────────────────────────────────────
 
-export default function NewTicketForm({ communeId, agents }: Props) {
+export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "" }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +158,9 @@ export default function NewTicketForm({ communeId, agents }: Props) {
           assignee_ids: value.assigneIds,
           echeance: value.echeance || null,
           photo_paths: value.photoPaths,
+          service_id: value.serviceId || null,
+          confidentialite: value.confidentialite,
+          destinataire_ids: value.confidentialite === "standard" ? [] : value.destinataireIds,
         });
         router.push(`/admin/tickets/${result.id}`);
         router.refresh();
@@ -158,6 +174,7 @@ export default function NewTicketForm({ communeId, agents }: Props) {
   // et l'admin shell mobile cache la complexité d'un éventuel flash).
   if (isDesktop === null || !isDesktop) {
     return (
+      <VisibiliteCtx.Provider value={{ services, personnes, moi }}>
       <MobileWizard
         wiz={wiz}
         agents={agents}
@@ -168,10 +185,12 @@ export default function NewTicketForm({ communeId, agents }: Props) {
         pending={pending}
         submit={submit}
       />
+      </VisibiliteCtx.Provider>
     );
   }
 
   return (
+    <VisibiliteCtx.Provider value={{ services, personnes, moi }}>
     <DesktopForm
       wiz={wiz}
       agents={agents}
@@ -181,6 +200,7 @@ export default function NewTicketForm({ communeId, agents }: Props) {
       pending={pending}
       submit={submit}
     />
+    </VisibiliteCtx.Provider>
   );
 }
 
@@ -682,6 +702,9 @@ function StepContent({
         </div>
       );
 
+    case "visibilite":
+      return <EtapeVisibilite value={value} set={set} />;
+
     case "assignation":
       return (
         <div className={variant === "desktop" ? "tk-assign-grid" : "tk-wizard-fields"}>
@@ -734,6 +757,42 @@ function StepContent({
         </div>
       );
   }
+}
+
+// ─── Étape « Service et visibilité » (lot 1) ────────────────────
+
+function EtapeVisibilite({
+  value, set,
+}: {
+  value: WizardValue;
+  set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
+}) {
+  const { services, personnes, moi } = useContext(VisibiliteCtx);
+  return (
+    <div className="tk-wizard-fields" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {services.length > 0 && (
+        <Field label="Service qui traite le signalement (optionnel)">
+          <select
+            className="civiq-input"
+            value={value.serviceId}
+            onChange={(e) => set("serviceId", e.target.value)}
+            style={{ maxWidth: 360 }}
+          >
+            <option value="">Aucun service pour l&apos;instant</option>
+            {services.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+          </select>
+        </Field>
+      )}
+      <VisibiliteChamps
+        niveau={value.confidentialite}
+        destinataires={value.destinataireIds}
+        personnes={personnes}
+        moi={moi}
+        onNiveau={(n) => set("confidentialite", n)}
+        onDestinataires={(ids) => set("destinataireIds", ids)}
+      />
+    </div>
+  );
 }
 
 // ─── Récap sheet (mobile uniquement) ────────────────────────────
@@ -817,6 +876,13 @@ function RecapSheet({
       id: "assignation",
       label: "Assignés",
       value: assigneeNames.length ? assigneeNames.join(", ") : "Non assigné",
+    },
+    {
+      id: "visibilite",
+      label: "Visibilité",
+      value: value.confidentialite === "standard"
+        ? "Standard"
+        : `${value.confidentialite === "restreint" ? "Restreint" : "Confidentiel"} · ${value.destinataireIds.length} personne${value.destinataireIds.length > 1 ? "s" : ""}`,
     },
   );
 

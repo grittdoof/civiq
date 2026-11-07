@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
-import { listAssignableAgents } from "@/lib/tickets/mutations";
+import { listAssignableAgents, listerPersonnesCommune } from "@/lib/tickets/mutations";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
+import { peutCreer } from "@/lib/tickets/droits";
 import { createServiceClient } from "@/lib/supabase-server";
 import ForbiddenScreen from "@/components/ForbiddenScreen";
 import NewTicketForm from "./NewTicketForm";
@@ -40,7 +42,9 @@ export default async function NewTicketPage() {
   }
 
   // Droits utilisateur : on AFFICHE un écran explicatif (plus de redirect).
-  if (!["admin", "editor", "super_admin"].includes(ctx.role || "")) {
+  // Droit « créer » de la matrice de la commune (lot 1)
+  const spectateur = await chargerSpectateur();
+  if (!spectateur || !peutCreer(spectateur)) {
     const commune = await loadCommuneContact(ctx.communeId);
     return (
       <ForbiddenScreen
@@ -54,6 +58,19 @@ export default async function NewTicketPage() {
     );
   }
 
-  const agents = await listAssignableAgents();
-  return <NewTicketForm communeId={ctx.communeId} agents={agents} />;
+  const service = await createServiceClient();
+  const [agents, personnes, { data: services }] = await Promise.all([
+    listAssignableAgents(),
+    listerPersonnesCommune(),
+    service.from("services").select("id, nom").eq("commune_id", ctx.communeId).is("deleted_at", null).order("ordre").order("nom"),
+  ]);
+  return (
+    <NewTicketForm
+      communeId={ctx.communeId}
+      agents={agents}
+      services={(services ?? []) as Array<{ id: string; nom: string }>}
+      personnes={personnes}
+      moi={ctx.userId}
+    />
+  );
 }

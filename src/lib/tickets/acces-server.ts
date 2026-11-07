@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { CACHE_REDIRECTION } from "./pieces";
+import { chargerSpectateur, chargerTicketVisible } from "./droits-server";
+import type { Spectateur, TicketPourDroits } from "./droits";
 
 // ═══════════════════════════════════════════════════════════════
 // Accès serveur à un signalement pour les routes API (lot 6).
 //
-// Règle actuelle : module Tickets actif pour l'utilisateur et
-// signalement de sa commune (super-admin : toutes les communes).
-// Le lot 1 y ajoutera la règle de visibilité (matrice de la
-// commune, niveaux restreint / confidentiel) : toutes les routes
-// qui servent un contenu de signalement passent par ici.
+// Module Tickets actif pour l'utilisateur ET signalement visible
+// selon la règle du lot 1 (matrice de la commune, niveaux restreint /
+// confidentiel, destinataires). Toutes les routes qui servent un
+// contenu de signalement passent par ici.
 // Un signalement non visible répond 404, sans détail.
 // ═══════════════════════════════════════════════════════════════
 
@@ -21,7 +22,11 @@ export interface TicketAccessible {
 }
 
 export type AccesTicket =
-  | { ok: true; ticket: TicketAccessible; userId: string; role: string; service: Awaited<ReturnType<typeof createServiceClient>> }
+  | {
+      ok: true; ticket: TicketAccessible; userId: string; role: string;
+      service: Awaited<ReturnType<typeof createServiceClient>>;
+      spectateur: Spectateur; droits: TicketPourDroits;
+    }
   | { ok: false; response: NextResponse };
 
 export const introuvable = () => NextResponse.json({ error: "Introuvable" }, { status: 404 });
@@ -31,16 +36,11 @@ export async function accesTicketEnLecture(ticketId: string): Promise<AccesTicke
   if (!garde.ok) return garde;
 
   const service = await createServiceClient();
-  const { data: ticket } = await service
-    .from("tickets")
-    .select("id, numero, commune_id")
-    .eq("id", ticketId)
-    .maybeSingle();
-  if (!ticket) return { ok: false, response: introuvable() };
-  if (!garde.isSuperAdmin && ticket.commune_id !== garde.communeId) {
-    return { ok: false, response: introuvable() };
-  }
-  return { ok: true, ticket: ticket as TicketAccessible, userId: garde.userId, role: garde.role, service };
+  const spectateur = await chargerSpectateur();
+  const visible = await chargerTicketVisible(service, ticketId, spectateur);
+  if (!visible || !spectateur) return { ok: false, response: introuvable() };
+  const ticket: TicketAccessible = { id: visible.id, numero: visible.numero, commune_id: visible.commune_id };
+  return { ok: true, ticket, userId: garde.userId, role: garde.role, service, spectateur, droits: visible.droits };
 }
 
 /**

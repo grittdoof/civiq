@@ -22,7 +22,8 @@ export type WizardStepId =
   | "priorite"
   | "localisation"
   | "photos"
-  | "assignation";
+  | "assignation"
+  | "visibilite";
 
 export interface WizardValue {
   canal: TicketCanal;
@@ -38,6 +39,10 @@ export interface WizardValue {
   photoPaths: string[];
   assigneIds: string[];
   echeance: string;
+  /** Lot 1 : service, niveau de visibilité, destinataires nommés. */
+  serviceId: string;
+  confidentialite: "standard" | "restreint" | "confidentiel";
+  destinataireIds: string[];
 }
 
 export interface WizardStep {
@@ -131,6 +136,15 @@ const ALL_STEPS: StepDef[] = [
     isVisible: () => true,
     isValid: () => true,
   },
+  {
+    id: "visibilite",
+    title: "Service et visibilité",
+    eyebrow: "Visibilité",
+    subtitle: "Par défaut, le signalement suit les règles de la commune.",
+    isVisible: () => true,
+    isValid: (v) => v.confidentialite === "standard" || v.destinataireIds.length > 0,
+    invalidReason: () => "Choisis au moins une personne qui pourra voir ce signalement.",
+  },
 ];
 
 export const INITIAL_VALUE: WizardValue = {
@@ -152,6 +166,9 @@ export const INITIAL_VALUE: WizardValue = {
   photoPaths: [],
   assigneIds: [],
   echeance: "",
+  serviceId: "",
+  confidentialite: "standard",
+  destinataireIds: [],
 };
 
 export interface UseTicketWizardResult {

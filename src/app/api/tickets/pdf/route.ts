@@ -4,6 +4,8 @@ import { getAuthContext } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
+import { valeurAction } from "@/lib/tickets/droits";
 import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
 import { TicketsPDF, type PdfTicket } from "@/lib/tickets/pdf-document";
 
@@ -39,7 +41,12 @@ export async function GET(req: NextRequest) {
   if (filter === "ouverts") filters.statut = OUVERT_STATUTS;
   else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
 
-  let tickets = await listTickets(ctx.communeId, filters);
+  // Export : droit « exporter » de la matrice ; seuls les signalements visibles.
+  const spectateur = await chargerSpectateur();
+  if (!spectateur || valeurAction("exporter", spectateur) !== "oui") {
+    return new NextResponse("Export non autorisé", { status: 403 });
+  }
+  let tickets = await listTickets(ctx.communeId, filters, spectateur);
 
   // Filtre assignés (assigne_a OU multi-assignés via ticket_assignees)
   if (assigneeIds.length > 0) {

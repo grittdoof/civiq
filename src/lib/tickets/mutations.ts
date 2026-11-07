@@ -14,6 +14,11 @@ import {
 } from "./push";
 import { writeAudit } from "@/lib/audit";
 import { verifierCheminsPhotos } from "./photos";
+import {
+  assignationAutorisee, droitsSurTicket, estAssigne, peutCreer, peutVoirTicket, verifierVisibilite,
+  type Confidentialite,
+} from "./droits";
+import { chargerLiens, chargerSpectateur, journaliserModification, versDroits } from "./droits-server";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -48,6 +53,11 @@ export interface CreateTicketInput {
 
   // Photos déjà uploadées dans Storage (storage_path[])
   photo_paths?: string[];
+
+  // Lot 1 : service, visibilité et destinataires nommés
+  service_id?: string | null;
+  confidentialite?: Confidentialite;
+  destinataire_ids?: string[];
 }
 
 export async function createTicket(input: CreateTicketInput): Promise<{ id: string; numero: number }> {
@@ -56,7 +66,8 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   if (!ctx.communeId && ctx.role !== "super_admin") {
     throw new Error("Aucune commune attribuée");
   }
-  if (!["admin", "editor", "super_admin"].includes(ctx.role || "")) {
+  const spectateur = await chargerSpectateur();
+  if (!spectateur || !peutCreer(spectateur)) {
     throw new Error("Permissions insuffisantes pour créer un ticket");
   }
 
@@ -66,6 +77,12 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   verifierCheminsPhotos(input.photo_paths, ctx.communeId);
 
   const service = await createServiceClient();
+
+  // Visibilité : restreint / confidentiel exigent un destinataire ; service
+  // et destinataires doivent appartenir à la commune.
+  const destinataires = [...new Set((input.destinataire_ids ?? []).filter(Boolean))];
+  const confidentialite = verifierVisibilite(input.confidentialite ?? "standard", destinataires);
+  await verifierServiceEtPersonnes(service, ctx.communeId, input.service_id ?? null, destinataires);
 
   // Normalisation : si assignee_ids fourni, prime sur assigne_a (legacy mono).
   const multiAssignees = Array.isArray(input.assignee_ids)
@@ -93,6 +110,8 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     assigne_a: primaryAssignee,
     echeance: input.echeance || null,
     statut: hasAssignee ? "assigne" : "nouveau",
+    service_id: input.service_id || null,
+    confidentialite,
   };
   if (hasAssignee) {
     insertPayload.assigne_at = new Date().toISOString();
@@ -135,6 +154,17 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
       console.error("ticket_assignees insert:", assignErr);
     }
   }
+
+  if (destinataires.length > 0) {
+    const { error: destErr } = await service.from("ticket_destinataires").insert(
+      destinataires.map((profile_id) => ({ ticket_id: created.id, profile_id, ajoute_par: ctx.userId })),
+    );
+    if (destErr) console.error("ticket_destinataires insert:", destErr);
+  }
+  await journaliserModification(
+    { id: created.id, numero: created.numero, commune_id: ctx.communeId!, confidentialite },
+    "creation", { destinataires: destinataires.length },
+  );
 
   // ─── Notifications push ───
   // Si assignation directe à la création → notif à tous les destinataires
@@ -205,34 +235,46 @@ async function authorizeTicketMutation(ticketId: string) {
   const service = await createServiceClient();
   const { data: ticket } = await service
     .from("tickets")
-    .select("id, commune_id, assigne_a, created_by, statut, project_id")
+    .select("id, numero, commune_id, assigne_a, created_by, statut, project_id, service_id, confidentialite")
     .eq("id", ticketId)
     .maybeSingle();
-
   if (!ticket) throw new Error("Ticket introuvable");
 
+  // Lot 1 : il faut voir le signalement (matrice, confidentialité,
+  // destinataires), puis avoir le droit de l'action demandée.
+  const spectateur = await chargerSpectateur();
+  const liens = (await chargerLiens(service, [ticket.id])).get(ticket.id)!;
+  const pourDroits = versDroits(ticket, liens);
+  if (!spectateur || !peutVoirTicket(pourDroits, spectateur)) throw new Error("Ticket introuvable");
+
+  const droits = droitsSurTicket(pourDroits, spectateur);
   const isSuperAdmin = ctx.role === "super_admin";
-  const isAdmin = ctx.role === "admin";
-  const isEditor = ctx.role === "editor";
-  const sameCommune = ctx.communeId === ticket.commune_id;
-  // Multi-assignés (V2) : on considère également les profils présents dans ticket_assignees.
-  const { data: multiRow } = await service
-    .from("ticket_assignees")
-    .select("profile_id")
-    .eq("ticket_id", ticketId)
-    .eq("profile_id", ctx.userId)
-    .maybeSingle();
-  const isAssignee = ticket.assigne_a === ctx.userId || !!multiRow;
-  const isCreator = ticket.created_by === ctx.userId;
+  const isAssignee = estAssigne(pourDroits, ctx.userId);
+  return { ctx, ticket, service, spectateur, pourDroits, liens, droits, isSuperAdmin, isAssignee };
+}
 
-  if (!isSuperAdmin && !sameCommune) {
-    throw new Error("Permissions insuffisantes (commune différente)");
-  }
-  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee && !isCreator) {
-    throw new Error("Permissions insuffisantes");
-  }
+function exiger(ok: boolean, message: string): void {
+  if (!ok) throw new Error(message);
+}
 
-  return { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee };
+/** Le service et les personnes choisies appartiennent à la commune (comptes équipe). */
+async function verifierServiceEtPersonnes(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  communeId: string | null,
+  serviceId: string | null,
+  personnes: string[],
+): Promise<void> {
+  if (!communeId) throw new Error("Aucune commune attribuée");
+  if (serviceId) {
+    const { data: svc } = await service
+      .from("services").select("id").eq("id", serviceId).eq("commune_id", communeId).is("deleted_at", null).maybeSingle();
+    if (!svc) throw new Error("Service inconnu");
+  }
+  if (personnes.length > 0) {
+    const { data: rows } = await service
+      .from("profiles").select("id").in("id", personnes).eq("commune_id", communeId).in("role", ["admin", "editor"]);
+    if ((rows ?? []).length !== personnes.length) throw new Error("Une personne choisie n'appartient pas à la commune");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -252,7 +294,14 @@ const ALLOWED_TRANSITIONS: Record<TicketStatut, TicketStatut[]> = {
 };
 
 export async function updateTicketStatus(ticketId: string, newStatut: TicketStatut): Promise<void> {
-  const { ctx, ticket, service, isSuperAdmin } = await authorizeTicketMutation(ticketId);
+  const { ctx, ticket, service, isSuperAdmin, droits } = await authorizeTicketMutation(ticketId);
+  // Droit selon la transition demandée (matrice de la commune)
+  const reouverture = (ticket.statut === "resolu" && newStatut === "en_cours")
+    || (ticket.statut === "annule" && newStatut === "nouveau");
+  if (newStatut === "pris_en_charge") exiger(droits.prendreEnCharge, "Vous ne pouvez pas prendre en charge ce signalement");
+  else if (newStatut === "resolu" || newStatut === "clos") exiger(droits.cloturer, "Vous ne pouvez pas clôturer ce signalement");
+  else if (reouverture) exiger(droits.rouvrir, "Vous ne pouvez pas rouvrir ce signalement");
+  else exiger(droits.modifier, "Vous ne pouvez pas modifier ce signalement");
 
   // « Converti en projet » n'est jamais posé à la main (même super-admin) :
   // il naît de la création du projet, qui fixe aussi le lien.
@@ -290,6 +339,7 @@ export async function updateTicketStatus(ticketId: string, newStatut: TicketStat
 
   const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
   if (error) throw new Error(error.message);
+  await journaliserModification(ticket, "statut", { statut: newStatut });
 
   revalidatePath(`/admin/tickets/${ticketId}`);
   revalidatePath("/admin/tickets");
@@ -303,10 +353,10 @@ export async function updateTicketStatus(ticketId: string, newStatut: TicketStat
 // ═══════════════════════════════════════════════════════════════
 
 export async function reopenTicket(ticketId: string, reason?: string): Promise<void> {
-  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } =
+  const { ctx, ticket, service, isSuperAdmin, droits } =
     await authorizeTicketMutation(ticketId);
 
-  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+  if (!droits.rouvrir) {
     throw new Error("Permissions insuffisantes pour rouvrir ce ticket");
   }
 
@@ -399,10 +449,11 @@ export async function deleteTicketHard(ticketId: string): Promise<void> {
 // ═══════════════════════════════════════════════════════════════
 
 export async function setTicketAssignees(ticketId: string, profileIds: string[]): Promise<void> {
-  const { service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
-  if (!isSuperAdmin && !isAdmin && !isEditor) {
-    throw new Error("Seuls les éditeurs et administrateurs peuvent assigner un ticket");
+  const { service, ticket, spectateur, pourDroits, liens } = await authorizeTicketMutation(ticketId);
+  if (!assignationAutorisee(pourDroits, spectateur!, liens.assignes, profileIds)) {
+    throw new Error("Vous ne pouvez pas modifier l'assignation de ce signalement");
   }
+  await verifierServiceEtPersonnes(service, ticket.commune_id, null, [...new Set(profileIds)]);
   // Récupère assignés actuels
   const { data: existing } = await service
     .from("ticket_assignees")
@@ -453,7 +504,7 @@ export async function setTicketAssignees(ticketId: string, profileIds: string[])
     }
   }
 
-  void ticket; // (lint)
+  await journaliserModification(ticket, "assignation", { ajoutes: toAdd.length, retires: toRemove.length });
   revalidatePath(`/admin/tickets/${ticketId}`);
   revalidatePath("/admin/tickets");
 }
@@ -463,10 +514,12 @@ export async function setTicketAssignees(ticketId: string, profileIds: string[])
 // ═══════════════════════════════════════════════════════════════
 
 export async function assignTicket(ticketId: string, profileId: string | null): Promise<void> {
-  const { ctx, service, ticket, isSuperAdmin, isAdmin, isEditor } = await authorizeTicketMutation(ticketId);
-  if (!isSuperAdmin && !isAdmin && !isEditor) {
-    throw new Error("Seuls les éditeurs et administrateurs peuvent réassigner un ticket");
+  const { ctx, service, ticket, spectateur, pourDroits, liens } = await authorizeTicketMutation(ticketId);
+  const actuels = [...new Set([...liens.assignes, ...(ticket.assigne_a ? [ticket.assigne_a] : [])])];
+  if (!assignationAutorisee(pourDroits, spectateur!, actuels, profileId ? [profileId] : [])) {
+    throw new Error("Vous ne pouvez pas modifier l'assignation de ce signalement");
   }
+  if (profileId) await verifierServiceEtPersonnes(service, ticket.commune_id, null, [profileId]);
 
   const updates: Record<string, unknown> = {
     assigne_a: profileId,
@@ -571,10 +624,19 @@ function shortText(v: string | null | undefined, max = 60): string {
 }
 
 export async function updateTicket(input: UpdateTicketInput): Promise<void> {
-  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } =
+  const { ctx, ticket, service, spectateur, pourDroits, liens, droits } =
     await authorizeTicketMutation(input.ticketId);
-  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+  if (!droits.modifier) {
     throw new Error("Permissions insuffisantes pour modifier ce ticket");
+  }
+  if (input.assignee_ids !== undefined) {
+    const voulus = [...new Set(input.assignee_ids)];
+    const actuels = new Set(liens.assignes);
+    const change = voulus.length !== actuels.size || voulus.some((id) => !actuels.has(id));
+    if (change && !assignationAutorisee(pourDroits, spectateur!, liens.assignes, voulus)) {
+      throw new Error("Vous ne pouvez pas modifier l'assignation de ce signalement");
+    }
+    if (change) await verifierServiceEtPersonnes(service, ticket.commune_id, null, voulus);
   }
   verifierCheminsPhotos(input.new_photo_paths, ticket.commune_id);
 
@@ -762,8 +824,8 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
 // ═══════════════════════════════════════════════════════════════
 
 export async function updateTicketPriorite(ticketId: string, priorite: TicketPriorite): Promise<void> {
-  const { service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(ticketId);
-  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+  const { service, droits } = await authorizeTicketMutation(ticketId);
+  if (!droits.modifier) {
     throw new Error("Permissions insuffisantes");
   }
   const { error } = await service.from("tickets").update({ priorite }).eq("id", ticketId);
@@ -781,7 +843,8 @@ export async function addTicketComment(ticketId: string, contenu: string): Promi
   if (!text) throw new Error("Le commentaire ne peut pas être vide");
   if (text.length > 5000) throw new Error("Commentaire trop long (max 5000 caractères)");
 
-  const { ctx, ticket, service } = await authorizeTicketMutation(ticketId);
+  const { ctx, ticket, service, droits } = await authorizeTicketMutation(ticketId);
+  exiger(droits.commenter, "Vous ne pouvez pas commenter ce signalement");
   const { error } = await service.from("ticket_commentaires").insert({
     ticket_id: ticketId,
     auteur_id: ctx.userId,
@@ -835,9 +898,9 @@ export interface CloseTicketInput {
 }
 
 export async function closeTicketWithReport(input: CloseTicketInput): Promise<void> {
-  const { ctx, ticket, service, isSuperAdmin, isAdmin, isEditor, isAssignee } = await authorizeTicketMutation(input.ticketId);
+  const { ctx, ticket, service, droits } = await authorizeTicketMutation(input.ticketId);
 
-  if (!isSuperAdmin && !isAdmin && !isEditor && !isAssignee) {
+  if (!droits.cloturer) {
     throw new Error("Permissions insuffisantes pour clôturer");
   }
   verifierCheminsPhotos(input.servicePhotoPaths, ticket.commune_id);
@@ -946,4 +1009,107 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
 
   revalidatePath(`/admin/tickets/${input.ticketId}`);
   revalidatePath("/admin/tickets");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Lot 1 — Service et visibilité d'un signalement
+// ═══════════════════════════════════════════════════════════════
+
+const NIVEAUX: Record<Confidentialite, string> = {
+  standard: "Standard", restreint: "Restreint", confidentiel: "Confidentiel",
+};
+
+/** Change le service qui traite le signalement (droit « changer de service »). */
+export async function changerServiceTicket(ticketId: string, serviceId: string | null): Promise<void> {
+  const { ctx, ticket, service, droits } = await authorizeTicketMutation(ticketId);
+  exiger(droits.changer_service, "Vous ne pouvez pas changer le service de ce signalement");
+  await verifierServiceEtPersonnes(service, ticket.commune_id, serviceId, []);
+  if ((ticket.service_id ?? null) === serviceId) return;
+
+  const noms = new Map<string, string>();
+  const ids = [ticket.service_id, serviceId].filter((x): x is string => !!x);
+  if (ids.length > 0) {
+    const { data } = await service.from("services").select("id, nom").in("id", ids);
+    for (const r of data ?? []) noms.set(r.id as string, r.nom as string);
+  }
+  const avant = ticket.service_id ? noms.get(ticket.service_id) ?? "—" : "Aucun";
+  const apres = serviceId ? noms.get(serviceId) ?? "—" : "Aucun";
+
+  const { error } = await service.from("tickets").update({ service_id: serviceId }).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+  await service.from("ticket_commentaires").insert({
+    ticket_id: ticketId, auteur_id: ctx.userId, is_systeme: true,
+    contenu: `Service : ${avant} → ${apres}`,
+  });
+  await journaliserModification(ticket, "service");
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+/**
+ * Change le niveau de visibilité et les destinataires nommés (droit
+ * « changer la visibilité », toujours accordé au créateur). Restreint
+ * et confidentiel exigent au moins un destinataire.
+ */
+export async function modifierVisibiliteTicket(
+  ticketId: string, niveau: Confidentialite, destinataireIds: string[],
+): Promise<void> {
+  const { ctx, ticket, service, droits, liens } = await authorizeTicketMutation(ticketId);
+  exiger(droits.changer_visibilite, "Vous ne pouvez pas changer la visibilité de ce signalement");
+  const voulus = [...new Set(destinataireIds.filter(Boolean))];
+  const confidentialite = verifierVisibilite(niveau, voulus);
+  await verifierServiceEtPersonnes(service, ticket.commune_id, null, voulus);
+
+  const actuels = new Set(liens.destinataires);
+  const ajoutes = voulus.filter((id) => !actuels.has(id));
+  const retires = liens.destinataires.filter((id) => !voulus.includes(id));
+  const avant = (ticket.confidentialite ?? "standard") as Confidentialite;
+
+  if (avant !== confidentialite) {
+    const { error } = await service.from("tickets").update({ confidentialite }).eq("id", ticketId);
+    if (error) throw new Error(error.message);
+  }
+  if (retires.length > 0) {
+    await service.from("ticket_destinataires").delete().eq("ticket_id", ticketId).in("profile_id", retires);
+  }
+  if (ajoutes.length > 0) {
+    const { error } = await service.from("ticket_destinataires").insert(
+      ajoutes.map((profile_id) => ({ ticket_id: ticketId, profile_id, ajoute_par: ctx.userId })),
+    );
+    if (error) throw new Error(error.message);
+  }
+  if (avant === confidentialite && ajoutes.length === 0 && retires.length === 0) return;
+
+  const morceaux: string[] = [];
+  if (avant !== confidentialite) morceaux.push(`Visibilité : ${NIVEAUX[avant]} → ${NIVEAUX[confidentialite]}`);
+  if (ajoutes.length || retires.length) {
+    morceaux.push(`destinataires : ${ajoutes.length ? `+${ajoutes.length}` : ""}${ajoutes.length && retires.length ? " " : ""}${retires.length ? `−${retires.length}` : ""}`);
+  }
+  await service.from("ticket_commentaires").insert({
+    ticket_id: ticketId, auteur_id: ctx.userId, is_systeme: true, contenu: morceaux.join(" · "),
+  });
+  // Journalisé si le signalement est ou devient sensible
+  await journaliserModification(
+    { ...ticket, confidentialite: avant !== "standard" ? avant : confidentialite },
+    "visibilite", { avant, apres: confidentialite, ajoutes: ajoutes.length, retires: retires.length },
+  );
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
+}
+
+/**
+ * Personnes de la commune pouvant être nommées destinataires (comptes
+ * équipe). Réservé à qui peut créer ou voir des signalements.
+ */
+export async function listerPersonnesCommune(): Promise<Array<{ id: string; full_name: string | null; job_title: string | null }>> {
+  const ctx = await getAuthContext();
+  if (!ctx?.communeId) return [];
+  const service = await createServiceClient();
+  const { data } = await service
+    .from("profiles")
+    .select("id, full_name, job_title")
+    .eq("commune_id", ctx.communeId)
+    .in("role", ["admin", "editor"])
+    .order("full_name");
+  return (data ?? []) as Array<{ id: string; full_name: string | null; job_title: string | null }>;
 }

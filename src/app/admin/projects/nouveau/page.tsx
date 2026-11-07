@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { chargerSpectateur, chargerTicketVisible } from "@/lib/tickets/droits-server";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
@@ -49,10 +50,12 @@ export default async function NewProjectPage({ searchParams }: Props) {
       : Promise.resolve({ data: null }),
   ]);
 
-  const ticket = ticketRes.data as {
+  const brut = ticketRes.data as {
     id: string; titre: string; description: string | null; project_id: string | null;
     demandeur_nom: string | null; demandeur_email: string | null;
   } | null;
+  // Signalement non visible (droits du module Tickets, lot 1) : pas de pré-remplissage.
+  const ticket = brut && (await chargerTicketVisible(service, brut.id, await chargerSpectateur())) ? brut : null;
   // Un signalement ne donne qu'un projet : retour au projet existant.
   if (ticket?.project_id) redirect(`/admin/projects/${ticket.project_id}`);
   const commissionOk = from_commission && (commissions ?? []).some((c) => c.id === from_commission);

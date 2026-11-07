@@ -1,6 +1,8 @@
 import { createServiceClient } from "@/lib/supabase-server";
 import { BUCKET_DOCUMENTS_RAPPORT, estCheminRapportValide, nomAffichable } from "./documents-rapport";
 import { ouvrirDansNavigateur, urlDocument } from "./pieces";
+import { droitsSurTicket, type DroitsTicket, type Spectateur } from "./droits";
+import { chargerLiens, filtrerVisibles, versDroits } from "./droits-server";
 import type { TicketWithRelations, TicketStatut, TicketPriorite, TicketCategorie, TicketPhoto, TicketCommentaire, TicketRapport } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
@@ -17,8 +19,13 @@ export interface ListTicketsFilters {
   limit?: number;
 }
 
-/** Liste les tickets vivants (deleted_at à venir si on ajoute soft-delete) d'une commune. */
-export async function listTickets(communeId: string, filters: ListTicketsFilters = {}): Promise<TicketWithRelations[]> {
+/**
+ * Liste les signalements d'une commune VISIBLES du spectateur (lot 1).
+ * Le spectateur est obligatoire : sans lui, aucune ligne n'est rendue.
+ */
+export async function listTickets(
+  communeId: string, filters: ListTicketsFilters, spectateur: Spectateur | null,
+): Promise<TicketWithRelations[]> {
   const service = await createServiceClient();
 
   // Sans limite par défaut : l'ancienne limite de 100 faisait disparaître
@@ -34,7 +41,8 @@ export async function listTickets(communeId: string, filters: ListTicketsFilters
     .order("priorite", { ascending: false })
     .order("created_at", { ascending: false });
   if (filters.limit) base = base.limit(filters.limit);
-  const { data: ticketsBase } = await base;
+  const { data: lignes } = await base;
+  const ticketsBase = await filtrerVisibles(service, (lignes ?? []) as unknown as TicketWithRelations[], spectateur);
 
   // Photos de signalement des seuls signalements listés (avant : toutes
   // les photos de la plateforme étaient lues puis triées en mémoire).
@@ -97,15 +105,36 @@ export async function listTickets(communeId: string, filters: ListTicketsFilters
   return rows;
 }
 
-/** Récupère un ticket complet avec ses relations. */
-export async function getTicket(communeId: string, ticketId: string): Promise<{
+export type ProfilCourt = { id: string; full_name: string | null; job_title: string | null };
+
+const AUCUN = { ticket: null, photos: [], commentaires: [], rapport: null, assignees: [], destinataires: [], droits: null };
+
+/**
+ * Récupère un signalement complet s'il est VISIBLE du spectateur (lot 1),
+ * avec les droits de ce spectateur sur lui. Sinon : `ticket` null.
+ */
+export async function getTicket(communeId: string, ticketId: string, spectateur: Spectateur | null): Promise<{
   ticket: TicketWithRelations | null;
   photos: TicketPhoto[];
   commentaires: TicketCommentaire[];
   rapport: TicketRapport | null;
-  assignees: Array<{ id: string; full_name: string | null; job_title: string | null }>;
+  assignees: ProfilCourt[];
+  destinataires: ProfilCourt[];
+  droits: DroitsTicket | null;
 }> {
   const service = await createServiceClient();
+  if (!spectateur) return AUCUN;
+
+  // Visibilité d'abord : rien d'autre n'est lu si le signalement est caché.
+  const { data: entete } = await service
+    .from("tickets")
+    .select("id, commune_id, created_by, assigne_a, service_id, confidentialite")
+    .eq("id", ticketId)
+    .maybeSingle();
+  if (!entete || (spectateur.role !== "super_admin" && entete.commune_id !== communeId)) return AUCUN;
+  const liens = (await chargerLiens(service, [entete.id])).get(entete.id);
+  const droits = droitsSurTicket(versDroits(entete, liens), spectateur);
+  if (!droits.voir) return AUCUN;
 
   const [{ data: ticket }, { data: photos }, { data: commentaires }, { data: rapport }, { data: assigneesRaw }] = await Promise.all([
     service
@@ -115,7 +144,6 @@ export async function getTicket(communeId: string, ticketId: string): Promise<{
         created_by_profile:profiles!tickets_created_by_fkey ( id, full_name, job_title ),
         assignee_profile:profiles!tickets_assigne_a_fkey ( id, full_name, job_title )
       `)
-      .eq("commune_id", communeId)
       .eq("id", ticketId)
       .maybeSingle(),
     service
@@ -147,12 +175,19 @@ export async function getTicket(communeId: string, ticketId: string): Promise<{
     .map((r) => r.profiles)
     .filter((p): p is { id: string; full_name: string | null; job_title: string | null } => !!p);
 
+  const destIds = liens?.destinataires ?? [];
+  const { data: destRows } = destIds.length > 0
+    ? await service.from("profiles").select("id, full_name, job_title").in("id", destIds)
+    : { data: [] as ProfilCourt[] };
+
   return {
     ticket: ticket as unknown as TicketWithRelations | null,
     photos: (photos ?? []) as TicketPhoto[],
     commentaires: (commentaires ?? []) as TicketCommentaire[],
     rapport: (rapport ?? null) as TicketRapport | null,
     assignees,
+    destinataires: (destRows ?? []) as ProfilCourt[],
+    droits,
   };
 }
 

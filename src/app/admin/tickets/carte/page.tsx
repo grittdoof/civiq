@@ -4,6 +4,7 @@ import { ArrowLeft, LayoutGrid } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { listTickets } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import TicketsMap from "./TicketsMap";
 
@@ -24,7 +25,7 @@ export default async function TicketsMapPage() {
     if (!active) redirect("/admin/dashboard?module=tickets&state=inactive");
   }
 
-  const tickets = await listTickets(ctx.communeId, {});
+  const tickets = await listTickets(ctx.communeId, {}, await chargerSpectateur());
   const geoTickets = tickets.filter((t) => t.latitude != null && t.longitude != null);
 
   // Vignettes des pop-ups : miniature via l'adresse stable de notre route
