@@ -1226,3 +1226,12 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - Confidentialité : `chargerPilotage` exclut les confidentiels ; un restreint que la personne ne peut pas ouvrir mais qui serait dans sa portée est **compté sans détail** (`masque` : ni titre, ni adresse, jamais listé). Accès : portée « son service » ou plus (sinon retour à la liste).
 - Logique pure `pilotage.ts` (indicateurs, alertes, tableau, tendance, CSV) ; tests `pilotage.test.ts` → 352 ✓ ; `next build` OK. Non vérifié dans le navigateur (données réelles nécessaires) : recette finale.
 - Le seuil « sans réponse » est fixé à 7 jours dans la page (paramètre communal à prévoir si besoin).
+
+### Lot 4 bis — page publique pour les habitants (même session)
+- **Migration 060** (essai à blanc en prod, **non appliquée**) : `commune_settings.tickets_public_actif` (défaut : non) et `tickets_public_categories` (racines publiées ; NULL = toutes sauf périscolaire, sécurité, administratif, informatique, « Autre »).
+- `/interventions/<slug>` (public, sans connexion ; 404 si désactivée ou module absent) : interventions terminées (30 jours / 12 mois), délai moyen, % pris en charge sous 48 h, en cours, par thème, histogramme mensuel, contact mairie ; CSV `/interventions/<slug>/donnees`. Données mises en cache 1 h (`unstable_cache`, tag `tickets-public-<slug>` invalidé à l'enregistrement du réglage).
+- **Aucune donnée individuelle** : seules les colonnes de dates, statut et catégorie sont lues ; tickets « standard » des thèmes publiés uniquement.
+- Réglage dans `/admin/tickets/parametres` (activation, thèmes, lien), `PUT /api/tickets/page-publique`.
+- Totaux par quartier de la maquette : **non faits** (il faudrait dessiner des zones) ; la page s'en passe.
+- Middleware : un utilisateur connecté qui ouvre une page d'authentification arrive sur `/admin/accueil`.
+- Tests : `public.test.ts` → 356 ✓ ; `next build` OK.

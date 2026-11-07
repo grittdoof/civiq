@@ -3354,3 +3354,46 @@ button.civiq-card,
   .tk-pilotage .tk-tableau { overflow: visible; border: 0; }
   .tk-pilotage .tk-tableau table { min-width: 0; font-size: 11px; }
 }
+
+/* ═══ Lot 4 bis — Page publique des interventions ═══════════════ */
+.pub-interventions { min-height: 100vh; background: #F6F7F9; color: #0E1420; font-family: Montserrat, system-ui, sans-serif; }
+.pub-entete { background: #042F64; color: #fff; padding: 28px 16px 40px; }
+.pub-entete-contenu { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.pub-entete h1 { margin: 2px 0 0; font-size: clamp(22px, 4vw, 28px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+.pub-sur-titre { margin: 0; font-size: 13px; font-weight: 600; opacity: 0.85; }
+.pub-maj { margin: 0; font-size: 13px; opacity: 0.85; }
+.pub-logo { width: 56px; height: 56px; border-radius: 12px; background: #fff; object-fit: contain; padding: 4px; }
+.pub-corps { max-width: 1180px; margin: -20px auto 0; padding: 0 16px 48px; display: flex; flex-direction: column; gap: 22px; }
+.pub-periodes { display: flex; gap: 6px; flex-wrap: wrap; }
+.pub-periodes a {
+  min-height: 40px; display: inline-flex; align-items: center; padding: 0 16px; border-radius: 999px;
+  background: #fff; border: 1px solid #DCDFE4; color: #0E1420; font-size: 13.5px; font-weight: 600; text-decoration: none;
+}
+.pub-periodes a[aria-current="page"] { border: 2px solid #2F6FDB; color: #1a55b8; }
+.pub-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.pub-kpis > div { background: #fff; border: 1px solid #DCDFE4; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+.pub-kpis b { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; color: #042F64; }
+.pub-kpis span { font-size: 13.5px; color: #5F6672; font-weight: 600; line-height: 1.4; }
+.pub-h2 { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5F6672; margin: 0 0 14px; }
+.pub-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.pub-theme { background: #fff; border: 1px solid #DCDFE4; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.pub-theme strong { font-size: 15px; }
+.pub-theme dl { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pub-theme dl div { display: flex; flex-direction: column-reverse; gap: 2px; }
+.pub-theme dt { font-size: 11.5px; color: #5F6672; font-weight: 600; }
+.pub-theme dd { margin: 0; font-size: 19px; font-weight: 800; }
+.pub-carte { background: #fff; border: 1px solid #DCDFE4; border-radius: 14px; padding: 20px; }
+.pub-barres { display: flex; align-items: flex-end; gap: 8px; height: 190px; overflow-x: auto; }
+.pub-barres > div { flex: 1 0 28px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; font-size: 11px; color: #5F6672; font-weight: 600; height: 100%; }
+.pub-barres i { display: block; width: 100%; max-width: 48px; min-height: 2px; background: #2F6FDB; border-radius: 6px 6px 0 0; }
+.pub-barre-valeur { color: #0E1420; font-weight: 700; }
+.pub-signaler { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.pub-bouton {
+  min-height: 44px; display: inline-flex; align-items: center; padding: 0 16px; border-radius: 10px;
+  background: #2F6FDB; color: #fff; font-weight: 700; font-size: 14px; text-decoration: none;
+}
+.pub-bouton:hover { background: #1a55b8; color: #fff; }
+.pub-bouton-secondaire { background: #fff; color: #0E1420; border: 1px solid #DCDFE4; }
+.pub-bouton-secondaire:hover { background: #F6F7F9; color: #0E1420; }
+.pub-pied { font-size: 12.5px; color: #5F6672; line-height: 1.6; border-top: 1px solid #DCDFE4; padding-top: 16px; }
+.pub-pied a { color: #1a55b8; }

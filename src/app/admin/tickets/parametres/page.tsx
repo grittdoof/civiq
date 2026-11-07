@@ -9,6 +9,8 @@ import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { FONCTIONS_MATRICE, PORTEES, fonctionDe } from "@/lib/tickets/droits";
 import ServicesEditor from "@/components/tickets/ServicesEditor";
 import CategoriesEditor from "@/components/tickets/CategoriesEditor";
+import PagePubliqueReglage from "@/components/tickets/PagePubliqueReglage";
+import { NON_PUBLIES_PAR_DEFAUT } from "@/lib/tickets/public";
 import { listerCategories } from "@/lib/tickets/categories-server";
 
 // ═══════════════════════════════════════════════════════════════
@@ -28,13 +30,16 @@ export default async function ParametresTicketsPage() {
   if (ctx.role !== "admin" && ctx.role !== "super_admin") redirect("/admin/tickets");
 
   const service = await createServiceClient();
-  const [services, equipe, spectateur, categories, { count: nbAutre }] = await Promise.all([
+  const [services, equipe, spectateur, categories, { count: nbAutre }, { data: reglage }, { data: commune }] = await Promise.all([
     listerServices(service, ctx.communeId),
     listerEquipe(service, ctx.communeId),
     chargerSpectateur(),
     listerCategories(service, ctx.communeId),
     service.from("tickets").select("id", { count: "exact", head: true }).eq("commune_id", ctx.communeId).eq("categorie", "autre"),
+    service.from("commune_settings").select("tickets_public_actif, tickets_public_categories").eq("commune_id", ctx.communeId).maybeSingle(),
+    service.from("communes").select("slug").eq("id", ctx.communeId).maybeSingle(),
   ]);
+  const racines = categories.filter((c) => !c.parent_id && c.actif);
   const { data: profil } = await service.from("profiles").select("job_title").eq("id", ctx.userId).maybeSingle();
   const maFonction = FONCTIONS_MATRICE.find((f) => f.fonction === fonctionDe(profil?.job_title))?.libelle;
   const maPortee = PORTEES.find((p) => p.valeur === spectateur?.ligne?.voit)?.libelle ?? "Rien";
@@ -68,6 +73,21 @@ export default async function ParametresTicketsPage() {
         </p>
         <CategoriesEditor initial={categories} services={services.map((s) => ({ id: s.id, nom: s.nom }))} />
       </section>
+
+      {commune?.slug && (
+        <section style={{ marginBottom: 28 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 4px" }}>Page publique pour les habitants</h2>
+          <p style={{ fontSize: 13.5, color: "var(--fg-muted)", margin: "0 0 12px", lineHeight: 1.55 }}>
+            Une page sans connexion qui présente l&apos;activité des services : interventions terminées, délais, thèmes. Désactivée par défaut.
+          </p>
+          <PagePubliqueReglage
+            slug={commune.slug as string}
+            actifInitial={!!reglage?.tickets_public_actif}
+            choisisInitial={(reglage?.tickets_public_categories as string[] | null) ?? null}
+            themes={racines.map((r) => ({ id: r.id, libelle: r.libelle, parDefaut: !NON_PUBLIES_PAR_DEFAUT.includes(r.code) }))}
+          />
+        </section>
+      )}
 
       <section className="civiq-card" style={{ padding: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 6px" }}>Droits par fonction</h2>
