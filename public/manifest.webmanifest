@@ -50,10 +50,10 @@
       ]
     },
     {
-      "name": "Mes tickets",
-      "short_name": "Tickets",
-      "description": "Liste des tickets ouverts",
-      "url": "/admin/tickets?source=pwa-shortcut",
+      "name": "Mes interventions",
+      "short_name": "Interventions",
+      "description": "Mes interventions et celles de mon service",
+      "url": "/admin/accueil?source=pwa-shortcut",
       "icons": [
         { "src": "/app-icon/icon-192.png", "sizes": "192x192", "type": "image/png" }
       ]

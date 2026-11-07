@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import { usePushNavigationListener } from "@/hooks/usePushNavigationListener";
 import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
+import BandeauHorsLigne from "@/components/tickets/BandeauHorsLigne";
 import NavPendingLink from "@/components/ui/NavPendingLink";
 import NavigationTracker from "@/components/ui/NavigationTracker";
 import {
@@ -278,7 +279,11 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
         </div>
       )}
       <NavigationTracker />
-      <div className="civiq-content">{children}</div>
+      <div className="civiq-content">
+        {/* Lot 3 : file des signalements créés hors ligne (envoi automatique) */}
+        {(activeModuleKeys.includes("tickets") || isSuperAdmin) && <BandeauHorsLigne />}
+        {children}
+      </div>
       {/* Prompt d'activation push : visible sur toutes les pages admin
           (pas seulement /admin/tickets) — caché si déjà souscrit ou refusé */}
       <PushSubscriptionPrompt />

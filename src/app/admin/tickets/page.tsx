@@ -1,117 +1,164 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Map as MapIcon, BarChart3, Printer, Settings } from "lucide-react";
+import { Plus, Map as MapIcon, BarChart3, Printer, Settings, Search } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
-import { peutCreer, valeurAction } from "@/lib/tickets/droits";
+import { droitsSurTicket, fonctionDe, peutCreer, valeurAction } from "@/lib/tickets/droits";
 import { listerCategories } from "@/lib/tickets/categories-server";
-import { cheminCategorie } from "@/lib/tickets/categories";
+import { URGENCE_LABELS, cheminCategorie, etatDelai, type Urgence } from "@/lib/tickets/categories";
+import {
+  actionRapide, estAMoi, estOuvert, filtrerVue, grouperParUrgence, libelleVue,
+  vueParDefaut, vuesDisponibles, type Vue,
+} from "@/lib/tickets/interventions";
 import { createServiceClient } from "@/lib/supabase-server";
-import { chargerSpectateur } from "@/lib/tickets/droits-server";
+import { chargerSpectateur, versDroits } from "@/lib/tickets/droits-server";
 import { urlPhoto } from "@/lib/tickets/pieces";
-import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
+import { STATUT_LABELS, type TicketWithRelations } from "@/lib/tickets/types";
 import { isModuleActive } from "@/lib/module-guard";
-import TicketCard from "@/components/tickets/TicketCard";
-import TicketsFilters, { type TicketsFilterValue } from "./TicketsFilters";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
+import LigneIntervention, { type DonneesLigne } from "@/components/tickets/LigneIntervention";
 
 // ═══════════════════════════════════════════════════════════════
-// /admin/tickets — Liste des tickets de la commune
+// /admin/tickets — « Interventions » (lot 3, maquette 1A)
 //
-// Server Component : requireCommune() + listTickets() côté serveur,
-// puis le composant client TicketsFilters gère pills/recherche/refresh.
-// Les URLs signées des photos sont aussi générées côté serveur.
+// Onglets selon le profil et la matrice de la commune (À moi, Mon
+// service / Ma délégation, Non assignés, Mes demandes, Tous) ;
+// tickets ouverts regroupés par urgence (danger → faible), triés par
+// délai cible puis ancienneté ; une action rapide par ligne.
+// Paramètres : ?vue=…&etat=ouverts|clotures&q=…
+// (anciens liens ?filter=mes|ouverts|cloture|tous acceptés).
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
 
 interface Props {
-  searchParams: Promise<{ filter?: string; search?: string }>;
+  searchParams: Promise<{ vue?: string; etat?: string; q?: string; filter?: string; search?: string }>;
 }
+
+function ilYa(iso: string): string {
+  const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (minutes < 60) return minutes <= 1 ? "à l'instant" : `il y a ${minutes} min`;
+  const heures = Math.floor(minutes / 60);
+  if (heures < 24) return `il y a ${heures} h`;
+  const jours = Math.floor(heures / 24);
+  if (jours < 7) return `il y a ${jours} j`;
+  const semaines = Math.floor(jours / 7);
+  if (semaines < 5) return `il y a ${semaines} sem.`;
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+const SECTION_TON: Record<Urgence, string> = {
+  danger_immediat: "#B0000F", urgente: "#8A4B00", normale: "var(--fg-muted)", faible: "var(--fg-muted)",
+};
 
 export default async function TicketsListPage({ searchParams }: Props) {
   const ctx = await requireCommune();
-
-  // Module gating
-  if (ctx.role !== "super_admin" && ctx.communeId) {
-    const active = await isModuleActive("tickets");
-    if (!active) {
-      redirect("/admin/dashboard?module=tickets&state=inactive");
-    }
+  if (ctx.role !== "super_admin" && ctx.communeId && !(await isModuleActive("tickets"))) {
+    redirect("/admin/dashboard?module=tickets&state=inactive");
   }
-  if (!ctx.communeId) {
-    redirect("/admin/onboarding");
-  }
+  if (!ctx.communeId) redirect("/admin/onboarding");
 
-  // Filtre par défaut = "ouverts" (tickets pas encore pris en charge)
-  const { filter = "ouverts", search = "" } = await searchParams;
-
-  // Mapping filter → critères queries (cycle simplifié : Ouvert / Clôturé)
-  const filters: Parameters<typeof listTickets>[1] = { search };
-  if (filter === "ouverts") filters.statut = OUVERT_STATUTS;
-  else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
-  else if (filter === "mes") filters.assignedToMe = ctx.userId;
-
+  const sp = await searchParams;
+  const service = await createServiceClient();
   const spectateur = await chargerSpectateur();
-  const tickets = await listTickets(ctx.communeId, filters, spectateur);
+  const [{ data: profil }, tickets, categories] = await Promise.all([
+    service.from("profiles").select("job_title").eq("id", ctx.userId).maybeSingle(),
+    listTickets(ctx.communeId, {}, spectateur),
+    listerCategories(service, ctx.communeId),
+  ]);
+  const fonction = fonctionDe(profil?.job_title ?? null);
+  const services = spectateur?.services ?? new Set<string>();
 
-  // Compteurs pour les pills — on calcule "Mes tickets" avec la même logique
-  // que la query (assigne_a OU multi-assignés via ticket_assignees).
-  const allTickets = await listTickets(ctx.communeId, {}, spectateur);
-  const myTickets = await listTickets(ctx.communeId, { assignedToMe: ctx.userId }, spectateur);
-  const counts = {
-    mes: myTickets.length,
-    ouverts: allTickets.filter((t) => (OUVERT_STATUTS as string[]).includes(t.statut)).length,
-    cloture: allTickets.filter((t) => (CLOTURE_STATUTS as string[]).includes(t.statut)).length,
-    tous: allTickets.length,
+  // Onglets disponibles et onglet courant (anciens paramètres compris)
+  const vues = vuesDisponibles({ role: ctx.role, ligne: spectateur?.ligne ?? null, aDesServices: services.size > 0 });
+  const vueDemandee = (sp.vue ?? (sp.filter === "mes" ? "moi" : sp.filter === "tous" ? "tous" : undefined)) as Vue | undefined;
+  const vue: Vue = vueDemandee && vues.includes(vueDemandee) ? vueDemandee : vueParDefaut(fonction, vues);
+  const etat = sp.etat === "clotures" || sp.filter === "cloture" ? "clotures" : "ouverts";
+  const q = (sp.q ?? sp.search ?? "").trim();
+
+  const parVue = (v: Vue) => filtrerVue(tickets, v, ctx.userId, services);
+  const comptes = Object.fromEntries(vues.map((v) => [v, parVue(v).filter((t) => estOuvert(t.statut)).length])) as Record<Vue, number>;
+
+  const recherche = (t: TicketWithRelations) => {
+    if (!q) return true;
+    const n = Number(q.replace(/^#/, ""));
+    if (Number.isFinite(n) && n > 0 && t.numero === n) return true;
+    const s = q.toLowerCase();
+    return t.titre.toLowerCase().includes(s) || (t.description ?? "").toLowerCase().includes(s) || (t.adresse ?? "").toLowerCase().includes(s);
+  };
+  const dansVue = parVue(vue).filter(recherche);
+  const ouverts = dansVue.filter((t) => estOuvert(t.statut));
+  const clotures = dansVue
+    .filter((t) => !estOuvert(t.statut))
+    .sort((a, b) => (b.clos_at ?? b.updated_at).localeCompare(a.clos_at ?? a.updated_at));
+
+  // Données des lignes (droits calculés ici, pour l'action rapide)
+  const versLigne = (t: TicketWithRelations): DonneesLigne => {
+    const droits = spectateur
+      ? droitsSurTicket(versDroits(t, { assignes: t.assignee_ids ?? [], destinataires: t.destinataire_ids ?? [] }), spectateur)
+      : null;
+    const ch = cheminCategorie(t.categorie_id, categories);
+    const ouvert = estOuvert(t.statut);
+    const delai = etatDelai(t.delai_cible_le, t.created_at, ouvert);
+    const puces: DonneesLigne["puces"] = [];
+    const urgence = (t.urgence ?? "normale") as Urgence;
+    if (ouvert && urgence === "danger_immediat" && (t.statut === "nouveau" || t.statut === "assigne") && !t.pris_en_charge_at) {
+      puces.push({ texte: `Non pris en charge · ${ilYa(t.created_at).replace("il y a ", "")}`, ton: "danger" });
+    } else {
+      puces.push({
+        texte: STATUT_LABELS[t.statut],
+        ton: !ouvert ? "neutre" : t.statut === "nouveau" ? "info" : t.statut === "en_attente" ? "alerte" : "ok",
+      });
+    }
+    if (delai === "depasse") puces.push({ texte: "Délai dépassé", ton: "danger" });
+    else if (delai === "proche") puces.push({ texte: "Délai proche", ton: "alerte" });
+    if (t.transmis_a) puces.push({ texte: `Transmis : ${t.transmis_a}`, ton: "neutre" });
+    if (estAMoi(t, ctx.userId) && vue !== "moi") puces.push({ texte: "À moi", ton: "info" });
+    const premiere = t.signalement_photos?.[0];
+    return {
+      id: t.id, numero: t.numero, titre: t.titre,
+      lieu: t.adresse ? t.adresse.replace(/,\s*[^,]*$/, "") : null,
+      categorie: ch.sous?.libelle ?? ch.racine?.libelle ?? null,
+      age: ilYa(t.created_at),
+      urgence, puces,
+      confidentialite: t.confidentialite ?? "standard",
+      miniature: premiere ? urlPhoto(t.id, premiere.id, { miniature: true }) : null,
+      action: droits ? actionRapide(t, droits, ctx.userId) : null,
+    };
   };
 
-  // Lot 2 : chemins lisibles des catégories de la commune
-  const categories = await listerCategories(await createServiceClient(), ctx.communeId);
-  const categorieDe = (id: string | null | undefined) => {
-    const ch = cheminCategorie(id, categories);
-    return ch.racine ? { libelle: ch.libelle, icone: ch.racine.icone } : null;
-  };
-
-  // Vignette : miniature de la première photo, via l'adresse stable de
-  // notre route (droits vérifiés, lien jamais périmé).
-  const photoUrls = new Map<string, string>();
-  for (const t of tickets) {
-    const first = t.signalement_photos?.[0];
-    if (first) photoUrls.set(t.id, urlPhoto(t.id, first.id, { miniature: true }));
-  }
-
-  // Droits issus de la matrice de la commune (lot 1)
   const canCreate = !!spectateur && peutCreer(spectateur);
   const canExport = !!spectateur && valeurAction("exporter", spectateur) === "oui";
   const canConfigure = ctx.role === "admin" || ctx.role === "super_admin";
-
-  const emptyState = emptyStateFor(filter, canCreate, counts.tous === 0);
+  const lien = (o: { vue?: Vue; etat?: string }) => {
+    const p = new URLSearchParams();
+    p.set("vue", o.vue ?? vue);
+    if ((o.etat ?? etat) === "clotures") p.set("etat", "clotures");
+    if (q) p.set("q", q);
+    return `/admin/tickets?${p.toString()}`;
+  };
+  const sousTitre = vue === "moi" ? "Les tickets qui vous sont assignés"
+    : vue === "service" ? "Les tickets de vos services"
+    : vue === "non_assignes" ? "Les tickets à attribuer"
+    : vue === "demandes" ? "Les tickets que vous avez créés"
+    : "Tous les tickets que vous pouvez voir";
 
   return (
     <main className="civiq-main tk-list-page">
       <div className="tk-page-header">
         <div>
-          <h1 className="civiq-page-title">Tickets d&apos;intervention</h1>
-          <p className="tk-page-subtitle">
-            Signalements et interventions techniques de la commune.
-          </p>
+          <h1 className="civiq-page-title">Interventions</h1>
+          <p className="tk-page-subtitle">{sousTitre} · triés par urgence puis délai</p>
         </div>
         <div className="tk-page-header-actions">
           <Link href="/admin/tickets/carte" className="civiq-btn civiq-btn-outline tk-page-header-link">
-            <MapIcon size={14} /> <span>Vue carte</span>
+            <MapIcon size={14} /> <span>Carte</span>
           </Link>
           <Link href="/admin/tickets/stats" className="civiq-btn civiq-btn-outline tk-page-header-link">
             <BarChart3 size={14} /> <span>Statistiques</span>
           </Link>
           {canExport && (
-            <Link
-              href={`/tickets-pdf${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
-              className="civiq-btn civiq-btn-outline tk-page-header-link"
-              target="_blank"
-              rel="noreferrer"
-              prefetch={false}
-            >
+            <Link href={`/tickets-pdf${etat === "clotures" ? "?filter=cloture" : ""}`} className="civiq-btn civiq-btn-outline tk-page-header-link" target="_blank" rel="noreferrer" prefetch={false}>
               <Printer size={14} /> <span>Imprimer / PDF</span>
             </Link>
           )}
@@ -128,79 +175,64 @@ export default async function TicketsListPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <TicketsFilters
-        currentFilter={filter as TicketsFilterValue}
-        currentSearch={search}
-        counts={counts}
-      />
-
-      {tickets.length === 0 ? (
-        <div className="civiq-card tk-empty">
-          <div className="tk-empty-icon" aria-hidden>{emptyState.icon}</div>
-          <p className="tk-empty-title">{emptyState.title}</p>
-          {emptyState.hint && (
-            <p className="tk-empty-hint">{emptyState.hint}</p>
-          )}
-          {emptyState.cta && (
-            <Link href={emptyState.cta.href} className="civiq-btn civiq-btn-default tk-empty-cta">
-              <Plus size={14} /> {emptyState.cta.label}
+      {vues.length > 1 && (
+        <nav aria-label="Vues" className="tk-vues">
+          {vues.map((v) => (
+            <Link key={v} href={lien({ vue: v })} className="tk-vue" aria-current={v === vue ? "page" : undefined}>
+              {libelleVue(v, fonction)} <span className="tk-vue-compte">{comptes[v]}</span>
             </Link>
-          )}
-        </div>
-      ) : (
-        <div className="tk-list">
-          {tickets.map((t) => (
-            <TicketCard key={t.id} ticket={t} photoUrl={photoUrls.get(t.id)} categorie={categorieDe(t.categorie_id)} />
           ))}
+        </nav>
+      )}
+
+      <div className="tk-outils">
+        <div role="group" aria-label="État" className="tk-etat">
+          <Link href={lien({ etat: "ouverts" })} aria-current={etat === "ouverts" ? "page" : undefined}>Ouverts · {ouverts.length}</Link>
+          <Link href={lien({ etat: "clotures" })} aria-current={etat === "clotures" ? "page" : undefined}>Clôturés · {clotures.length}</Link>
         </div>
+        <form action="/admin/tickets" method="get" className="tk-recherche" role="search">
+          <input type="hidden" name="vue" value={vue} />
+          {etat === "clotures" && <input type="hidden" name="etat" value="clotures" />}
+          <Search size={15} aria-hidden="true" />
+          <label className="tk-sr-only" htmlFor="tk-q">Rechercher un ticket</label>
+          <input id="tk-q" name="q" defaultValue={q} placeholder="Titre, adresse ou n°…" />
+        </form>
+      </div>
+
+      {etat === "ouverts" ? (
+        ouverts.length === 0 ? (
+          <div className="civiq-card tk-empty">
+            <p className="tk-empty-title">{q ? "Aucun ticket ne correspond" : vue === "moi" ? "Aucune intervention en cours" : "Aucun ticket ouvert"}</p>
+            <p className="tk-empty-hint">{q ? "Essayez un autre mot ou un numéro." : vue === "moi" ? "Vous êtes à jour." : "Tous les tickets de cette vue sont clôturés."}</p>
+          </div>
+        ) : (
+          grouperParUrgence(ouverts).map((g) => (
+            <section key={g.urgence} aria-labelledby={`sec-${g.urgence}`} className="tk-section">
+              <h2 id={`sec-${g.urgence}`} className="tk-section-titre" style={{ color: SECTION_TON[g.urgence] }}>
+                {URGENCE_LABELS[g.urgence]} · {g.tickets.length}
+              </h2>
+              <ul className="tk-lignes">
+                {g.tickets.map((t) => <LigneIntervention key={t.id} t={versLigne(t)} communeId={ctx.communeId!} />)}
+              </ul>
+            </section>
+          ))
+        )
+      ) : clotures.length === 0 ? (
+        <div className="civiq-card tk-empty"><p className="tk-empty-title">Aucun ticket clôturé dans cette vue</p></div>
+      ) : (
+        <ul className="tk-lignes">
+          {clotures.slice(0, 200).map((t) => <LigneIntervention key={t.id} t={versLigne(t)} communeId={ctx.communeId!} />)}
+        </ul>
       )}
 
       {canCreate && (
-        <Link
-          href="/admin/tickets/nouveau"
-          className="tk-fab"
-          aria-label="Nouveau ticket"
-        >
+        <Link href="/admin/tickets/nouveau" className="tk-fab" aria-label="Nouveau ticket">
           <Plus size={20} strokeWidth={2.5} />
-          <span>Nouveau</span>
+          <span>Nouveau ticket</span>
         </Link>
       )}
 
       <TicketsRealtime communeId={ctx.communeId} />
-      {/* PushSubscriptionPrompt est désormais monté dans AdminShell */}
     </main>
   );
-}
-
-interface EmptyState {
-  icon: string;
-  title: string;
-  hint?: string;
-  cta?: { href: string; label: string };
-}
-
-function emptyStateFor(filter: string, canCreate: boolean, isFreshCommune: boolean): EmptyState {
-  if (isFreshCommune) {
-    return {
-      icon: "🚀",
-      title: "Aucun ticket pour l'instant",
-      hint: "Lance le module en créant ton premier signalement.",
-      cta: canCreate ? { href: "/admin/tickets/nouveau", label: "Créer un premier ticket" } : undefined,
-    };
-  }
-  switch (filter) {
-    case "mes":
-      return { icon: "🙌", title: "Aucun ticket ne t'est assigné", hint: "Tu es à jour sur tes interventions." };
-    case "ouverts":
-      return { icon: "✨", title: "Aucun ticket ouvert", hint: "Tous les signalements ont été clôturés." };
-    case "cloture":
-      return { icon: "📭", title: "Aucun ticket clôturé", hint: "Les tickets clôturés apparaîtront ici." };
-    default:
-      return {
-        icon: "📋",
-        title: "Aucun ticket trouvé",
-        hint: "Aucun résultat pour cette recherche ou ce filtre.",
-        cta: canCreate ? { href: "/admin/tickets/nouveau", label: "Nouveau ticket" } : undefined,
-      };
-  }
 }

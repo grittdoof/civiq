@@ -1205,3 +1205,17 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Évolution de la correspondance urgence ↔ priorité** : des deux côtés (déclencheur SQL et `categories.ts`).
 - Les statistiques, la carte et le PDF lisent encore `categorie` / `priorite` (synchronisées) : à migrer au lot 4.
 - Une catégorie supprimée n'est plus proposée ; ses tickets gardent `categorie_id` mais s'affichent « Sans catégorie ».
+
+### Lot 3 — application mobile par profil, mode hors ligne (même session)
+> À partir de ce lot, l'utilisateur a demandé d'enchaîner les lots sans test en production intermédiaire : recette globale à la fin.
+- **Page d'arrivée** `/admin/accueil` (lancement PWA, connexion, `/admin`) : agent → « À moi », responsable → « Mon service », adjoint → « Ma délégation », accueil / conseiller → « Mes demandes », maire / direction / super-admin → tableau de bord ; sans module Tickets → tableau de bord. Raccourci PWA « Mes interventions ».
+- **Liste « Interventions »** (maquette 1A) : onglets selon la matrice (`vuesDisponibles`), Ouverts / Clôturés, recherche (titre, adresse, n°), sections par urgence triées par délai cible puis ancienneté, ligne avec barre d'urgence, puces (statut, « Non pris en charge · 42 min », délai, transmis, restreint) et **action rapide** (Prendre, Clôturer, Photo) ; bouton flottant « Nouveau ticket » sur mobile. Anciens liens `?filter=` acceptés.
+- `listTickets` renvoie `assignee_ids` / `destinataire_ids` (une seule lecture des liens).
+- **Hors ligne** : `lib/tickets/hors-ligne.ts` (IndexedDB `gociviq-hors-ligne`), photos compressées gardées par `TicketPhotoUpload` (`onEnAttente`), envoi par `envoyerFile` (photos une par une, progression enregistrée) à l'ouverture, au retour du réseau, au premier plan et sur Background Sync (Android) ; écran « gardé sur le téléphone » (maquette 2A) ; `BandeauHorsLigne` dans le shell (refus serveur affiché, « Abandonner »). `depot-photo.ts` partagé.
+- Correctif : la classe de la galerie (lot 6) entrait en conflit avec l'outil de dépôt → `tk-galerie-vignette`.
+- Tests : `interventions.test.ts` → 346 ✓ ; `next build` OK ; liste mobile, fenêtre photo et file IndexedDB vérifiées dans le navigateur (page temporaire).
+
+#### Points d'attention (lot 3)
+- **Doublon possible** si la connexion tombe entre la création et la confirmation d'un ticket envoyé depuis la file (pas d'identifiant d'idempotence).
+- iOS n'a pas de Background Sync : la file part à l'ouverture de l'application ou au retour du réseau.
+- Aucune migration dans ce lot.

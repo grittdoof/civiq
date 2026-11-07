@@ -74,7 +74,7 @@ function LoginPageInner() {
         // jusqu'à ce que la page suivante remplace cette vue.
         setNavigating(true);
         startTransition(() => {
-          router.push(next && next.startsWith("/") ? next : "/admin/dashboard");
+          router.push(next && next.startsWith("/") ? next : "/admin/accueil");
         });
         return; // ne pas remettre loading=false
       } else {

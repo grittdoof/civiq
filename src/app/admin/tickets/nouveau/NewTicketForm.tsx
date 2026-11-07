@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  CloudOff,
   Loader2,
   PencilLine,
   Save,
@@ -15,7 +16,9 @@ import {
 } from "lucide-react";
 import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
-import { createTicket } from "@/lib/tickets/mutations";
+import { createTicket, type CreateTicketInput } from "@/lib/tickets/mutations";
+import { envoyerFile, mettreEnFile } from "@/lib/tickets/hors-ligne";
+import { estErreurReseau } from "@/lib/tickets/hors-ligne-regles";
 import VisibiliteChamps, { type Personne } from "@/components/tickets/VisibiliteChamps";
 import IconeCategorie from "@/components/tickets/IconeCategorie";
 import {
@@ -58,6 +61,8 @@ interface OptionsVisibilite {
   moi: string;
   /** Lot 2 : taxonomie de la commune (actives seulement). */
   categories: CategorieTicket[];
+  /** Lot 3 : photos gardées sur le téléphone (hors ligne). */
+  setPhotosEnAttente?: (photos: Blob[]) => void;
 }
 const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "", categories: [] });
 
@@ -118,6 +123,9 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   const isDesktop = useIsDesktop();
 
   const wiz = useTicketWizard();
+  // Lot 3 : photos compressées en attente (hors ligne) et écran de file
+  const [photosEnAttente, setPhotosEnAttente] = useState<Blob[]>([]);
+  const [misEnFile, setMisEnFile] = useState(false);
   const { value, set, isDirty } = wiz;
 
   // Block native back if dirty
@@ -149,8 +157,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
     }
     const showDemandeur = value.canal === "telephone" || value.canal === "email";
     startTransition(async () => {
-      try {
-        const result = await createTicket({
+      const donnees: CreateTicketInput = {
           canal: value.canal,
           demandeur_nom: showDemandeur ? value.demandeur_nom : null,
           demandeur_telephone: showDemandeur ? value.demandeur_telephone : null,
@@ -170,20 +177,55 @@ export default function NewTicketForm({ communeId, agents, services = [], person
           service_id: value.serviceId || null,
           confidentialite: value.confidentialite,
           destinataire_ids: value.confidentialite === "standard" ? [] : value.destinataireIds,
-        });
+      };
+      // Lot 3 : sans réseau (ou photos gardées sur le téléphone), le
+      // signalement part dans la file d'attente et sera envoyé plus tard.
+      const enFile = async () => {
+        await mettreEnFile(communeId, donnees, photosEnAttente);
+        if (navigator.onLine) {
+          const { restants } = await envoyerFile();
+          if (restants === 0) { router.push("/admin/tickets"); router.refresh(); return; }
+        }
+        setMisEnFile(true);
+      };
+      try {
+        if (!navigator.onLine || photosEnAttente.length > 0) { await enFile(); return; }
+        const result = await createTicket(donnees);
         router.push(`/admin/tickets/${result.id}`);
         router.refresh();
       } catch (e) {
+        if (estErreurReseau(e, navigator.onLine)) {
+          try { await enFile(); } catch { setError("Pas de réseau et enregistrement sur le téléphone impossible."); }
+          return;
+        }
         setError(e instanceof Error ? e.message : "Erreur inconnue");
       }
     });
+  }
+
+  // Écran « gardé sur le téléphone » (maquette 2A)
+  if (misEnFile) {
+    return (
+      <main className="civiq-main" style={{ maxWidth: 520, minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, textAlign: "center" }}>
+        <span aria-hidden="true" style={{ width: 72, height: 72, borderRadius: 36, background: "#FEF3E2", color: "#8A5A00", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <CloudOff size={34} />
+        </span>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--marine)" }}>Pas de réseau : le ticket est gardé sur le téléphone</h1>
+        <p style={{ margin: 0, fontSize: 14.5, color: "var(--fg-muted)", lineHeight: 1.55 }}>
+          Il partira automatiquement{photosEnAttente.length > 0 ? `, avec ${photosEnAttente.length} photo${photosEnAttente.length > 1 ? "s" : ""},` : ""} dès que la connexion reviendra. Vous pouvez fermer l&apos;application.
+        </p>
+        <Link href="/admin/tickets" className="civiq-btn civiq-btn-default" style={{ justifyContent: "center", minHeight: 48, width: "100%" }}>
+          Retour à mes interventions
+        </Link>
+      </main>
+    );
   }
 
   // Avant détection : rendu mobile par défaut (le plus fréquent ici,
   // et l'admin shell mobile cache la complexité d'un éventuel flash).
   if (isDesktop === null || !isDesktop) {
     return (
-      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
+      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente }}>
       <MobileWizard
         wiz={wiz}
         agents={agents}
@@ -199,7 +241,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   }
 
   return (
-    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
+    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente }}>
     <DesktopForm
       wiz={wiz}
       agents={agents}
@@ -676,11 +718,7 @@ function StepContent({
     case "photos":
       return (
         <div>
-          <TicketPhotoUpload
-            communeId={communeId}
-            onChange={(paths) => set("photoPaths", paths)}
-            max={5}
-          />
+          <PhotosAvecAttente communeId={communeId} onChange={(paths) => set("photoPaths", paths)} />
         </div>
       );
 
@@ -739,6 +777,13 @@ function StepContent({
         </div>
       );
   }
+}
+
+// ─── Photos : déposées tout de suite, ou gardées hors ligne (lot 3) ──
+
+function PhotosAvecAttente({ communeId, onChange }: { communeId: string; onChange: (paths: string[]) => void }) {
+  const { setPhotosEnAttente } = useContext(VisibiliteCtx);
+  return <TicketPhotoUpload communeId={communeId} onChange={onChange} onEnAttente={setPhotosEnAttente} max={5} />;
 }
 
 // ─── Étape « Catégorie » : catégorie puis sous-catégorie (lot 2) ──

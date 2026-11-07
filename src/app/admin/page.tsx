@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// /admin → /admin/dashboard (alias propre depuis la home)
+// /admin → page d'arrivée selon le profil (lot 3)
 export default function AdminIndex() {
-  redirect("/admin/dashboard");
+  redirect("/admin/accueil");
 }
