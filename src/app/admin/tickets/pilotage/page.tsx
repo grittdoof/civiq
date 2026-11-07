@@ -154,7 +154,7 @@ export default async function PilotagePage({ searchParams }: Props) {
               <li>
                 <span className="tk-alerte-point" style={{ background: "#E08A00" }} aria-hidden="true" />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <strong>{al.sansReponse.length} ticket{al.sansReponse.length > 1 ? "s" : ""} sans réponse depuis plus de {JOURS_SANS_REPONSE} jours</strong>
+                  <strong>{al.sansReponse.length} ticket{al.sansReponse.length > 1 ? "s" : ""} pas encore démarré{al.sansReponse.length > 1 ? "s" : ""} depuis plus de {JOURS_SANS_REPONSE} jours</strong>
                   <span className="tk-alerte-detail">{al.sansReponse.slice(0, 5).map((t) => `#${t.numero}`).join(", ")}{al.sansReponse.length > 5 ? "…" : ""}</span>
                 </span>
                 <Link href="/admin/tickets?vue=non_assignes">Voir</Link>
@@ -248,7 +248,7 @@ export default async function PilotagePage({ searchParams }: Props) {
                     <span className="tk-top-libelle">{c.libelle}</span>
                     <span className="tk-top-barre" aria-hidden="true"><i style={{ width: `${Math.round((c.crees / max) * 100)}%` }} /></span>
                     <b>{c.crees}</b>
-                    <span className="tk-top-tendance">{tend.texte.replace("En hausse : ", "+").replace("En baisse : ", "")}</span>
+                    <span className="tk-top-tendance">{tend.texte.replace("En hausse : ", "").replace("En baisse : ", "")}</span>
                   </li>
                 );
               })}

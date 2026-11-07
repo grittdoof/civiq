@@ -45,6 +45,10 @@ describe("périscolaire", () => {
     ];
     expect(destinatairesAuto("inc", cats, profils)).toEqual(["m", "d"]);
     expect(destinatairesAuto("cant", cats, profils)).toEqual([]);
+    // Maire super-admin : prévenu, jamais nommé destinataire
+    const avecSuper = [...profils.slice(1), { id: "s", job_title: "maire", role: "super_admin" }];
+    expect(destinatairesAuto("inc", cats, avecSuper)).toEqual(["d"]);
+    expect(destinatairesAuto("inc", cats, avecSuper, ["admin", "editor", "super_admin"])).toEqual(["d", "s"]);
   });
 
   it("lit un lieu et le réglage « prévenir automatiquement »", () => {

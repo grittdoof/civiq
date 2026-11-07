@@ -96,9 +96,12 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
 
   // Lot 5 : remontée automatique (ex. incident enfant → maire, DGS,
   // secrétaire générale) : ces personnes sont nommées destinataires.
-  const remontee = categorie && categorie.arbre.some((c) => c.notifier_fonctions?.length)
-    ? destinatairesAuto(categorie.id, categorie.arbre, await profilsCommune(service, ctx.communeId))
-    : [];
+  // Un super-admin rattaché à la commune (ex. le maire) voit déjà tout :
+  // il est prévenu, sans être nommé destinataire.
+  const profils = categorie && categorie.arbre.some((c) => c.notifier_fonctions?.length)
+    ? await profilsCommune(service, ctx.communeId) : [];
+  const prevenus = categorie ? destinatairesAuto(categorie.id, categorie.arbre, profils, ["admin", "editor", "super_admin"]) : [];
+  const remontee = categorie ? destinatairesAuto(categorie.id, categorie.arbre, profils) : [];
   const periscolaire = categorie && estPeriscolaire(categorie.id, categorie.arbre)
     ? validerPeriscolaire(input.periscolaire) : null;
   if (periscolaire?.site_id) {
@@ -206,7 +209,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   );
 
   // Lot 5 : la direction prévenue tout de suite (hors auteur).
-  const aPrevenir = remontee.filter((id) => id !== ctx.userId);
+  const aPrevenir = prevenus.filter((id) => id !== ctx.userId);
   if (aPrevenir.length > 0) {
     sendTicketNotification({
       profileIds: aPrevenir,
@@ -337,7 +340,7 @@ async function profilsCommune(
 ): Promise<Array<{ id: string; job_title: string | null; role: string | null }>> {
   if (!communeId) return [];
   const { data } = await service.from("profiles").select("id, job_title, role")
-    .eq("commune_id", communeId).in("role", ["admin", "editor"]);
+    .eq("commune_id", communeId).in("role", ["admin", "editor", "super_admin"]);
   return (data ?? []) as Array<{ id: string; job_title: string | null; role: string | null }>;
 }
 

@@ -89,11 +89,12 @@ export function destinatairesAuto(
   categorieId: string | null | undefined,
   cats: Array<Pick<CategorieTicket, "id" | "parent_id" | "notifier_fonctions">>,
   profils: Array<{ id: string; job_title: string | null; role?: string | null }>,
+  roles: string[] = ["admin", "editor"],
 ): string[] {
   const fonctions = fonctionsANotifier(categorieId, cats);
   if (fonctions.length === 0) return [];
   return profils
-    .filter((p) => (p.role === undefined || p.role === "admin" || p.role === "editor") && fonctions.includes(fonctionDe(p.job_title)))
+    .filter((p) => (p.role === undefined || roles.includes(p.role ?? "")) && fonctions.includes(fonctionDe(p.job_title)))
     .map((p) => p.id);
 }
 

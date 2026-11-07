@@ -33,6 +33,8 @@ export interface TicketPilotage {
   urgence: Urgence;
   created_at: string;
   pris_en_charge_at: string | null;
+  /** Assignation : compte comme prise en charge (le statut « Pris en charge » est peu utilisé). */
+  assigne_at?: string | null;
   clos_at: string | null;
   resolu_at: string | null;
   delai_cible_le: string | null;
@@ -53,12 +55,18 @@ export function enRetard(t: TicketPilotage, maintenant = new Date()): boolean {
   return ouvert(t) && !!t.delai_cible_le && ms(t.delai_cible_le) < maintenant.getTime();
 }
 
+/** Première prise en charge : passage en « Pris en charge » ou assignation à quelqu'un. */
+export function priseEnChargeLe(t: { pris_en_charge_at: string | null; assigne_at?: string | null }): string | null {
+  const d = [t.pris_en_charge_at, t.assigne_at ?? null].filter((x): x is string => !!x).sort();
+  return d[0] ?? null;
+}
+
 /** Ticket « danger immédiat » toujours pas pris en charge. */
 export function dangerNonPrisEnCharge(t: TicketPilotage): boolean {
   return ouvert(t) && t.urgence === "danger_immediat" && !t.pris_en_charge_at && (t.statut === "nouveau" || t.statut === "assigne");
 }
 
-/** Ticket sans aucune prise en charge depuis plus de `jours`. */
+/** Ticket pas encore démarré (nouveau ou seulement assigné) depuis plus de `jours`. */
 export function sansReponse(t: TicketPilotage, jours: number, maintenant = new Date()): boolean {
   return ouvert(t) && !t.pris_en_charge_at && (t.statut === "nouveau" || t.statut === "assigne")
     && maintenant.getTime() - ms(t.created_at) > jours * 86_400_000;
@@ -96,7 +104,7 @@ export function indicateurs(tickets: TicketPilotage[], p: Periode, maintenant = 
   const dans = (iso: string | null, a: Date, b: Date) => !!iso && ms(iso) >= a.getTime() && ms(iso) < b.getTime();
   const clos = tickets.filter((t) => !ouvert(t) && dans(fermeLe(t), debut, maintenant));
   const crees = tickets.filter((t) => dans(t.created_at, debut, maintenant));
-  const avec24 = crees.filter((t) => t.pris_en_charge_at);
+  const avec24 = crees.filter((t) => priseEnChargeLe(t));
   return {
     ouverts: tickets.filter(ouvert).length,
     enCours: tickets.filter((t) => t.statut === "pris_en_charge" || t.statut === "en_cours").length,
@@ -107,7 +115,7 @@ export function indicateurs(tickets: TicketPilotage[], p: Periode, maintenant = 
     creesPrecedente: tickets.filter((t) => dans(t.created_at, debutPrecedente, debut)).length,
     delaiMoyen: delaiMoyenJours(clos),
     priseEnCharge24h: crees.length === 0 ? null
-      : Math.round((avec24.filter((t) => ms(t.pris_en_charge_at!) - ms(t.created_at) <= 86_400_000).length / crees.length) * 100),
+      : Math.round((avec24.filter((t) => ms(priseEnChargeLe(t)!) - ms(t.created_at) <= 86_400_000).length / crees.length) * 100),
     masques: tickets.filter((t) => t.masque).length,
   };
 }

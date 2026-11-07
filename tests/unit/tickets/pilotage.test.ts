@@ -73,3 +73,12 @@ describe("export CSV", () => {
     expect(csv).toContain('"Dit ""A""";');
   });
 });
+
+describe("prise en charge (recette)", () => {
+  it("compte l'assignation comme prise en charge", async () => {
+    const { priseEnChargeLe } = await import("@/lib/tickets/pilotage");
+    expect(priseEnChargeLe({ pris_en_charge_at: null, assigne_at: "2026-11-01T10:00:00Z" })).toBe("2026-11-01T10:00:00Z");
+    expect(priseEnChargeLe({ pris_en_charge_at: "2026-11-02T10:00:00Z", assigne_at: "2026-11-01T10:00:00Z" })).toBe("2026-11-01T10:00:00Z");
+    expect(priseEnChargeLe({ pris_en_charge_at: null, assigne_at: null })).toBeNull();
+  });
+});

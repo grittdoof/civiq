@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import type { CategorieTicket } from "./categories";
+import { priseEnChargeLe } from "./pilotage";
 
 /** Thèmes non publiés par défaut (sensibles ou internes). */
 export const NON_PUBLIES_PAR_DEFAUT = ["periscolaire", "securite", "administratif", "informatique", "autre"];
@@ -23,6 +24,7 @@ export interface TicketPublic {
   statut: string;
   created_at: string;
   pris_en_charge_at: string | null;
+  assigne_at?: string | null;
   termine_le: string | null;
 }
 
@@ -56,7 +58,7 @@ export function agregatsPublics(
     : new Date(maintenant.getFullYear() - 1, maintenant.getMonth(), maintenant.getDate()).getTime();
   const termineesPeriode = publics.filter((t) => TERMINES.has(t.statut) && t.termine_le && ms(t.termine_le) >= debut);
   const crees = publics.filter((t) => ms(t.created_at) >= debut);
-  const pec48 = crees.filter((t) => t.pris_en_charge_at && ms(t.pris_en_charge_at) - ms(t.created_at) <= 2 * 86_400_000);
+  const pec48 = crees.filter((t) => { const p = priseEnChargeLe(t); return !!p && ms(p) - ms(t.created_at) <= 2 * 86_400_000; });
 
   // Six derniers mois (30 jours) ou douze (12 mois), le mois courant inclus
   const nbMois = periode === "30j" ? 6 : 12;

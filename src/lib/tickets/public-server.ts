@@ -31,7 +31,7 @@ async function calculer(slug: string, periode: PeriodePublique): Promise<PagePub
   const themes = themesPublies(categories.filter((x) => !x.parent_id), (reglage.tickets_public_categories as string[] | null) ?? null);
   const { data: lignes } = await service
     .from("tickets")
-    .select("categorie_id, statut, created_at, pris_en_charge_at, resolu_at, clos_at")
+    .select("categorie_id, statut, created_at, pris_en_charge_at, assigne_at, resolu_at, clos_at")
     .eq("commune_id", c.id)
     .eq("confidentialite", "standard");
   const tickets: TicketPublic[] = (lignes ?? [])
@@ -41,6 +41,7 @@ async function calculer(slug: string, periode: PeriodePublique): Promise<PagePub
       statut: t.statut as string,
       created_at: t.created_at as string,
       pris_en_charge_at: t.pris_en_charge_at as string | null,
+      assigne_at: t.assigne_at as string | null,
       termine_le: (t.clos_at as string | null) ?? (t.resolu_at as string | null),
     }));
   return {
