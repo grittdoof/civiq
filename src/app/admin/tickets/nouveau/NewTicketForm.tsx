@@ -201,8 +201,9 @@ export default function NewTicketForm({ communeId, agents, services = [], person
       try {
         if (!navigator.onLine || photosEnAttente.length > 0) { await enFile(); return; }
         const result = await createTicket(donnees);
+        // Pas de router.refresh() : la fiche est dynamique, un second rendu
+        // journaliserait deux consultations d'un ticket restreint.
         router.push(`/admin/tickets/${result.id}`);
-        router.refresh();
       } catch (e) {
         if (estErreurReseau(e, navigator.onLine)) {
           try { await enFile(); } catch { setError("Pas de réseau et enregistrement sur le téléphone impossible."); }

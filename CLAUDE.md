@@ -1256,3 +1256,6 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - Tendance des catégories : « ++12 » → « +12 ».
 - **Remontée** : le maire de Châteauneuf a un compte super-admin. Il est désormais prévenu (notification) sans être nommé destinataire (il voit déjà tout). Aucun DGS enregistré à Châteauneuf.
 - Slug réel de la commune : `chateauneuf-85`.
+- **Essais avec écriture** (après déploiement des correctifs) : lieu de test, ticket « Incident enfant » #136 (restreint, service Périscolaire, délai cible 24 h, SG nommée destinataire, fiche périscolaire complète), page publique activée puis désactivée (cache invalidé aussitôt). Données de test supprimées ensuite (le compteur des numéros est passé à 137).
+- Double ligne « a consulté » après la création d'un ticket restreint : `router.refresh()` après `router.push` provoquait deux rendus de la fiche → retiré.
+- Non testé par Claude : le mode hors ligne (à faire sur téléphone en mode avion), la réception effective des notifications, la version imprimable du pilotage.
