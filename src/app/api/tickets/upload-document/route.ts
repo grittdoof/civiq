@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
+import { chargerSpectateur, chargerTicketVisible } from "@/lib/tickets/droits-server";
+import { peutAgir } from "@/lib/tickets/droits";
 import { lireDemandeDepot, preparerDepot, tropLourd, verifierDepot } from "@/lib/storage/depot-direct";
 import {
   BUCKET_DOCUMENTS_RAPPORT, MAX_DOCUMENT_RAPPORT_OCTETS,
@@ -13,7 +15,7 @@ import {
 //   { etape: "preparer", ticket_id, nom, taille } → lien signé
 //   { etape: "enregistrer", ticket_id, path }     → chemin vérifié
 // Le fichier ne transite pas par Vercel (limite de 4,5 Mo).
-// Droits : admin, éditeur ou super-admin de la commune du signalement.
+// Droits : signalement visible et droit « clôturer » (matrice de la commune).
 // Chemin : tickets/<commune de l'utilisateur>/rapports/, choisi ici.
 // ═══════════════════════════════════════════════════════════════
 
@@ -39,10 +41,14 @@ export async function POST(req: NextRequest) {
   if (!ticketId) return NextResponse.json({ error: "Signalement requis" }, { status: 400 });
 
   const service = await createServiceClient();
-  const { data: ticket } = await service
-    .from("tickets").select("id, commune_id").eq("id", ticketId).maybeSingle();
-  if (!ticket || ticket.commune_id !== ctx.communeId) {
+  // Lot 1 : signalement visible ET droit « clôturer » de la matrice.
+  const spectateur = await chargerSpectateur();
+  const ticket = await chargerTicketVisible(service, ticketId, spectateur);
+  if (!ticket || !spectateur || ticket.commune_id !== ctx.communeId) {
     return NextResponse.json({ error: "Signalement introuvable" }, { status: 404 });
+  }
+  if (!peutAgir("cloturer", ticket.droits, spectateur)) {
+    return NextResponse.json({ error: "Vous ne pouvez pas clôturer ce signalement" }, { status: 403 });
   }
 
   const prefixe = prefixeRapports(ctx.communeId);

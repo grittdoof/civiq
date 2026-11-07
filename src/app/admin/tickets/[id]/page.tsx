@@ -11,6 +11,12 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { getTicket, getRapportDocuments } from "@/lib/tickets/queries";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import PhotoGallery, { type PhotoGalerie } from "@/components/tickets/PhotoGallery";
+import TicketVisibilite from "@/components/tickets/TicketVisibilite";
+import { chargerSpectateur, journalDesAcces, journaliserConsultation } from "@/lib/tickets/droits-server";
+import { listerPersonnesCommune } from "@/lib/tickets/mutations";
+import { createServiceClient } from "@/lib/supabase-server";
+import { estSensible } from "@/lib/tickets/droits";
+import { Lock } from "lucide-react";
 import { listAssignableAgents } from "@/lib/tickets/mutations";
 import { isModuleActive } from "@/lib/module-guard";
 import { PrioriteBadge, StatutBadge, CategorieBadge } from "@/components/tickets/TicketBadge";
@@ -47,21 +53,31 @@ export default async function TicketDetailPage({ params }: Props) {
   }
 
   const { id } = await params;
-  const [{ ticket, photos, commentaires, rapport, assignees }, agents] = await Promise.all([
-    getTicket(ctx.communeId, id),
+  const spectateur = await chargerSpectateur();
+  const [{ ticket, photos, commentaires, rapport, assignees, destinataires, droits }, agents] = await Promise.all([
+    getTicket(ctx.communeId, id, spectateur),
     listAssignableAgents(),
   ]);
-  if (!ticket) notFound();
+  if (!ticket || !droits || !spectateur) notFound();
 
-  // Permissions sur ce ticket
+  // Droits de cette personne sur ce signalement (matrice de la commune, lot 1)
   const isSuperAdmin = ctx.role === "super_admin";
   const isAdmin = ctx.role === "admin";
   const isEditor = ctx.role === "editor";
-  const isAssignee = ticket.assigne_a === ctx.userId || assignees.some((a) => a.id === ctx.userId);
-  const isCreator = ticket.created_by === ctx.userId;
-  const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
-  const canAssign = isSuperAdmin || isAdmin || isEditor;
-  const canComment = canEdit;
+  const canEdit = droits.modifier;
+  const canAssign = droits.assigner;
+  const canComment = droits.commenter;
+  const niveau = ticket.confidentialite ?? "standard";
+  const sensible = estSensible(ticket);
+  if (sensible) await journaliserConsultation(ticket, spectateur);
+
+  // Services de la commune, personnes nommables, journal des accès
+  const service = await createServiceClient();
+  const [{ data: servicesRows }, personnes, acces] = await Promise.all([
+    service.from("services").select("id, nom").eq("commune_id", ticket.commune_id).is("deleted_at", null).order("ordre").order("nom"),
+    droits.changer_visibilite ? listerPersonnesCommune() : Promise.resolve([]),
+    sensible ? journalDesAcces(ticket.id) : Promise.resolve([]),
+  ]);
   const projectId = (ticket as { project_id?: string | null }).project_id ?? null;
   // Passerelle projet : réservée à l'équipe, module Projets actif.
   const passerelle = (isSuperAdmin || isAdmin || isEditor) && (await isModuleActive("projects"))
@@ -93,6 +109,11 @@ export default async function TicketDetailPage({ params }: Props) {
 
       <header style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+          {niveau !== "standard" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "var(--marine)", color: "#fff" }}>
+              <Lock size={12} aria-hidden="true" /> {niveau === "restreint" ? "Restreint" : "Confidentiel"}
+            </span>
+          )}
           <PrioriteBadge priorite={ticket.priorite} />
           <CategorieBadge categorie={ticket.categorie} />
           <StatutBadge statut={ticket.statut} />
@@ -284,11 +305,46 @@ export default async function TicketDetailPage({ params }: Props) {
             assigneeProfiles={assignees.map((a) => ({ id: a.id, full_name: a.full_name }))}
             isSuperAdmin={isSuperAdmin}
             canEdit={canEdit}
+            canClose={droits.cloturer}
+            canReopen={droits.rouvrir}
             canAssign={canAssign}
             agents={agents}
             hasReport={!!rapport}
             verrouParProjet={!!projectId}
           />
+
+          <TicketVisibilite
+            ticketId={ticket.id}
+            serviceId={ticket.service_id ?? null}
+            services={(servicesRows ?? []) as Array<{ id: string; nom: string }>}
+            niveau={niveau}
+            destinataires={destinataires}
+            personnes={personnes}
+            moi={ctx.userId}
+            peutChangerService={droits.changer_service}
+            peutChangerVisibilite={droits.changer_visibilite}
+          />
+
+          {sensible && (
+            <div className="civiq-card" style={{ padding: 14 }}>
+              <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
+                Journal des accès
+              </h2>
+              {acces.length === 0 ? (
+                <p style={{ fontSize: 12.5, color: "var(--fg-muted)", margin: 0 }}>Aucun accès enregistré.</p>
+              ) : (
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6, fontSize: 12.5 }}>
+                  {acces.map((a) => (
+                    <li key={a.id}>
+                      <strong>{a.qui ?? "Compte supprimé"}</strong>{" "}
+                      {a.action === "ticket.consultation" ? "a consulté" : `a modifié${a.quoi ? ` (${a.quoi})` : ""}`}
+                      <span style={{ color: "var(--fg-muted)" }}> · {new Date(a.quand).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* Lien vers le module Gestion de projet (commit 12) */}
           {passerelle && (
@@ -338,6 +394,8 @@ export default async function TicketDetailPage({ params }: Props) {
         ticketNumero={ticket.numero}
         statut={ticket.statut}
         canEdit={canEdit}
+        canClose={droits.cloturer}
+        canReopen={droits.rouvrir}
         isSuperAdmin={isSuperAdmin}
         hasReport={!!rapport}
         verrouParProjet={!!projectId}

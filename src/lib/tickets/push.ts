@@ -1,4 +1,5 @@
 import webpush from "web-push";
+import { destinatairesVisibles } from "./droits-server";
 import { createServiceClient } from "@/lib/supabase-server";
 import { sendOptInSms } from "@/lib/notifications/sms";
 import { getBaseUrl } from "@/lib/base-url";
@@ -215,7 +216,8 @@ export async function notifyUrgentUnassigned(opts: {
     .eq("commune_id", opts.communeId)
     .or("job_title.eq.agent_technique,job_title.eq.adjoint,role.eq.admin");
 
-  const ids = (targets ?? []).map((t) => t.id);
+  // Lot 1 : seules les personnes qui peuvent voir le signalement sont prévenues.
+  const ids = await destinatairesVisibles(opts.ticketId, (targets ?? []).map((t) => t.id));
   const push = sendTicketNotification({
     profileIds: ids,
     title: `🚨 Ticket urgent #${opts.ticketNumero}`,

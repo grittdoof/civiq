@@ -8,6 +8,7 @@ import {
 import { requireCommune } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listTickets } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { groupOf } from "@/lib/tickets/types";
 import {
   PrioriteBadge, StatutBadge,
@@ -93,7 +94,7 @@ export default async function AdminDashboardPage() {
   let ticketsUrgent = 0;
   let ticketsResolved7d = 0;
   if (hasTickets) {
-    tickets = await listTickets(ctx.communeId, { limit: 200 });
+    tickets = await listTickets(ctx.communeId, { limit: 200 }, await chargerSpectateur());
     const openStatuts = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
     ticketsOpen = tickets.filter((t) => openStatuts.includes(t.statut)).length;
     ticketsUrgent = tickets.filter((t) => t.priorite === "urgente" && openStatuts.includes(t.statut)).length;

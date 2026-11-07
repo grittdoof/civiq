@@ -33,7 +33,12 @@ interface Props {
   ticketId: string;
   ticketNumero: number;
   statut: TicketStatut;
+  /** Droit « modifier » (lot 1 : matrice de la commune). */
   canEdit: boolean;
+  /** Droit « clôturer » ; à défaut, canEdit. */
+  canClose?: boolean;
+  /** Droit « rouvrir » ; à défaut, canEdit. */
+  canReopen?: boolean;
   isSuperAdmin?: boolean;
   hasReport: boolean;
   /** Signalement suivi dans un projet : ni clôture ni réouverture ici. */
@@ -41,8 +46,9 @@ interface Props {
 }
 
 export default function TicketMobileActions({
-  ticketId, ticketNumero, statut, canEdit, isSuperAdmin, hasReport, verrouParProjet,
+  ticketId, ticketNumero, statut, canEdit, canClose: canCloseProp, canReopen: canReopenProp, isSuperAdmin, hasReport, verrouParProjet,
 }: Props) {
+  const canClose = canCloseProp ?? canEdit;
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -50,7 +56,7 @@ export default function TicketMobileActions({
   const [toast, setToast] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const isClosed = groupOf(statut) === "cloture";
-  const canReopen = canEdit && !verrouParProjet;
+  const canReopen = (canReopenProp ?? canEdit) && !verrouParProjet;
 
   useEffect(() => {
     if (!toast) return;
@@ -88,7 +94,7 @@ export default function TicketMobileActions({
   // Caché uniquement si l'utilisateur n'a rien à faire :
   //   - ni édition (création/modif/clôture/réouverture)
   //   - ni super-admin (suppression)
-  if (!canEdit && !isSuperAdmin) return null;
+  if (!canEdit && !canClose && !canReopen && !isSuperAdmin) return null;
 
   return (
     <>
@@ -100,7 +106,7 @@ export default function TicketMobileActions({
         >
           <ArrowLeft size={20} />
         </Link>
-        {!isClosed && canEdit && (
+        {!isClosed && canClose && (
           <Link
             href={`/admin/tickets/${ticketId}/cloturer`}
             className="civiq-btn civiq-btn-default tk-mobile-actions-primary"
@@ -143,6 +149,7 @@ export default function TicketMobileActions({
           ticketNumero={ticketNumero}
           isClosed={isClosed}
           canEdit={canEdit}
+          canClose={canClose}
           canReopen={canReopen}
           isSuperAdmin={!!isSuperAdmin}
           hasReport={hasReport}
@@ -176,13 +183,14 @@ export default function TicketMobileActions({
 // ─── Menu sheet ──────────────────────────────────────────────────
 
 function ActionsMenuSheet({
-  ticketId, ticketNumero, isClosed, canEdit, canReopen, isSuperAdmin, hasReport,
+  ticketId, ticketNumero, isClosed, canEdit, canClose, canReopen, isSuperAdmin, hasReport,
   onClose, onReopen, onAskDelete,
 }: {
   ticketId: string;
   ticketNumero: number;
   isClosed: boolean;
   canEdit: boolean;
+  canClose: boolean;
   canReopen: boolean;
   isSuperAdmin: boolean;
   hasReport: boolean;
@@ -226,7 +234,7 @@ function ActionsMenuSheet({
             </SheetSection>
           )}
 
-          {!isClosed && canEdit && (
+          {!isClosed && canClose && (
             <SheetSection title="Clôture">
               <Link
                 href={`/admin/tickets/${ticketId}/cloturer`}

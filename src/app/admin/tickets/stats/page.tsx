@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, Inbox, CheckCircle2, Clock, TrendingUp, AlertTriangle, RefreshCcw } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { isModuleActive } from "@/lib/module-guard";
 import StatsCharts from "./StatsCharts";
 import {
@@ -24,14 +25,17 @@ export default async function TicketsStatsPage() {
     if (!active) redirect("/admin/dashboard?module=tickets&state=inactive");
   }
 
-  const tickets = await listTickets(ctx.communeId, { limit: 1000 });
+  const tickets = await listTickets(ctx.communeId, { limit: 1000 }, await chargerSpectateur());
+  const visibles = new Set(tickets.map((t) => t.id));
 
   // Vue reporting enrichie (migration 013)
   const service = await (await import("@/lib/supabase-server")).createServiceClient();
-  const { data: reportingRows } = await service
+  const { data: reportingBrut } = await service
     .from("tickets_reporting_v")
-    .select("en_retard, a_ete_reouvert, canal, statut")
+    .select("id, en_retard, a_ete_reouvert, canal, statut")
     .eq("commune_id", ctx.communeId);
+  // Mêmes droits que la liste : seuls les signalements visibles comptent.
+  const reportingRows = (reportingBrut ?? []).filter((r) => visibles.has(r.id as string));
 
   // Nouveaux KPIs
   const enRetard = (reportingRows ?? []).filter((r) => r.en_retard).length;

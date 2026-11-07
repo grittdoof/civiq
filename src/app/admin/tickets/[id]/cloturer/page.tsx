@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { requireCommune } from "@/lib/auth-helpers";
 import { getTicket } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import CloseTicketWizard from "./CloseTicketWizard";
 
 // ═══════════════════════════════════════════════════════════════
@@ -19,16 +20,11 @@ export default async function CloseTicketPage({ params }: Props) {
   if (!ctx.communeId) redirect("/admin/onboarding");
   const { id } = await params;
 
-  const { ticket, rapport } = await getTicket(ctx.communeId, id);
-  if (!ticket) notFound();
+  const { ticket, rapport, droits } = await getTicket(ctx.communeId, id, await chargerSpectateur());
+  if (!ticket || !droits) notFound();
 
-  // Permissions : super_admin, admin, editor, ou agent assigné
-  const canClose =
-    ctx.role === "super_admin"
-    || ctx.role === "admin"
-    || ctx.role === "editor"
-    || ticket.assigne_a === ctx.userId;
-  if (!canClose) {
+  // Droit « clôturer » de la matrice de la commune (lot 1)
+  if (!droits.cloturer) {
     redirect(`/admin/tickets/${id}?error=forbidden`);
   }
 

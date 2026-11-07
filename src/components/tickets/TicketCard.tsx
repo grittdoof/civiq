@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MapPin, User, Clock } from "lucide-react";
+import { MapPin, User, Clock, Lock } from "lucide-react";
 import type { TicketWithRelations } from "@/lib/tickets/types";
 import { PrioriteBadge, StatutBadge, CategorieBadge } from "./TicketBadge";
 
@@ -31,6 +31,11 @@ export default function TicketCard({
 
       <div className="tk-card-body">
         <div className="tk-card-badges">
+          {ticket.confidentialite && ticket.confidentialite !== "standard" && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "var(--marine)", color: "#fff" }}>
+              <Lock size={11} aria-hidden="true" /> {ticket.confidentialite === "restreint" ? "Restreint" : "Confidentiel"}
+            </span>
+          )}
           <PrioriteBadge priorite={ticket.priorite} />
           <CategorieBadge categorie={ticket.categorie} />
           <StatutBadge statut={ticket.statut} />

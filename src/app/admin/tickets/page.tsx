@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Map as MapIcon, BarChart3, Printer } from "lucide-react";
+import { Plus, Map as MapIcon, BarChart3, Printer, Settings } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
+import { peutCreer, valeurAction } from "@/lib/tickets/droits";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
 import { isModuleActive } from "@/lib/module-guard";
@@ -47,12 +49,13 @@ export default async function TicketsListPage({ searchParams }: Props) {
   else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
   else if (filter === "mes") filters.assignedToMe = ctx.userId;
 
-  const tickets = await listTickets(ctx.communeId, filters);
+  const spectateur = await chargerSpectateur();
+  const tickets = await listTickets(ctx.communeId, filters, spectateur);
 
   // Compteurs pour les pills — on calcule "Mes tickets" avec la même logique
   // que la query (assigne_a OU multi-assignés via ticket_assignees).
-  const allTickets = await listTickets(ctx.communeId, {});
-  const myTickets = await listTickets(ctx.communeId, { assignedToMe: ctx.userId });
+  const allTickets = await listTickets(ctx.communeId, {}, spectateur);
+  const myTickets = await listTickets(ctx.communeId, { assignedToMe: ctx.userId }, spectateur);
   const counts = {
     mes: myTickets.length,
     ouverts: allTickets.filter((t) => (OUVERT_STATUTS as string[]).includes(t.statut)).length,
@@ -68,7 +71,10 @@ export default async function TicketsListPage({ searchParams }: Props) {
     if (first) photoUrls.set(t.id, urlPhoto(t.id, first.id, { miniature: true }));
   }
 
-  const canCreate = ctx.role === "admin" || ctx.role === "super_admin" || ctx.role === "editor";
+  // Droits issus de la matrice de la commune (lot 1)
+  const canCreate = !!spectateur && peutCreer(spectateur);
+  const canExport = !!spectateur && valeurAction("exporter", spectateur) === "oui";
+  const canConfigure = ctx.role === "admin" || ctx.role === "super_admin";
 
   const emptyState = emptyStateFor(filter, canCreate, counts.tous === 0);
 
@@ -88,15 +94,22 @@ export default async function TicketsListPage({ searchParams }: Props) {
           <Link href="/admin/tickets/stats" className="civiq-btn civiq-btn-outline tk-page-header-link">
             <BarChart3 size={14} /> <span>Statistiques</span>
           </Link>
-          <Link
-            href={`/tickets-pdf${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
-            className="civiq-btn civiq-btn-outline tk-page-header-link"
-            target="_blank"
-            rel="noreferrer"
-            prefetch={false}
-          >
-            <Printer size={14} /> <span>Imprimer / PDF</span>
-          </Link>
+          {canExport && (
+            <Link
+              href={`/tickets-pdf${filter !== "ouverts" ? `?filter=${filter}` : ""}`}
+              className="civiq-btn civiq-btn-outline tk-page-header-link"
+              target="_blank"
+              rel="noreferrer"
+              prefetch={false}
+            >
+              <Printer size={14} /> <span>Imprimer / PDF</span>
+            </Link>
+          )}
+          {canConfigure && (
+            <Link href="/admin/tickets/parametres" className="civiq-btn civiq-btn-outline tk-page-header-link" aria-label="Paramètres des tickets">
+              <Settings size={14} /> <span>Paramètres</span>
+            </Link>
+          )}
           {canCreate && (
             <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default tk-page-header-create">
               <Plus size={14} /> Nouveau ticket

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { getTicket } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { listAssignableAgents } from "@/lib/tickets/mutations";
 import EditTicketForm from "./EditTicketForm";
 
@@ -26,18 +27,11 @@ export default async function EditTicketPage({ params }: Props) {
   }
 
   const { id } = await params;
-  const { ticket, assignees } = await getTicket(ctx.communeId, id);
-  if (!ticket) notFound();
+  const { ticket, assignees, droits } = await getTicket(ctx.communeId, id, await chargerSpectateur());
+  if (!ticket || !droits) notFound();
 
-  // Permissions : éditeur/admin/super-admin OR assigné OR créateur
-  const isSuperAdmin = ctx.role === "super_admin";
-  const isAdmin = ctx.role === "admin";
-  const isEditor = ctx.role === "editor";
-  const isAssignee =
-    ticket.assigne_a === ctx.userId || assignees.some((a) => a.id === ctx.userId);
-  const isCreator = ticket.created_by === ctx.userId;
-  const canEdit = isSuperAdmin || isAdmin || isEditor || isAssignee || isCreator;
-  if (!canEdit) {
+  // Droit « modifier » de la matrice de la commune (lot 1)
+  if (!droits.modifier) {
     redirect(`/admin/tickets/${id}?error=forbidden`);
   }
 

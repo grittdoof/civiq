@@ -5,6 +5,8 @@ import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listTickets } from "@/lib/tickets/queries";
+import { chargerSpectateur } from "@/lib/tickets/droits-server";
+import { valeurAction } from "@/lib/tickets/droits";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import {
   CANAL_LABELS,
@@ -50,7 +52,10 @@ export default async function PrintTicketsPage({ searchParams }: Props) {
   if (filter === "ouverts") filters.statut = OUVERT_STATUTS;
   else if (filter === "cloture") filters.statut = CLOTURE_STATUTS;
 
-  const tickets = await listTickets(ctx.communeId, filters);
+  // Export : droit « exporter » de la matrice ; seuls les signalements visibles.
+  const spectateur = await chargerSpectateur();
+  if (!spectateur || valeurAction("exporter", spectateur) !== "oui") redirect("/admin/tickets");
+  const tickets = await listTickets(ctx.communeId, filters, spectateur);
 
   const service = await createServiceClient();
   const [

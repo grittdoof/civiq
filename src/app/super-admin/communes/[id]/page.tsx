@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import CommuneLogoUpload from "@/components/commune/CommuneLogoUpload";
+import MatriceTicketsEditor from "@/components/tickets/MatriceTicketsEditor";
 import {
   ArrowLeft, Boxes, Users, FileText, Activity, Trash2,
   X, UserPlus, Mail, Copy, Check,
@@ -330,6 +331,17 @@ export default function CommuneDetailPage() {
         </div>
       </section>
 
+      {/* Tickets : matrice fonction × action (lot 1) */}
+      {modules.some((m) => m.id === "tickets" && m.active) && (
+        <section style={{ marginBottom: 32 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--fg)", marginBottom: 4 }}>Tickets — droits par fonction</h2>
+          <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 14 }}>
+            Ce que chaque fonction voit et peut faire dans le module Tickets de cette commune. La fonction de chaque personne se règle dans sa fiche utilisateur ; ses services, dans les paramètres du module.
+          </p>
+          <MatriceTicketsEditor communeId={communeId} />
+        </section>
+      )}
+
       {/* Users */}
       <section>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14, gap: 12, flexWrap: "wrap" }}>
@@ -589,9 +601,12 @@ function AddUserModal({ communeId, communeName, onClose, onCreated }: {
                     <option value="adjoint">Adjoint·e</option>
                     <option value="conseiller">Conseiller·e</option>
                     <option value="dgs">DGS</option>
-                    <option value="secretaire">Secrétaire</option>
+                    <option value="secretaire">Secrétaire générale / SG</option>
+                    <option value="dst">DST</option>
+                    <option value="responsable_service">Responsable de service</option>
                     <option value="agent">Agent</option>
                     <option value="agent_technique">Agent technique</option>
+                    <option value="accueil">Accueil / secrétariat</option>
                     <option value="autre">Autre</option>
                   </select>
                 </div>

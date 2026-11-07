@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthContext } from "@/lib/auth-helpers";
+import { chargerSpectateur, filtrerVisibles } from "@/lib/tickets/droits-server";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 
@@ -28,10 +29,11 @@ export async function GET() {
   // 1. Récupère tous les tickets de la commune
   const { data: tickets } = await service
     .from("tickets")
-    .select("id, statut, assigne_a")
+    .select("id, statut, assigne_a, commune_id, created_by, service_id, confidentialite")
     .eq("commune_id", ctx.communeId);
 
-  const allTickets = tickets ?? [];
+  // Seuls les signalements visibles comptent (lot 1).
+  const allTickets = await filtrerVisibles(service, tickets ?? [], await chargerSpectateur());
   const OUVERT = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
   const CLOTURE = ["resolu", "clos"];
 

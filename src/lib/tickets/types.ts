@@ -69,6 +69,11 @@ export interface Ticket {
 
   /** Si renseigné, le ticket a été transformé en projet (module projects). */
   project_id?: string | null;
+
+  /** Service qui traite le signalement (lot 1, migration 058). */
+  service_id?: string | null;
+  /** Niveau de visibilité (lot 1) : standard · restreint · confidentiel. */
+  confidentialite?: "standard" | "restreint" | "confidentiel";
 }
 
 export interface TicketPhoto {

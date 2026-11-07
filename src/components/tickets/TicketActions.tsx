@@ -40,7 +40,12 @@ interface Props {
   assigneeName?: string | null;
   assigneeIds?: string[];
   assigneeProfiles?: Array<{ id: string; full_name: string | null }>;
+  /** Droit « modifier » (lot 1 : matrice de la commune). */
   canEdit: boolean;
+  /** Droit « clôturer » ; à défaut, canEdit. */
+  canClose?: boolean;
+  /** Droit « rouvrir » ; à défaut, canEdit. */
+  canReopen?: boolean;
   canAssign?: boolean;
   isSuperAdmin?: boolean;
   agents?: Array<{ id: string; full_name: string | null; job_title: string | null }>;
@@ -50,8 +55,10 @@ interface Props {
 }
 
 export default function TicketActions({
-  ticketId, ticketNumero, statut, canEdit, hasReport, isSuperAdmin, verrouParProjet,
+  ticketId, ticketNumero, statut, canEdit, canClose, canReopen, hasReport, isSuperAdmin, verrouParProjet,
 }: Props) {
+  const peutCloturer = canClose ?? canEdit;
+  const peutRouvrir = canReopen ?? canEdit;
   const router = useRouter();
   const group = groupOf(statut);
   const isClosed = group === "cloture";
@@ -103,7 +110,7 @@ export default function TicketActions({
       )}
 
       {/* CTA principal : ouvert → Clôturer + rapport */}
-      {!isClosed && canEdit && (
+      {!isClosed && peutCloturer && (
         <Link
           href={`/admin/tickets/${ticketId}/cloturer`}
           className="civiq-btn civiq-btn-default"
@@ -163,7 +170,7 @@ export default function TicketActions({
               Ce signalement se poursuit dans le projet : il ne se rouvre plus ici.
             </p>
           )}
-          {canEdit && !verrouParProjet && (
+          {peutRouvrir && !verrouParProjet && (
             <button
               type="button"
               onClick={reopen}

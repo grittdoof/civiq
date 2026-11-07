@@ -8,9 +8,12 @@ export const FONCTIONS: Array<{ value: string; label: string; group: string }> =
   { value: "adjoint", label: "Adjoint au maire", group: "Élus" },
   { value: "conseiller", label: "Conseiller municipal", group: "Élus" },
   { value: "dgs", label: "Directeur Général des Services", group: "Services" },
-  { value: "secretaire", label: "Secrétaire de mairie", group: "Services" },
+  { value: "secretaire", label: "Secrétaire générale / SG", group: "Services" },
+  { value: "dst", label: "Directeur des services techniques", group: "Services" },
+  { value: "responsable_service", label: "Responsable de service", group: "Services" },
   { value: "agent", label: "Agent territorial", group: "Services" },
   { value: "agent_technique", label: "Agent technique", group: "Services" },
+  { value: "accueil", label: "Accueil / secrétariat", group: "Services" },
   { value: "citoyen", label: "Administré", group: "Citoyens" },
   { value: "autre", label: "Autre", group: "Autres" },
 ];
