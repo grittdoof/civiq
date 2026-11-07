@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { BUCKET_DOCUMENTS_RAPPORT, estCheminRapportValide } from "@/lib/tickets/documents-rapport";
 import { redirect } from "next/navigation";
 import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
@@ -843,6 +844,21 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
     throw new Error("Joignez une photo, un document, ou cochez « sans pièce jointe »");
   }
 
+  // Pièces jointes : uniquement des fichiers déposés par
+  // /api/tickets/upload-document sous le préfixe de la commune du
+  // signalement, et réellement présents dans le bucket.
+  const nouveauxDocs = [...new Set(input.documentPaths)];
+  for (const path of nouveauxDocs) {
+    if (!estCheminRapportValide(path, ticket.commune_id)) throw new Error("Pièce jointe invalide");
+    const { data: info } = await service.storage.from(BUCKET_DOCUMENTS_RAPPORT).info(path);
+    if (!info) throw new Error("Une pièce jointe n'a pas été reçue. Déposez-la à nouveau.");
+  }
+  // Une nouvelle clôture (après réouverture) n'efface pas les pièces
+  // de la précédente : ce sont des archives.
+  const { data: rapportExistant } = await service
+    .from("ticket_rapports").select("document_paths").eq("ticket_id", input.ticketId).maybeSingle();
+  const documentPaths = [...new Set([...((rapportExistant?.document_paths as string[] | null) ?? []), ...nouveauxDocs])];
+
   // 1. Upsert du rapport
   const { error: rapportErr } = await service
     .from("ticket_rapports")
@@ -856,7 +872,7 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
       cout_estime: input.cout_estime ?? null,
       necessite_suivi: !!input.necessite_suivi,
       notes_suivi: input.notes_suivi?.trim() || null,
-      document_paths: input.documentPaths,
+      document_paths: documentPaths,
       sans_piece_jointe: !!input.sansPieceJointe,
     }, { onConflict: "ticket_id" });
   if (rapportErr) throw new Error(rapportErr.message);

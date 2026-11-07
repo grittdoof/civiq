@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase-server";
+import { BUCKET_DOCUMENTS_RAPPORT, estCheminRapportValide, nomAffichable } from "./documents-rapport";
 import type { TicketWithRelations, TicketStatut, TicketPriorite, TicketCategorie, TicketPhoto, TicketCommentaire, TicketRapport } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
@@ -186,4 +187,22 @@ export async function getPhotoSignedUrl(storagePath: string, expiresIn = 60 * 60
   const service = await createServiceClient();
   const { data } = await service.storage.from("tickets-photos").createSignedUrl(storagePath, expiresIn);
   return data?.signedUrl ?? null;
+}
+
+/**
+ * Pièces jointes du rapport d'intervention avec un lien de lecture
+ * signé (bucket privé tickets-documents), limitées au préfixe de la
+ * commune du signalement. Un fichier absent n'a pas de lien.
+ */
+export async function getRapportDocuments(
+  communeId: string, paths: string[] | null | undefined, expiresIn = 60 * 60,
+): Promise<Array<{ path: string; nom: string; url: string | null }>> {
+  const valides = (paths ?? []).filter((p) => estCheminRapportValide(p, communeId));
+  if (valides.length === 0) return [];
+  const service = await createServiceClient();
+  return Promise.all(valides.map(async (path) => {
+    const nom = nomAffichable(path);
+    const { data } = await service.storage.from(BUCKET_DOCUMENTS_RAPPORT).createSignedUrl(path, expiresIn, { download: nom });
+    return { path, nom, url: data?.signedUrl ?? null };
+  }));
 }

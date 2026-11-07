@@ -10,6 +10,8 @@ import {
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { closeTicketWithReport } from "@/lib/tickets/mutations";
 import type { TicketRapport } from "@/lib/tickets/types";
+import { televerser } from "@/lib/storage/televerser";
+import { ACCEPT_DOCUMENT_RAPPORT, MAX_DOCUMENT_RAPPORT_OCTETS, nomAffichable } from "@/lib/tickets/documents-rapport";
 
 // ═══════════════════════════════════════════════════════════════
 // CloseTicketWizard — version simplifiée 3 étapes
@@ -213,7 +215,7 @@ export default function CloseTicketWizard({
             )}
             {attachmentMode === "document" && (
               <DocumentUpload
-                communeId={communeId}
+                ticketId={ticketId}
                 onChange={setDocumentPaths}
               />
             )}
@@ -479,13 +481,14 @@ function ModeOption({
 }
 
 /**
- * Upload de documents PDF/Word/Excel pour le rapport d'intervention.
- * Stockés dans le bucket Storage sous tickets/{communeId}/rapports/.
+ * Pièces jointes du rapport d'intervention, déposées directement dans
+ * le bucket privé « tickets-documents » (lib/storage/televerser.ts) :
+ * chemin, format et droits décidés par /api/tickets/upload-document.
  */
 function DocumentUpload({
-  communeId, onChange,
+  ticketId, onChange,
 }: {
-  communeId: string;
+  ticketId: string;
   onChange: (paths: string[]) => void;
 }) {
   const [paths, setPaths] = useState<string[]>([]);
@@ -493,40 +496,29 @@ function DocumentUpload({
   const [err, setErr] = useState<string | null>(null);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const input = e.target;
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length === 0) return;
     setUploading(true);
     setErr(null);
 
-    try {
-      const newPaths: string[] = [];
-      for (const file of Array.from(files)) {
-        const ext = file.name.split(".").pop() || "bin";
-        const path = `tickets/${communeId}/rapports/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("path", path);
-        const res = await fetch("/api/tickets/upload-document", {
-          method: "POST",
-          body: fd,
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || "Échec de l'upload");
-        }
-        const { path: stored } = await res.json();
-        newPaths.push(stored);
-      }
+    const newPaths: string[] = [];
+    const echecs: string[] = [];
+    for (const file of files) {
+      const { ok, data } = await televerser<{ path?: string }>(
+        "/api/tickets/upload-document", file, { ticket_id: ticketId }, MAX_DOCUMENT_RAPPORT_OCTETS,
+      );
+      if (ok && data.path) newPaths.push(data.path);
+      else echecs.push(`${file.name} : ${data.error ?? "échec de l'envoi"}`);
+    }
+    if (newPaths.length > 0) {
       const updated = [...paths, ...newPaths];
       setPaths(updated);
       onChange(updated);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erreur upload");
-    } finally {
-      setUploading(false);
-      e.target.value = "";
     }
+    if (echecs.length > 0) setErr(echecs.join("\n"));
+    setUploading(false);
+    input.value = "";
   }
 
   function remove(idx: number) {
@@ -548,11 +540,11 @@ function DocumentUpload({
         }}
       >
         <Paperclip size={16} />
-        {uploading ? "Upload en cours…" : "Choisir un document (PDF, Word, Excel…)"}
+        {uploading ? "Envoi en cours…" : "Choisir un document (PDF, Word, Excel… 20 Mo max.)"}
         <input
           type="file"
           multiple
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.odt,.ods"
+          accept={ACCEPT_DOCUMENT_RAPPORT}
           onChange={handleUpload}
           disabled={uploading}
           style={{ display: "none" }}
@@ -560,7 +552,7 @@ function DocumentUpload({
       </label>
 
       {err && (
-        <div style={{ marginTop: 8, padding: "8px 12px", background: "oklch(0.97 0.04 25)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 12 }}>
+        <div style={{ marginTop: 8, padding: "8px 12px", background: "oklch(0.97 0.04 25)", color: "var(--destructive)", borderRadius: "var(--radius-sm)", fontSize: 12, whiteSpace: "pre-line" }}>
           {err}
         </div>
       )}
@@ -579,7 +571,7 @@ function DocumentUpload({
             >
               <FileText size={14} style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
               <span style={{ flex: 1, color: "var(--fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {p.split("/").pop()}
+                {nomAffichable(p)}
               </span>
               <button
                 type="button"
