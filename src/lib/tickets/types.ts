@@ -131,6 +131,9 @@ export interface TicketWithRelations extends Ticket {
   comment_count?: number;
   // Photos de signalement (les premières uniquement, optionnel)
   signalement_photos?: TicketPhoto[];
+  /** Lot 3 : assignés (ticket_assignees) et destinataires nommés. */
+  assignee_ids?: string[];
+  destinataire_ids?: string[];
 }
 
 // ─── Constantes UI ───

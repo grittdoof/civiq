@@ -7,6 +7,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  CloudOff,
   Loader2,
   PencilLine,
   Save,
@@ -15,9 +16,12 @@ import {
 } from "lucide-react";
 import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
-import { createTicket } from "@/lib/tickets/mutations";
+import { createTicket, type CreateTicketInput } from "@/lib/tickets/mutations";
+import { envoyerFile, mettreEnFile } from "@/lib/tickets/hors-ligne";
+import { estErreurReseau } from "@/lib/tickets/hors-ligne-regles";
 import VisibiliteChamps, { type Personne } from "@/components/tickets/VisibiliteChamps";
 import IconeCategorie from "@/components/tickets/IconeCategorie";
+import { CRENEAUX, destinatairesAuto, estPeriscolaire } from "@/lib/tickets/periscolaire";
 import {
   URGENCES, URGENCE_AIDE, URGENCE_COLORS, URGENCE_LABELS, arborescence, cheminCategorie, reglagesEffectifs,
   type CategorieTicket,
@@ -58,6 +62,10 @@ interface OptionsVisibilite {
   moi: string;
   /** Lot 2 : taxonomie de la commune (actives seulement). */
   categories: CategorieTicket[];
+  /** Lot 3 : photos gardées sur le téléphone (hors ligne). */
+  setPhotosEnAttente?: (photos: Blob[]) => void;
+  /** Lot 5 : écoles, accueils de loisirs… de la commune. */
+  sites?: Array<{ id: string; nom: string }>;
 }
 const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "", categories: [] });
 
@@ -67,6 +75,7 @@ interface Props {
   personnes?: Personne[];
   moi?: string;
   categories?: CategorieTicket[];
+  sites?: Array<{ id: string; nom: string }>;
   agents: Array<{
     id: string;
     full_name: string | null;
@@ -111,13 +120,16 @@ function useIsDesktop(breakpoint = 900): boolean | null {
 
 // ─── Orchestrateur ───────────────────────────────────────────────
 
-export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "", categories = [] }: Props) {
+export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "", categories = [], sites = [] }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const isDesktop = useIsDesktop();
 
   const wiz = useTicketWizard();
+  // Lot 3 : photos compressées en attente (hors ligne) et écran de file
+  const [photosEnAttente, setPhotosEnAttente] = useState<Blob[]>([]);
+  const [misEnFile, setMisEnFile] = useState(false);
   const { value, set, isDirty } = wiz;
 
   // Block native back if dirty
@@ -149,8 +161,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
     }
     const showDemandeur = value.canal === "telephone" || value.canal === "email";
     startTransition(async () => {
-      try {
-        const result = await createTicket({
+      const donnees: CreateTicketInput = {
           canal: value.canal,
           demandeur_nom: showDemandeur ? value.demandeur_nom : null,
           demandeur_telephone: showDemandeur ? value.demandeur_telephone : null,
@@ -170,20 +181,61 @@ export default function NewTicketForm({ communeId, agents, services = [], person
           service_id: value.serviceId || null,
           confidentialite: value.confidentialite,
           destinataire_ids: value.confidentialite === "standard" ? [] : value.destinataireIds,
-        });
+          periscolaire: value.estPeriscolaire ? {
+            site_id: value.siteId || null,
+            creneau: value.creneau || null,
+            enfant: value.enfant.trim() || null,
+            famille_informee: value.familleInformee === "" ? null : value.familleInformee === "oui",
+          } : null,
+      };
+      // Lot 3 : sans réseau (ou photos gardées sur le téléphone), le
+      // signalement part dans la file d'attente et sera envoyé plus tard.
+      const enFile = async () => {
+        await mettreEnFile(communeId, donnees, photosEnAttente);
+        if (navigator.onLine) {
+          const { restants } = await envoyerFile();
+          if (restants === 0) { router.push("/admin/tickets"); router.refresh(); return; }
+        }
+        setMisEnFile(true);
+      };
+      try {
+        if (!navigator.onLine || photosEnAttente.length > 0) { await enFile(); return; }
+        const result = await createTicket(donnees);
         router.push(`/admin/tickets/${result.id}`);
         router.refresh();
       } catch (e) {
+        if (estErreurReseau(e, navigator.onLine)) {
+          try { await enFile(); } catch { setError("Pas de réseau et enregistrement sur le téléphone impossible."); }
+          return;
+        }
         setError(e instanceof Error ? e.message : "Erreur inconnue");
       }
     });
+  }
+
+  // Écran « gardé sur le téléphone » (maquette 2A)
+  if (misEnFile) {
+    return (
+      <main className="civiq-main" style={{ maxWidth: 520, minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, textAlign: "center" }}>
+        <span aria-hidden="true" style={{ width: 72, height: 72, borderRadius: 36, background: "#FEF3E2", color: "#8A5A00", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <CloudOff size={34} />
+        </span>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--marine)" }}>Pas de réseau : le ticket est gardé sur le téléphone</h1>
+        <p style={{ margin: 0, fontSize: 14.5, color: "var(--fg-muted)", lineHeight: 1.55 }}>
+          Il partira automatiquement{photosEnAttente.length > 0 ? `, avec ${photosEnAttente.length} photo${photosEnAttente.length > 1 ? "s" : ""},` : ""} dès que la connexion reviendra. Vous pouvez fermer l&apos;application.
+        </p>
+        <Link href="/admin/tickets" className="civiq-btn civiq-btn-default" style={{ justifyContent: "center", minHeight: 48, width: "100%" }}>
+          Retour à mes interventions
+        </Link>
+      </main>
+    );
   }
 
   // Avant détection : rendu mobile par défaut (le plus fréquent ici,
   // et l'admin shell mobile cache la complexité d'un éventuel flash).
   if (isDesktop === null || !isDesktop) {
     return (
-      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
+      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente, sites }}>
       <MobileWizard
         wiz={wiz}
         agents={agents}
@@ -199,7 +251,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   }
 
   return (
-    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
+    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente, sites }}>
     <DesktopForm
       wiz={wiz}
       agents={agents}
@@ -604,6 +656,9 @@ function StepContent({
     case "categorie":
       return <EtapeCategorie value={value} set={set} variant={variant} />;
 
+    case "periscolaire":
+      return <EtapePeriscolaire value={value} set={set} />;
+
     case "description":
       return (
         <div className={variant === "desktop" ? "tk-desc-grid" : "tk-wizard-fields"}>
@@ -676,11 +731,7 @@ function StepContent({
     case "photos":
       return (
         <div>
-          <TicketPhotoUpload
-            communeId={communeId}
-            onChange={(paths) => set("photoPaths", paths)}
-            max={5}
-          />
+          <PhotosAvecAttente communeId={communeId} onChange={(paths) => set("photoPaths", paths)} />
         </div>
       );
 
@@ -741,6 +792,13 @@ function StepContent({
   }
 }
 
+// ─── Photos : déposées tout de suite, ou gardées hors ligne (lot 3) ──
+
+function PhotosAvecAttente({ communeId, onChange }: { communeId: string; onChange: (paths: string[]) => void }) {
+  const { setPhotosEnAttente } = useContext(VisibiliteCtx);
+  return <TicketPhotoUpload communeId={communeId} onChange={onChange} onEnAttente={setPhotosEnAttente} max={5} />;
+}
+
 // ─── Étape « Catégorie » : catégorie puis sous-catégorie (lot 2) ──
 
 function EtapeCategorie({
@@ -750,7 +808,7 @@ function EtapeCategorie({
   set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
   variant: "mobile" | "desktop";
 }) {
-  const { categories } = useContext(VisibiliteCtx);
+  const { categories, personnes } = useContext(VisibiliteCtx);
   const arbre = arborescence(categories, { actifsSeulement: true });
   const choisie = categories.find((c) => c.id === value.categorieId) ?? null;
   const racineChoisie = choisie ? (choisie.parent_id ?? choisie.id) : null;
@@ -765,6 +823,10 @@ function EtapeCategorie({
     set("urgence", r.urgence);
     set("serviceId", r.serviceId ?? "");
     set("confidentialite", r.confidentialite);
+    // Lot 5 : étape « Précisions périscolaire » et personnes prévenues
+    // d'office (déjà cochées comme destinataires).
+    set("estPeriscolaire", estPeriscolaire(id, categories));
+    set("destinataireIds", destinatairesAuto(id, categories, personnes));
   }
 
   if (arbre.length === 0) {
@@ -835,6 +897,66 @@ function EtapeCategorie({
   );
 }
 
+// ─── Étape « Précisions périscolaire » (lot 5) ──────────────────
+
+function EtapePeriscolaire({
+  value, set,
+}: {
+  value: WizardValue;
+  set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
+}) {
+  const { sites = [] } = useContext(VisibiliteCtx);
+  return (
+    <div className="tk-wizard-fields" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Field label="Lieu (école, accueil de loisirs…)">
+        {sites.length > 0 ? (
+          <select className="civiq-input" value={value.siteId} onChange={(e) => set("siteId", e.target.value)} style={{ maxWidth: 360 }}>
+            <option value="">Non précisé</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+          </select>
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--fg-muted)" }}>Aucun lieu enregistré : un administrateur peut les ajouter dans les paramètres des tickets.</p>
+        )}
+      </Field>
+      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="civiq-field-label">Moment</legend>
+        <div role="radiogroup" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {CRENEAUX.map((c) => {
+            const actif = value.creneau === c.valeur;
+            return (
+              <button key={c.valeur} type="button" role="radio" aria-checked={actif} data-active={actif} className="tk-wizard-option"
+                onClick={() => set("creneau", actif ? "" : c.valeur)} style={{ minHeight: 44, width: "auto", padding: "8px 14px" }}>
+                <span className="tk-wizard-option-title">{c.libelle}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+      <Field label="Enfant concerné (facultatif)">
+        <input className="civiq-input" value={value.enfant} maxLength={80} placeholder="Prénom et initiale du nom, ex. Léa M."
+          onChange={(e) => set("enfant", e.target.value)} autoComplete="off" style={{ maxWidth: 360 }} />
+        <span style={{ display: "block", marginTop: 6, fontSize: 12.5, color: "var(--fg-muted)", lineHeight: 1.5 }}>
+          Aucune information de santé. Ce champ est effacé automatiquement après l&apos;année scolaire.
+        </span>
+      </Field>
+      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="civiq-field-label">La famille est-elle informée ?</legend>
+        <div role="radiogroup" style={{ display: "flex", gap: 8 }}>
+          {([["oui", "Oui"], ["non", "Pas encore"]] as const).map(([v, l]) => {
+            const actif = value.familleInformee === v;
+            return (
+              <button key={v} type="button" role="radio" aria-checked={actif} data-active={actif} className="tk-wizard-option"
+                onClick={() => set("familleInformee", actif ? "" : v)} style={{ minHeight: 44, width: "auto", padding: "8px 18px" }}>
+                <span className="tk-wizard-option-title">{l}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
 // ─── Étape « Service et visibilité » (lot 1) ────────────────────
 
 function EtapeVisibilite({
@@ -898,7 +1020,7 @@ function RecapSheet({
     };
   }, []);
 
-  const { categories: categoriesRecap } = useContext(VisibiliteCtx);
+  const { categories: categoriesRecap, sites: sitesRecap = [] } = useContext(VisibiliteCtx);
   const assigneeNames = value.assigneIds
     .map((id) => agents.find((a) => a.id === id)?.full_name ?? "—")
     .filter(Boolean);
@@ -922,8 +1044,20 @@ function RecapSheet({
       label: "Catégorie",
       value: value.categorieId ? cheminCategorie(value.categorieId, categoriesRecap).libelle : "—",
     },
-    { id: "description", label: "Titre", value: value.titre || "—" },
   );
+  if (value.estPeriscolaire) {
+    rows.push({
+      id: "periscolaire",
+      label: "Périscolaire",
+      value: [
+        sitesRecap.find((x) => x.id === value.siteId)?.nom,
+        CRENEAUX.find((c) => c.valeur === value.creneau)?.libelle,
+        value.enfant.trim() ? `Enfant : ${value.enfant.trim()}` : null,
+        value.familleInformee === "oui" ? "Famille informée" : value.familleInformee === "non" ? "Famille pas encore informée" : null,
+      ].filter(Boolean).join(" · ") || "—",
+    });
+  }
+  rows.push({ id: "description", label: "Titre", value: value.titre || "—" });
   if (value.description.trim()) {
     rows.push({ id: "description", label: "Description", value: value.description });
   }

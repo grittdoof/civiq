@@ -39,7 +39,7 @@
   la PWA iOS : le manifest.webmanifest a start_url = /pwa-launch.html
   → iOS voit du contenu peint IMMÉDIATEMENT (pas 3-5 s de blanc).
 
-  Le JS ci-dessous redirige vers /admin/dashboard une fois la
+  Le JS ci-dessous redirige vers /admin/accueil (page selon le profil) une fois la
   page peinte. Le boot loader du layout Next.js prendra ensuite le
   relais sans transition visible.
 -->
@@ -52,7 +52,7 @@
   // ?source=pwa pour l'analytique. replace() évite d'ajouter une
   // entrée à l'historique (bouton retour ne revient pas ici).
   (function(){
-    var target = "/admin/dashboard?source=pwa";
+    var target = "/admin/accueil?source=pwa";
     // Laisse un frame au navigateur pour peindre le loader avant redirect
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){

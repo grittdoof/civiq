@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import imageCompression from "browser-image-compression";
 import { Camera, X, Loader2, ImagePlus, FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
-import { MINIATURE_PX, cheminMiniature } from "@/lib/tickets/pieces";
+import { cheminMiniature } from "@/lib/tickets/pieces";
+import { compresserPhoto, deposerPhoto } from "@/lib/tickets/depot-photo";
+import { estErreurReseau } from "@/lib/tickets/hors-ligne-regles";
 
 // ═══════════════════════════════════════════════════════════════
 // TicketPhotoUpload
@@ -25,6 +26,8 @@ interface PhotoEntry {
   file: File;
   previewUrl: string;
   storagePath?: string;       // rempli après upload
+  /** Hors ligne (lot 3) : photo compressée gardée pour un envoi différé. */
+  enAttente?: Blob;
   uploading: boolean;
   error?: string;
 }
@@ -35,62 +38,39 @@ interface Props {
   max?: number;
   /** Mode : signalement (défaut) ou service_fait (pour la clôture) */
   type?: "signalement" | "service_fait";
+  /**
+   * Hors ligne (lot 3) : reçoit les photos compressées qui n'ont pas pu
+   * être déposées. Sans ce rappel, une photo hors ligne reste en erreur.
+   */
+  onEnAttente?: (photos: Blob[]) => void;
 }
 
-export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Props) {
+export default function TicketPhotoUpload({ communeId, onChange, max = 5, onEnAttente }: Props) {
   const [photos, setPhotos] = useState<PhotoEntry[]>([]);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const updateParent = useCallback((next: PhotoEntry[]) => {
     onChange(next.filter((p) => p.storagePath).map((p) => p.storagePath!));
-  }, [onChange]);
+    onEnAttente?.(next.filter((p) => p.enAttente).map((p) => p.enAttente!));
+  }, [onChange, onEnAttente]);
 
   async function compressAndUpload(entry: PhotoEntry): Promise<PhotoEntry> {
+    let compressed: Blob;
     try {
-      const compressed = await imageCompression(entry.file, {
-        maxSizeMB: 1.5,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-        fileType: "image/jpeg",
-        initialQuality: 0.8,
-      });
-
-      const ext = "jpg";
-      const path = `${communeId}/${entry.id}.${ext}`;
-
-      const supabase = createClient();
-      const { error } = await supabase.storage
-        .from("tickets-photos")
-        .upload(path, compressed, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: "image/jpeg",
-        });
-
-      if (error) {
-        return { ...entry, uploading: false, error: error.message };
-      }
-
-      // Miniature (listes, galeries) : facultative, un échec n'empêche
-      // pas l'enregistrement — la photo entière sert alors de vignette.
-      const mini = cheminMiniature(path);
-      if (mini) {
-        try {
-          const petite = await imageCompression(compressed, {
-            maxSizeMB: 0.08,
-            maxWidthOrHeight: MINIATURE_PX,
-            useWebWorker: true,
-            fileType: "image/jpeg",
-            initialQuality: 0.75,
-          });
-          await supabase.storage.from("tickets-photos").upload(mini, petite, {
-            cacheControl: "3600", upsert: false, contentType: "image/jpeg",
-          });
-        } catch { /* sans miniature */ }
-      }
+      compressed = await compresserPhoto(entry.file);
+    } catch (err) {
+      return { ...entry, uploading: false, error: err instanceof Error ? err.message : "Photo illisible" };
+    }
+    // Hors ligne : la photo attend l'envoi du signalement (si le parent le gère)
+    if (onEnAttente && typeof navigator !== "undefined" && !navigator.onLine) {
+      return { ...entry, uploading: false, enAttente: compressed };
+    }
+    try {
+      const path = await deposerPhoto(communeId, compressed, entry.id);
       return { ...entry, uploading: false, storagePath: path };
     } catch (err) {
+      if (onEnAttente && estErreurReseau(err, navigator.onLine)) return { ...entry, uploading: false, enAttente: compressed };
       const msg = err instanceof Error ? err.message : "Erreur upload";
       return { ...entry, uploading: false, error: msg };
     }
@@ -192,6 +172,11 @@ export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Prop
             {p.uploading && (
               <div className="tk-photo-overlay">
                 <Loader2 size={20} className="civiq-spin" style={{ color: "#fff" }} />
+              </div>
+            )}
+            {p.enAttente && (
+              <div className="tk-photo-overlay" style={{ alignItems: "flex-end", background: "linear-gradient(transparent 55%, rgba(0,0,0,0.65))", color: "#fff", fontSize: 11, fontWeight: 600, padding: 6 }}>
+                Envoi au retour du réseau
               </div>
             )}
             {p.error && (

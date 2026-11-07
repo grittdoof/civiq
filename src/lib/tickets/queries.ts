@@ -1,8 +1,8 @@
 import { createServiceClient } from "@/lib/supabase-server";
 import { BUCKET_DOCUMENTS_RAPPORT, estCheminRapportValide, nomAffichable } from "./documents-rapport";
 import { ouvrirDansNavigateur, urlDocument } from "./pieces";
-import { droitsSurTicket, type DroitsTicket, type Spectateur } from "./droits";
-import { chargerLiens, filtrerVisibles, versDroits } from "./droits-server";
+import { droitsSurTicket, peutVoirTicket, type DroitsTicket, type Spectateur } from "./droits";
+import { chargerLiens, versDroits } from "./droits-server";
 import type { TicketWithRelations, TicketStatut, TicketPriorite, TicketCategorie, TicketPhoto, TicketCommentaire, TicketRapport } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
@@ -42,7 +42,17 @@ export async function listTickets(
     .order("created_at", { ascending: false });
   if (filters.limit) base = base.limit(filters.limit);
   const { data: lignes } = await base;
-  const ticketsBase = await filtrerVisibles(service, (lignes ?? []) as unknown as TicketWithRelations[], spectateur);
+  // Visibilité (lot 1) + assignés de chaque ticket (lot 3 : « À moi »,
+  // « Non assignés », actions rapides), lus en une fois.
+  const brutes = (lignes ?? []) as unknown as TicketWithRelations[];
+  const liens = spectateur ? await chargerLiens(service, brutes.map((t) => t.id)) : new Map();
+  const ticketsBase = spectateur
+    ? brutes.filter((t) => peutVoirTicket(versDroits(t, liens.get(t.id)), spectateur))
+    : [];
+  for (const t of ticketsBase) {
+    t.assignee_ids = liens.get(t.id)?.assignes ?? [];
+    t.destinataire_ids = liens.get(t.id)?.destinataires ?? [];
+  }
 
   // Photos de signalement des seuls signalements listés (avant : toutes
   // les photos de la plateforme étaient lues puis triées en mémoire).

@@ -70,6 +70,8 @@ export interface CategorieTicket {
   delai_cible_heures: number | null;
   gestionnaire_externe: string | null;
   consigne_urgence: string | null;
+  /** Lot 5 : fonctions prévenues et nommées destinataires à la création. */
+  notifier_fonctions?: string[] | null;
 }
 
 export interface NoeudCategorie extends CategorieTicket {

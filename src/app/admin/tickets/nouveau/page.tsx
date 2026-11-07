@@ -60,11 +60,12 @@ export default async function NewTicketPage() {
   }
 
   const service = await createServiceClient();
-  const [agents, personnes, categories, { data: services }] = await Promise.all([
+  const [agents, personnes, categories, { data: services }, { data: sites }] = await Promise.all([
     listAssignableAgents(),
     listerPersonnesCommune(),
     listerCategories(service, ctx.communeId, { actifsSeulement: true }),
     service.from("services").select("id, nom").eq("commune_id", ctx.communeId).is("deleted_at", null).order("ordre").order("nom"),
+    service.from("sites").select("id, nom").eq("commune_id", ctx.communeId).is("deleted_at", null).order("nom"),
   ]);
   return (
     <NewTicketForm
@@ -74,6 +75,7 @@ export default async function NewTicketPage() {
       personnes={personnes}
       moi={ctx.userId}
       categories={categories}
+      sites={(sites ?? []) as Array<{ id: string; nom: string }>}
     />
   );
 }

@@ -116,5 +116,6 @@ export async function resolvePostLoginRedirect(
     return { redirectTo: options.next };
   }
 
-  return { redirectTo: "/admin/dashboard" };
+  // Page d'arrivée selon le profil (lot 3 : agent → ses interventions…)
+  return { redirectTo: "/admin/accueil" };
 }

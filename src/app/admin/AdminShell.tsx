@@ -6,9 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase-browser";
 import { usePushNavigationListener } from "@/hooks/usePushNavigationListener";
 import PushSubscriptionPrompt from "@/components/tickets/PushSubscriptionPrompt";
+import BandeauHorsLigne from "@/components/tickets/BandeauHorsLigne";
 import NavPendingLink from "@/components/ui/NavPendingLink";
 import NavigationTracker from "@/components/ui/NavigationTracker";
-import {
+import { Gauge,
   Settings, LogOut, Menu, X, Shield,
   LayoutDashboard, FileText, Plus, BarChart3,
   Wrench, Map as MapIcon, HelpCircle, Inbox, Bell,
@@ -66,6 +67,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/tickets", label: "Tickets", icon: Inbox, exact: true, modules: ["tickets"] },
       { href: "/admin/tickets/carte", label: "Carte", icon: MapIcon, exact: true, modules: ["tickets"] },
+      { href: "/admin/tickets/pilotage", label: "Pilotage", icon: Gauge, exact: true, modules: ["tickets"] },
       { href: "/admin/tickets/stats", label: "Statistiques", icon: BarChart3, exact: true, modules: ["tickets"] },
       { href: "/admin/tickets/nouveau", label: "Nouveau ticket", icon: Plus, exact: true, modules: ["tickets"], action: true, roles: ["admin", "editor", "super_admin"] },
     ],
@@ -278,7 +280,11 @@ export default function AdminShell({ children, commune, isSuperAdmin, role, init
         </div>
       )}
       <NavigationTracker />
-      <div className="civiq-content">{children}</div>
+      <div className="civiq-content">
+        {/* Lot 3 : file des signalements créés hors ligne (envoi automatique) */}
+        {(activeModuleKeys.includes("tickets") || isSuperAdmin) && <BandeauHorsLigne />}
+        {children}
+      </div>
       {/* Prompt d'activation push : visible sur toutes les pages admin
           (pas seulement /admin/tickets) — caché si déjà souscrit ou refusé */}
       <PushSubscriptionPrompt />

@@ -1205,3 +1205,47 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Évolution de la correspondance urgence ↔ priorité** : des deux côtés (déclencheur SQL et `categories.ts`).
 - Les statistiques, la carte et le PDF lisent encore `categorie` / `priorite` (synchronisées) : à migrer au lot 4.
 - Une catégorie supprimée n'est plus proposée ; ses tickets gardent `categorie_id` mais s'affichent « Sans catégorie ».
+
+### Lot 3 — application mobile par profil, mode hors ligne (même session)
+> À partir de ce lot, l'utilisateur a demandé d'enchaîner les lots sans test en production intermédiaire : recette globale à la fin.
+- **Page d'arrivée** `/admin/accueil` (lancement PWA, connexion, `/admin`) : agent → « À moi », responsable → « Mon service », adjoint → « Ma délégation », accueil / conseiller → « Mes demandes », maire / direction / super-admin → tableau de bord ; sans module Tickets → tableau de bord. Raccourci PWA « Mes interventions ».
+- **Liste « Interventions »** (maquette 1A) : onglets selon la matrice (`vuesDisponibles`), Ouverts / Clôturés, recherche (titre, adresse, n°), sections par urgence triées par délai cible puis ancienneté, ligne avec barre d'urgence, puces (statut, « Non pris en charge · 42 min », délai, transmis, restreint) et **action rapide** (Prendre, Clôturer, Photo) ; bouton flottant « Nouveau ticket » sur mobile. Anciens liens `?filter=` acceptés.
+- `listTickets` renvoie `assignee_ids` / `destinataire_ids` (une seule lecture des liens).
+- **Hors ligne** : `lib/tickets/hors-ligne.ts` (IndexedDB `gociviq-hors-ligne`), photos compressées gardées par `TicketPhotoUpload` (`onEnAttente`), envoi par `envoyerFile` (photos une par une, progression enregistrée) à l'ouverture, au retour du réseau, au premier plan et sur Background Sync (Android) ; écran « gardé sur le téléphone » (maquette 2A) ; `BandeauHorsLigne` dans le shell (refus serveur affiché, « Abandonner »). `depot-photo.ts` partagé.
+- Correctif : la classe de la galerie (lot 6) entrait en conflit avec l'outil de dépôt → `tk-galerie-vignette`.
+- Tests : `interventions.test.ts` → 346 ✓ ; `next build` OK ; liste mobile, fenêtre photo et file IndexedDB vérifiées dans le navigateur (page temporaire).
+
+#### Points d'attention (lot 3)
+- **Doublon possible** si la connexion tombe entre la création et la confirmation d'un ticket envoyé depuis la file (pas d'identifiant d'idempotence).
+- iOS n'a pas de Background Sync : la file part à l'ouverture de l'application ou au retour du réseau.
+- Aucune migration dans ce lot.
+
+### Lot 4 — pilotage direction (même session)
+- `/admin/tickets/pilotage` (maquette 4B, menu « Pilotage ») : période (7 j, 30 j, trimestre, année), filtres service / catégorie / urgence ; **À traiter maintenant** (danger immédiat non pris en charge, sans réponse > 7 jours, au-delà du délai cible) ; chiffres clés (ouverts, clôturés et tendance, délai moyen, % pris en charge sous 24 h) ; **tableau par service** dépliable par catégorie (`<details>` + `:has`) ; catégories les plus signalées avec tendance ; carte des tickets ouverts (`TicketsMap` avec `hauteur`).
+- Exports : `GET /api/tickets/pilotage/export?type=services|tickets` (CSV « ; » + BOM pour Excel, droit « exporter ») ; version imprimable `?imprimer=1` (impression automatique, sous-lignes dépliées, filtres et carte masqués).
+- Confidentialité : `chargerPilotage` exclut les confidentiels ; un restreint que la personne ne peut pas ouvrir mais qui serait dans sa portée est **compté sans détail** (`masque` : ni titre, ni adresse, jamais listé). Accès : portée « son service » ou plus (sinon retour à la liste).
+- Logique pure `pilotage.ts` (indicateurs, alertes, tableau, tendance, CSV) ; tests `pilotage.test.ts` → 352 ✓ ; `next build` OK. Non vérifié dans le navigateur (données réelles nécessaires) : recette finale.
+- Le seuil « sans réponse » est fixé à 7 jours dans la page (paramètre communal à prévoir si besoin).
+
+### Lot 4 bis — page publique pour les habitants (même session)
+- **Migration 060** (appliquée en prod le 2026-11-07 après essai à blanc) : `commune_settings.tickets_public_actif` (défaut : non) et `tickets_public_categories` (racines publiées ; NULL = toutes sauf périscolaire, sécurité, administratif, informatique, « Autre »).
+- `/interventions/<slug>` (public, sans connexion ; 404 si désactivée ou module absent) : interventions terminées (30 jours / 12 mois), délai moyen, % pris en charge sous 48 h, en cours, par thème, histogramme mensuel, contact mairie ; CSV `/interventions/<slug>/donnees`. Données mises en cache 1 h (`unstable_cache`, tag `tickets-public-<slug>` invalidé à l'enregistrement du réglage).
+- **Aucune donnée individuelle** : seules les colonnes de dates, statut et catégorie sont lues ; tickets « standard » des thèmes publiés uniquement.
+- Réglage dans `/admin/tickets/parametres` (activation, thèmes, lien), `PUT /api/tickets/page-publique`.
+- Totaux par quartier de la maquette : **non faits** (il faudrait dessiner des zones) ; la page s'en passe.
+- Middleware : un utilisateur connecté qui ouvre une page d'authentification arrive sur `/admin/accueil`.
+- Tests : `public.test.ts` → 356 ✓ ; `next build` OK.
+
+### Lot 5 — ouverture au périscolaire (même session)
+- **Migration 061** (appliquée en prod le 2026-11-07 après essai à blanc) : `sites` (écoles, accueils de loisirs, restaurants scolaires… par commune), `ticket_periscolaire` (site, créneau, enfant facultatif ≤ 80 caractères, famille informée + date ; RLS `user_voit_ticket`, écriture service role), `ticket_categories.notifier_fonctions` (« Incident enfant » → maire, DGS, secrétaire générale, aussi pour les nouvelles communes), service « Périscolaire » créé et proposé par défaut sur la catégorie, `commune_settings.tickets_effacement_enfant_mois`, `date_effacement_enfant()` et `purger_donnees_enfants()` (service role).
+- **Création** : étape « Précisions périscolaire » (visible si la catégorie est sous « Périscolaire & scolaire ») : lieu, moment, enfant (prénom + initiale, avertissement « aucune information de santé »), famille informée. **Remontée automatique** : les personnes dont la fonction est cochée sur la catégorie (ou sa parente) sont nommées destinataires (donc voient le ticket restreint) et reçoivent une notification ; présélectionnées dans le formulaire, ajoutées côté serveur dans tous les cas.
+- **Fiche** : carte « Périscolaire » (lieu, moment, enfant ou « Effacé le … », famille, date d'effacement prévue).
+- **Paramètres** : lieux (ajout, renommage, retrait logique), délai d'effacement (fin d'année scolaire par défaut, ou 3 / 6 / 12 mois), « Prévenir automatiquement » sur chaque catégorie.
+- **Effacement** : cron quotidien `/api/cron/purge-periscolaire` (2 h 45) → `purger_donnees_enfants()` + journal ; par défaut le 31 août qui suit la clôture (Europe/Paris). Logique pure miroir `dateEffacementEnfant` (`lib/tickets/periscolaire.ts`).
+- Tests : `periscolaire.test.ts` (5) → 365 ✓ ; `next build` OK. Non vérifié dans le navigateur (recette finale).
+
+#### Points d'attention (lot 5)
+- **Appliquer 060 puis 061 AVANT de déployer le code** (le nouveau code lit `sites`, `ticket_periscolaire`, `notifier_fonctions`). L'ancien code supporte les deux.
+- **Évolution de la règle d'effacement** : des deux côtés (`date_effacement_enfant` SQL et `dateEffacementEnfant` TS).
+- Seul le champ « enfant » est effacé : un prénom écrit dans le titre, la description ou un commentaire ne l'est pas (consigne affichée à la saisie).
+- Durée de conservation à faire valider par le DPO de la commune.

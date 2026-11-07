@@ -7,6 +7,7 @@ import { getAuthContext } from "@/lib/auth-helpers";
 import { createServiceClient } from "@/lib/supabase-server";
 import { CLOTURE_STATUTS, type TicketCanal, type TicketCategorie, type TicketPriorite, type TicketStatut } from "./types";
 import {
+  sendTicketNotification,
   notifyTicketAssigned,
   notifyUrgentUnassigned,
   notifyTicketCommented,
@@ -21,6 +22,7 @@ import {
 import { chargerLiens, chargerSpectateur, journaliserModification, versDroits } from "./droits-server";
 import { URGENCE_LABELS, cheminCategorie, estUrgence, type Urgence } from "./categories";
 import { listerCategories } from "./categories-server";
+import { destinatairesAuto, estPeriscolaire, validerPeriscolaire, type PrecisionsPeriscolaire } from "./periscolaire";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -65,6 +67,9 @@ export interface CreateTicketInput {
   service_id?: string | null;
   confidentialite?: Confidentialite;
   destinataire_ids?: string[];
+
+  // Lot 5 : précisions d'un signalement périscolaire
+  periscolaire?: Partial<PrecisionsPeriscolaire> | null;
 }
 
 export async function createTicket(input: CreateTicketInput): Promise<{ id: string; numero: number }> {
@@ -85,14 +90,28 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
 
   const service = await createServiceClient();
 
-  // Visibilité : restreint / confidentiel exigent un destinataire ; service
-  // et destinataires doivent appartenir à la commune.
-  const destinataires = [...new Set((input.destinataire_ids ?? []).filter(Boolean))];
-  const confidentialite = verifierVisibilite(input.confidentialite ?? "standard", destinataires);
-  await verifierServiceEtPersonnes(service, ctx.communeId, input.service_id ?? null, destinataires);
   // Lot 2 : catégorie de la commune ; service par défaut de la catégorie
   // si aucun n'a été choisi (undefined = non renseigné, null = aucun).
   const categorie = input.categorie_id ? await verifierCategorie(service, ctx.communeId, input.categorie_id) : null;
+
+  // Lot 5 : remontée automatique (ex. incident enfant → maire, DGS,
+  // secrétaire générale) : ces personnes sont nommées destinataires.
+  const remontee = categorie && categorie.arbre.some((c) => c.notifier_fonctions?.length)
+    ? destinatairesAuto(categorie.id, categorie.arbre, await profilsCommune(service, ctx.communeId))
+    : [];
+  const periscolaire = categorie && estPeriscolaire(categorie.id, categorie.arbre)
+    ? validerPeriscolaire(input.periscolaire) : null;
+  if (periscolaire?.site_id) {
+    const { data: site } = await service.from("sites").select("id")
+      .eq("id", periscolaire.site_id).eq("commune_id", ctx.communeId!).is("deleted_at", null).maybeSingle();
+    if (!site) throw new Error("Site inconnu");
+  }
+
+  // Visibilité : restreint / confidentiel exigent un destinataire ; service
+  // et destinataires doivent appartenir à la commune.
+  const destinataires = [...new Set([...(input.destinataire_ids ?? []), ...remontee].filter(Boolean))];
+  const confidentialite = verifierVisibilite(input.confidentialite ?? "standard", destinataires);
+  await verifierServiceEtPersonnes(service, ctx.communeId, input.service_id ?? null, destinataires);
   const serviceId = input.service_id === undefined ? (categorie?.serviceDefaut ?? null) : input.service_id;
   if (input.urgence !== undefined && !estUrgence(input.urgence)) throw new Error("Urgence inconnue");
 
@@ -173,10 +192,30 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     );
     if (destErr) console.error("ticket_destinataires insert:", destErr);
   }
+  if (periscolaire) {
+    const { error: periErr } = await service.from("ticket_periscolaire").insert({
+      ticket_id: created.id,
+      ...periscolaire,
+      famille_informee_le: periscolaire.famille_informee ? new Date().toISOString().slice(0, 10) : null,
+    });
+    if (periErr) console.error("ticket_periscolaire insert:", periErr);
+  }
   await journaliserModification(
     { id: created.id, numero: created.numero, commune_id: ctx.communeId!, confidentialite },
-    "creation", { destinataires: destinataires.length },
+    "creation", { destinataires: destinataires.length, ...(remontee.length ? { remontee: remontee.length } : {}) },
   );
+
+  // Lot 5 : la direction prévenue tout de suite (hors auteur).
+  const aPrevenir = remontee.filter((id) => id !== ctx.userId);
+  if (aPrevenir.length > 0) {
+    sendTicketNotification({
+      profileIds: aPrevenir,
+      title: `Signalement #${created.numero} : ${categorie?.libelle ?? "à suivre"}`,
+      body: "Ce signalement vous est remonté automatiquement.",
+      url: `/admin/tickets/${created.id}`,
+      tag: `ticket-${created.id}`,
+    }).catch((e) => console.error("[push] remontée:", e));
+  }
 
   // ─── Notifications push ───
   // Si assignation directe à la création → notif à tous les destinataires
@@ -272,15 +311,34 @@ function exiger(ok: boolean, message: string): void {
 /** La catégorie appartient à la commune et est active (lot 2). */
 async function verifierCategorie(
   service: Awaited<ReturnType<typeof createServiceClient>>, communeId: string | null, categorieId: string,
-): Promise<{ id: string; serviceDefaut: string | null }> {
+): Promise<{
+  id: string; libelle: string; serviceDefaut: string | null;
+  /** La catégorie et sa parente : de quoi appliquer les règles du lot 5. */
+  arbre: Array<{ id: string; parent_id: string | null; code: string; notifier_fonctions: string[] | null }>;
+}> {
   if (!communeId) throw new Error("Aucune commune attribuée");
   const { data: c } = await service
     .from("ticket_categories")
-    .select("id, actif, service_defaut_id, parent:parent_id ( service_defaut_id )")
+    .select("id, parent_id, code, libelle, actif, service_defaut_id, notifier_fonctions, parent:parent_id ( id, parent_id, code, service_defaut_id, notifier_fonctions )")
     .eq("id", categorieId).eq("commune_id", communeId).is("deleted_at", null).maybeSingle();
   if (!c || !c.actif) throw new Error("Catégorie inconnue");
-  const parent = c.parent as unknown as { service_defaut_id: string | null } | null;
-  return { id: c.id as string, serviceDefaut: (c.service_defaut_id as string | null) ?? parent?.service_defaut_id ?? null };
+  const parent = c.parent as unknown as { id: string; parent_id: string | null; code: string; service_defaut_id: string | null; notifier_fonctions: string[] | null } | null;
+  const soi = { id: c.id as string, parent_id: c.parent_id as string | null, code: c.code as string, notifier_fonctions: c.notifier_fonctions as string[] | null };
+  return {
+    id: soi.id, libelle: c.libelle as string,
+    serviceDefaut: (c.service_defaut_id as string | null) ?? parent?.service_defaut_id ?? null,
+    arbre: parent ? [soi, { id: parent.id, parent_id: parent.parent_id, code: parent.code, notifier_fonctions: parent.notifier_fonctions }] : [soi],
+  };
+}
+
+/** Comptes de l'équipe de la commune, avec leur fonction (remontée du lot 5). */
+async function profilsCommune(
+  service: Awaited<ReturnType<typeof createServiceClient>>, communeId: string | null,
+): Promise<Array<{ id: string; job_title: string | null; role: string | null }>> {
+  if (!communeId) return [];
+  const { data } = await service.from("profiles").select("id, job_title, role")
+    .eq("commune_id", communeId).in("role", ["admin", "editor"]);
+  return (data ?? []) as Array<{ id: string; job_title: string | null; role: string | null }>;
 }
 
 /** Le service et les personnes choisies appartiennent à la commune (comptes équipe). */

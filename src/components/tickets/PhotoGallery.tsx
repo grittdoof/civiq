@@ -64,7 +64,7 @@ export default function PhotoGallery({ photos, titre }: { photos: PhotoGalerie[]
           <li key={p.id}>
             <button
               type="button"
-              className="tk-photo-thumb"
+              className="tk-galerie-vignette"
               aria-label={`Agrandir la photo ${i + 1} sur ${photos.length}${p.legende ? ` : ${p.legende}` : ""}`}
               onClick={(e) => { declencheur.current = e.currentTarget; setOuverte(i); }}
             >

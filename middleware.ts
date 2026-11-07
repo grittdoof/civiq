@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
   // ── 4. Auth pages : redirect si déjà connecté ──
   if (user && PUBLIC_AUTH_ROUTES.some((p) => path === p || path.startsWith(p + "/"))) {
     const url = request.nextUrl.clone();
-    url.pathname = "/admin/dashboard";
+    url.pathname = "/admin/accueil"; // page d'arrivée selon le profil (lot 3)
     return NextResponse.redirect(url);
   }
 
