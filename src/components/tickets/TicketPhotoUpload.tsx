@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import imageCompression from "browser-image-compression";
 import { Camera, X, Loader2, ImagePlus, FolderOpen } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
+import { MINIATURE_PX, cheminMiniature } from "@/lib/tickets/pieces";
 
 // ═══════════════════════════════════════════════════════════════
 // TicketPhotoUpload
@@ -12,6 +13,7 @@ import { createClient } from "@/lib/supabase-browser";
 // • Max 1920px, qualité 0.8, format JPEG (heic → jpeg conversion)
 // • Upload direct vers Storage bucket tickets-photos
 // • Génère un chemin unique sous {commune_id}/{uuid}.jpg
+// • Dépose aussi une miniature (480 px) sous {commune_id}/miniatures/
 // • Renvoie la liste des storage_path à enregistrer côté serveur
 //
 // Pas de upload pre-ticket : on stocke d'abord dans bucket, puis
@@ -69,6 +71,24 @@ export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Prop
       if (error) {
         return { ...entry, uploading: false, error: error.message };
       }
+
+      // Miniature (listes, galeries) : facultative, un échec n'empêche
+      // pas l'enregistrement — la photo entière sert alors de vignette.
+      const mini = cheminMiniature(path);
+      if (mini) {
+        try {
+          const petite = await imageCompression(compressed, {
+            maxSizeMB: 0.08,
+            maxWidthOrHeight: MINIATURE_PX,
+            useWebWorker: true,
+            fileType: "image/jpeg",
+            initialQuality: 0.75,
+          });
+          await supabase.storage.from("tickets-photos").upload(mini, petite, {
+            cacheControl: "3600", upsert: false, contentType: "image/jpeg",
+          });
+        } catch { /* sans miniature */ }
+      }
       return { ...entry, uploading: false, storagePath: path };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Erreur upload";
@@ -107,7 +127,10 @@ export default function TicketPhotoUpload({ communeId, onChange, max = 5 }: Prop
       // Si déjà uploadé, on supprime aussi de Storage
       if (target?.storagePath) {
         const supabase = createClient();
-        supabase.storage.from("tickets-photos").remove([target.storagePath]).catch(() => {});
+        const mini = cheminMiniature(target.storagePath);
+        supabase.storage.from("tickets-photos")
+          .remove(mini ? [target.storagePath, mini] : [target.storagePath])
+          .catch(() => {});
       }
       const next = prev.filter((p) => p.id !== id);
       updateParent(next);

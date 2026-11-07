@@ -1150,3 +1150,27 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - Appliquer 056 en même temps que le déploiement (elle ne casse pas l'ancien code : il dépose déjà sous le dossier de la commune).
 - Un super-admin sans commune ne peut pas créer de signalement (`createTicket`) : le contrôle de chemin n'ajoute pas de restriction pour lui.
 - 12 fichiers orphelins (déposés puis jamais rattachés à un signalement) restent dans le bucket.
+
+## Session 33 — Tickets d'intervention : audit, maquettes, lot 6 pièces jointes (2026-11-07)
+
+### Prompt de départ
+> Faire évoluer le module Tickets sur 6 axes (droits de consultation, catégories, PWA par profil, tableau de bord direction, périscolaire, bug des pièces jointes). Phase 1 audit + architecture, phase 2 maquettes Claude Design, phase 3 lots 6 → 1 → 2 → 3 → 4 → 5.
+
+### Phases 1 et 2
+- Livrable : `docs/audit-module-tickets.md` (audit, matrice, UX, schéma cible, reprise des 103 tickets, plan, conservation RGPD / archives publiques).
+- Décisions : **matrice fonction × action par commune, réglée par le super-admin** ; super-admin voit tout ; accès au module = activation par utilisateur ; fonctions `dst`, `accueil`, `responsable_service` à ajouter ; services = liste propre à chaque mairie ; données « enfant » : prénom + initiale, aucune donnée de santé, effacement après l'année scolaire suivant la clôture (à valider par le DPO).
+- Maquettes (canevas Claude Design, privé) : retenues **1A** (liste par urgence), **2A** (une question par écran, + consigne gaz, + hors ligne), **3A** (onglets Détails / Pièces jointes / Journal), **4B** (direction : alertes d'abord) et **4A en page publique** pour les habitants (option par commune, chiffres agrégés).
+
+### Lot 6 — pièces jointes
+- **Cause** (vérifiée en production sur #111) : les photos s'affichaient en `<img>` sans lien ni visionneuse (le clic ne faisait rien) ; liens signés d'1 h fabriqués au rendu, morts dans une PWA restée ouverte ; chaque vignette chargeait la photo entière (≈ 1 Mo) ; liste tronquée à 100 (103 tickets).
+- **Adresses stables** : `GET /api/tickets/:id/photos/:photoId[?taille=miniature][&telecharger=1]` et `GET /api/tickets/:id/documents/:nom[?telecharger=1]` — droits vérifiés à chaque ouverture (`lib/tickets/acces-server.ts`, point d'entrée unique que le lot 1 complétera), puis redirection vers un lien signé de 10 min, réutilisable 5 min par le navigateur (`private`).
+- `PhotoGallery` : vignettes = miniatures, visionneuse plein écran (Échap, ← →, balayage, « Ouvrir en grand », « Télécharger »). PDF ouverts dans un onglet, Word / Excel téléchargés.
+- **Miniatures** (480 px) déposées par `TicketPhotoUpload` sous `<commune>/miniatures/` ; sans miniature (photos antérieures), la route sert la photo entière. Offre Supabase gratuite : pas de transformation d'image à la volée.
+- `listTickets` : plus de limite implicite de 100, photos lues pour les seuls signalements listés (avant : toutes les photos de la plateforme), requête morte supprimée.
+- **Migration 057** (essai à blanc en prod, non appliquée) : lecture directe du bucket `tickets-photos` limitée à ses propres fichiers (nécessaire à `remove`) ; super-admin inchangé.
+- Tests : `tests/unit/tickets/pieces.test.ts` (7) → 299 ✓ ; `next build` OK ; visionneuse vérifiée dans le navigateur (bureau + mobile, page de test temporaire non commitée) ; routes : 401 sans session.
+
+### Points d'attention
+- **Ne jamais remettre de lien signé dans une page** : utiliser `urlPhoto` / `urlDocument` (`lib/tickets/pieces.ts`). Exception : la génération PDF côté serveur (`/api/tickets/pdf`).
+- Toute nouvelle route qui sert un contenu de signalement passe par `accesTicketEnLecture`.
+- Appliquer 057 avec le déploiement (l'ancien code lit déjà en service role).

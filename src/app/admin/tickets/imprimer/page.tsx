@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { listTickets } from "@/lib/tickets/queries";
+import { urlPhoto } from "@/lib/tickets/pieces";
 import {
   CANAL_LABELS,
   CATEGORIE_LABELS,
@@ -92,19 +93,12 @@ export default async function PrintTicketsPage({ searchParams }: Props) {
     commentairesByTicket.set(c.ticket_id, arr);
   }
 
-  // URLs signées des photos
+  // Photo principale : miniature (suffisante à l'impression) via notre route
   const photoUrls = new Map<string, string>();
-  await Promise.all(
-    tickets.flatMap((t) => {
-      const first = t.signalement_photos?.[0];
-      if (!first) return [];
-      return [
-        getPhotoSignedUrl(first.storage_path).then((url) => {
-          if (url) photoUrls.set(t.id, url);
-        }),
-      ];
-    }),
-  );
+  for (const t of tickets) {
+    const first = t.signalement_photos?.[0];
+    if (first) photoUrls.set(t.id, urlPhoto(t.id, first.id, { miniature: true }));
+  }
 
   const today = new Date().toLocaleDateString("fr-FR", {
     day: "numeric", month: "long", year: "numeric",
