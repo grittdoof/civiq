@@ -1117,3 +1117,20 @@ Vercel refuse toute requête de plus de **4,5 Mo** et répond en texte (« Reque
 - **Tout nouveau dépôt de fichier passe par `televerser()` + `depot-direct`**, jamais par un corps multipart (> 4,5 Mo = refus de Vercel).
 - Le chemin est **toujours** choisi par le serveur ; à l'enregistrement, contrôler le préfixe (commune, projet ou séance) et, si besoin, le motif du nom.
 - Pièces jointes de clôture des signalements (`/api/tickets/upload-document`) : bucket « tickets » inexistant et route trop permissive — traité à part.
+
+## Session 31 — Pièces jointes de clôture des signalements (2026-11-07)
+
+### Cause
+`/api/tickets/upload-document` écrivait dans un bucket « tickets » **qui n'a jamais existé** : toutes les pièces jointes du rapport de clôture échouaient (0 sur 70 rapports en prod). La route n'exigeait que d'être connecté (chemin fourni par le client : n'importe quel compte pouvait écrire sous `tickets/<autre commune>/…`), prenait le type MIME du navigateur et faisait transiter le fichier par Vercel (4,5 Mo max pour 10 Mo promis). `closeTicketWithReport` enregistrait tel quel les chemins envoyés par le client. Les pièces n'étaient relues nulle part.
+
+### Livrés
+- **Migration 055** (appliquée en prod après essai à blanc, additive) : bucket **privé** `tickets-documents` (20 Mo ; PDF, Word, Excel, ODT, ODS, texte), aucune policy (service role + liens signés). Retour arrière : refuse un bucket non vide ; `storage.protect_delete()` impose `set_config('storage.allow_delete_query','true', true)` pour un DELETE direct sur les tables Storage.
+- `lib/tickets/documents-rapport.ts` (pur, testé) : type MIME déduit de l'extension, chemin `tickets/<commune>/rapports/<uuid>_<nom-ascii>.<ext>` choisi par le serveur (le nom d'origine simplifié reste lisible), `estCheminRapportValide`, `nomAffichable`.
+- Route en **dépôt direct** (`depot-direct` / `televerser`) : `ticket_id` obligatoire, rôle admin / éditeur / super-admin, signalement de la commune de l'utilisateur, taille relue côté stockage.
+- `closeTicketWithReport` : chaque chemin doit être sous le préfixe de la commune du signalement **et** présent dans le bucket ; une nouvelle clôture (après réouverture) conserve les pièces de la précédente.
+- Écran du signalement : liste des pièces jointes dans « Rapport d'intervention » (liens signés 1 h, téléchargement sous le nom lisible).
+- Tests : `tests/unit/tickets/documents-rapport.test.ts` (5) → 286 ✓ ; `tsc` 0 ; `next build` OK. Dépôt réel non exercé localement (session Supabase requise).
+
+### Points d'attention
+- Un agent **assigné** qui ne serait ni admin ni éditeur peut ouvrir l'assistant de clôture mais pas déposer de document (photo ou « sans pièce jointe » restent possibles).
+- `tickets-photos` reste lisible et inscriptible par **tout compte connecté**, toutes communes confondues (policies de la migration 010) : à resserrer à part.

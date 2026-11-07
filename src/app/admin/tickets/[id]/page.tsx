@@ -5,10 +5,10 @@ import Link from "next/link";
 import TicketLocationMap from "@/components/tickets/TicketLocationMap";
 import {
   ArrowLeft, MapPin, User as UserIcon, Calendar, Phone, Mail, Clock,
-  Tag, Hash, Inbox,
+  Tag, Hash, Inbox, FileText,
 } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
-import { getTicket, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { getTicket, getPhotoSignedUrl, getRapportDocuments } from "@/lib/tickets/queries";
 import { listAssignableAgents } from "@/lib/tickets/mutations";
 import { isModuleActive } from "@/lib/module-guard";
 import { PrioriteBadge, StatutBadge, CategorieBadge } from "@/components/tickets/TicketBadge";
@@ -72,6 +72,8 @@ export default async function TicketDetailPage({ params }: Props) {
   );
   const signalementPhotos = photoUrls.filter((p) => p.type === "signalement");
   const serviceFaitPhotos = photoUrls.filter((p) => p.type === "service_fait");
+  // Pièces jointes du rapport de clôture (bucket privé, liens signés 1 h)
+  const rapportDocuments = await getRapportDocuments(ticket.commune_id, rapport?.document_paths);
 
   const dateFormat = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -219,6 +221,27 @@ export default async function TicketDetailPage({ params }: Props) {
                     <div><strong style={{ color: "var(--fg-muted)", fontSize: 11, fontWeight: 600 }}>Coût :</strong><br />{rapport.cout_estime.toLocaleString("fr-FR")} €</div>
                   )}
                 </div>
+                {rapportDocuments.length > 0 && (
+                  <div style={{ paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                    <strong style={{ color: "var(--fg-muted)", fontSize: 11, fontWeight: 600 }}>
+                      Pièce{rapportDocuments.length > 1 ? "s" : ""} jointe{rapportDocuments.length > 1 ? "s" : ""} :
+                    </strong>
+                    <ul style={{ listStyle: "none", padding: 0, margin: "6px 0 0", display: "grid", gap: 4 }}>
+                      {rapportDocuments.map((d) => (
+                        <li key={d.path} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <FileText size={14} aria-hidden="true" style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
+                          {d.url ? (
+                            <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+                              {d.nom}
+                            </a>
+                          ) : (
+                            <span style={{ color: "var(--fg-muted)" }}>{d.nom} (fichier introuvable)</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {rapport.necessite_suivi && rapport.notes_suivi && (
                   <div style={{ marginTop: 8, padding: 10, background: "var(--accent-light)", borderRadius: 6, fontSize: 12 }}>
                     <strong>Suivi nécessaire :</strong> {rapport.notes_suivi}

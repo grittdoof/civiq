@@ -101,6 +101,9 @@ export interface TicketRapport {
   cout_estime: number | null;
   necessite_suivi: boolean;
   notes_suivi: string | null;
+  /** Pièces jointes (bucket tickets-documents, migration 055). */
+  document_paths?: string[] | null;
+  sans_piece_jointe?: boolean | null;
   created_at: string;
 }
 
