@@ -1,4 +1,6 @@
 import { notFound, redirect } from "next/navigation";
+import { createServiceClient } from "@/lib/supabase-server";
+import { listerCategories } from "@/lib/tickets/categories-server";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { getTicket } from "@/lib/tickets/queries";
@@ -35,7 +37,11 @@ export default async function EditTicketPage({ params }: Props) {
     redirect(`/admin/tickets/${id}?error=forbidden`);
   }
 
-  const agents = await listAssignableAgents();
+  const service = await createServiceClient();
+  const [agents, toutes] = await Promise.all([listAssignableAgents(), listerCategories(service, ctx.communeId)]);
+  // Actives + celle du ticket (même désactivée, pour ne pas la perdre)
+  const categories = toutes.filter((c) => c.actif || c.id === ticket.categorie_id
+    || toutes.some((e) => e.parent_id === c.id && e.id === ticket.categorie_id));
 
   return (
     <EditTicketForm
@@ -47,8 +53,11 @@ export default async function EditTicketPage({ params }: Props) {
         canal: ticket.canal,
         titre: ticket.titre,
         description: ticket.description,
-        categorie: ticket.categorie,
-        priorite: ticket.priorite,
+        categorie_id: ticket.categorie_id ?? null,
+        urgence: ticket.urgence ?? null,
+        transmis_a: ticket.transmis_a ?? null,
+        transmis_le: ticket.transmis_le ?? null,
+        transmis_reference: ticket.transmis_reference ?? null,
         adresse: ticket.adresse,
         latitude: ticket.latitude,
         longitude: ticket.longitude,
@@ -60,6 +69,8 @@ export default async function EditTicketPage({ params }: Props) {
         echeance: ticket.echeance,
       }}
       initialAssigneeIds={assignees.map((a) => a.id)}
+      categories={categories}
+      peutAssigner={droits.assigner}
     />
   );
 }

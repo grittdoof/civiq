@@ -1,11 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import type {
-  TicketCanal,
-  TicketCategorie,
-  TicketPriorite,
-} from "@/lib/tickets/types";
+import type { TicketCanal } from "@/lib/tickets/types";
+import type { Urgence } from "@/lib/tickets/categories";
 import type { LocationValue } from "@/components/tickets/TicketLocationPicker";
 
 // ═══════════════════════════════════════════════════════════════
@@ -33,8 +30,9 @@ export interface WizardValue {
   demandeur_adresse: string;
   titre: string;
   description: string;
-  categorie: TicketCategorie | null;
-  priorite: TicketPriorite;
+  /** Sous-catégorie (ou catégorie) choisie — lot 2. */
+  categorieId: string | null;
+  urgence: Urgence;
   location: LocationValue;
   photoPaths: string[];
   assigneIds: string[];
@@ -86,7 +84,7 @@ const ALL_STEPS: StepDef[] = [
     eyebrow: "Catégorie",
     subtitle: "Sélectionne la catégorie qui correspond le mieux.",
     isVisible: () => true,
-    isValid: (v) => !!v.categorie,
+    isValid: (v) => !!v.categorieId,
     invalidReason: () => "Choisis une catégorie.",
   },
   {
@@ -104,10 +102,10 @@ const ALL_STEPS: StepDef[] = [
   {
     id: "priorite",
     title: "À quel point est-ce urgent ?",
-    eyebrow: "Priorité",
+    eyebrow: "Urgence",
     subtitle: "Indique le délai d'intervention attendu.",
     isVisible: () => true,
-    isValid: (v) => !!v.priorite,
+    isValid: (v) => !!v.urgence,
   },
   {
     id: "localisation",
@@ -155,8 +153,8 @@ export const INITIAL_VALUE: WizardValue = {
   demandeur_adresse: "",
   titre: "",
   description: "",
-  categorie: null,
-  priorite: "normale",
+  categorieId: null,
+  urgence: "normale",
   location: {
     latitude: null,
     longitude: null,
@@ -219,7 +217,7 @@ export function useTicketWizard(initial?: Partial<WizardValue>): UseTicketWizard
     return (
       value.titre.trim().length > 0 ||
       value.description.trim().length > 0 ||
-      value.categorie != null ||
+      value.categorieId != null ||
       value.photoPaths.length > 0 ||
       value.assigneIds.length > 0 ||
       value.location.adresse != null ||

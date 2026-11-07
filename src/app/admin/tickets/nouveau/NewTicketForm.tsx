@@ -10,12 +10,18 @@ import {
   Loader2,
   PencilLine,
   Save,
+  Siren,
   X,
 } from "lucide-react";
 import TicketLocationPicker from "@/components/tickets/TicketLocationPicker";
 import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { createTicket } from "@/lib/tickets/mutations";
 import VisibiliteChamps, { type Personne } from "@/components/tickets/VisibiliteChamps";
+import IconeCategorie from "@/components/tickets/IconeCategorie";
+import {
+  URGENCES, URGENCE_AIDE, URGENCE_COLORS, URGENCE_LABELS, arborescence, cheminCategorie, reglagesEffectifs,
+  type CategorieTicket,
+} from "@/lib/tickets/categories";
 import {
   CANAL_LABELS,
   CATEGORIE_LABELS,
@@ -50,14 +56,17 @@ interface OptionsVisibilite {
   services: Array<{ id: string; nom: string }>;
   personnes: Personne[];
   moi: string;
+  /** Lot 2 : taxonomie de la commune (actives seulement). */
+  categories: CategorieTicket[];
 }
-const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "" });
+const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "", categories: [] });
 
 interface Props {
   communeId: string;
   services?: OptionsVisibilite["services"];
   personnes?: Personne[];
   moi?: string;
+  categories?: CategorieTicket[];
   agents: Array<{
     id: string;
     full_name: string | null;
@@ -102,7 +111,7 @@ function useIsDesktop(breakpoint = 900): boolean | null {
 
 // ─── Orchestrateur ───────────────────────────────────────────────
 
-export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "" }: Props) {
+export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "", categories = [] }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +143,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
 
   function submit() {
     setError(null);
-    if (!wiz.isValidGlobal || !value.categorie) {
+    if (!wiz.isValidGlobal || !value.categorieId) {
       setError("Certaines informations sont incomplètes.");
       return;
     }
@@ -149,8 +158,8 @@ export default function NewTicketForm({ communeId, agents, services = [], person
           demandeur_adresse: showDemandeur ? value.demandeur_adresse : null,
           titre: value.titre,
           description: value.description,
-          categorie: value.categorie!,
-          priorite: value.priorite,
+          categorie_id: value.categorieId!,
+          urgence: value.urgence,
           adresse: value.location.adresse,
           latitude: value.location.latitude,
           longitude: value.location.longitude,
@@ -174,7 +183,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   // et l'admin shell mobile cache la complexité d'un éventuel flash).
   if (isDesktop === null || !isDesktop) {
     return (
-      <VisibiliteCtx.Provider value={{ services, personnes, moi }}>
+      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
       <MobileWizard
         wiz={wiz}
         agents={agents}
@@ -190,7 +199,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   }
 
   return (
-    <VisibiliteCtx.Provider value={{ services, personnes, moi }}>
+    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories }}>
     <DesktopForm
       wiz={wiz}
       agents={agents}
@@ -593,26 +602,7 @@ function StepContent({
       );
 
     case "categorie":
-      return (
-        <div className={variant === "desktop" ? "tk-cat-grid-desktop" : "tk-wizard-grid"}>
-          {CATEGORIES.map((c) => {
-            const active = value.categorie === c;
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => set("categorie", c)}
-                className="tk-wizard-cat"
-                aria-pressed={active}
-                data-active={active}
-              >
-                <span className="tk-wizard-cat-emoji" aria-hidden>{CATEGORIE_ICONS[c]}</span>
-                <span className="tk-wizard-cat-label">{CATEGORIE_LABELS[c]}</span>
-              </button>
-            );
-          })}
-        </div>
-      );
+      return <EtapeCategorie value={value} set={set} variant={variant} />;
 
     case "description":
       return (
@@ -642,35 +632,27 @@ function StepContent({
 
     case "priorite":
       return (
-        <div className={variant === "desktop" ? "tk-prio-grid-desktop" : "tk-wizard-options"}>
-          {PRIORITES.map((p) => {
-            const c = PRIORITE_COLORS[p.value];
-            const active = value.priorite === p.value;
+        <div className={variant === "desktop" ? "tk-prio-grid-desktop" : "tk-wizard-options"} role="radiogroup" aria-label="Urgence">
+          {URGENCES.map((u) => {
+            const c = URGENCE_COLORS[u];
+            const active = value.urgence === u;
             return (
               <button
-                key={p.value}
+                key={u}
                 type="button"
-                onClick={() => set("priorite", p.value)}
+                role="radio"
+                aria-checked={active}
+                onClick={() => set("urgence", u)}
                 className="tk-wizard-option"
-                aria-pressed={active}
                 data-active={active}
-                style={active ? { borderColor: c.fg, background: c.bg } : undefined}
+                style={active ? { borderColor: u === "danger_immediat" ? c.bg : c.fg, background: u === "danger_immediat" ? "#FFF6F7" : c.bg } : undefined}
               >
-                <span
-                  className="tk-wizard-option-emoji"
-                  style={{
-                    background: c.bg,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  aria-hidden
-                >
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: c.fg }} />
+                <span className="tk-wizard-option-emoji" style={{ background: c.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }} aria-hidden>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: u === "danger_immediat" ? "#fff" : c.fg }} />
                 </span>
                 <span className="tk-wizard-option-body">
-                  <span className="tk-wizard-option-title">{PRIORITE_LABELS[p.value]}</span>
-                  <span className="tk-wizard-option-help">{p.sub}</span>
+                  <span className="tk-wizard-option-title">{URGENCE_LABELS[u]}</span>
+                  <span className="tk-wizard-option-help">{URGENCE_AIDE[u]}</span>
                 </span>
                 <span className="tk-wizard-radio" aria-hidden>
                   {active && <Check size={14} strokeWidth={3} />}
@@ -759,6 +741,100 @@ function StepContent({
   }
 }
 
+// ─── Étape « Catégorie » : catégorie puis sous-catégorie (lot 2) ──
+
+function EtapeCategorie({
+  value, set, variant,
+}: {
+  value: WizardValue;
+  set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
+  variant: "mobile" | "desktop";
+}) {
+  const { categories } = useContext(VisibiliteCtx);
+  const arbre = arborescence(categories, { actifsSeulement: true });
+  const choisie = categories.find((c) => c.id === value.categorieId) ?? null;
+  const racineChoisie = choisie ? (choisie.parent_id ?? choisie.id) : null;
+  const [racineOuverte, setRacineOuverte] = useState<string | null>(racineChoisie);
+  const racine = arbre.find((r) => r.id === racineOuverte) ?? null;
+  const reglages = reglagesEffectifs(value.categorieId, categories);
+
+  function choisir(id: string) {
+    set("categorieId", id);
+    const r = reglagesEffectifs(id, categories);
+    // Préréglages de la catégorie (modifiables aux étapes suivantes)
+    set("urgence", r.urgence);
+    set("serviceId", r.serviceId ?? "");
+    set("confidentialite", r.confidentialite);
+  }
+
+  if (arbre.length === 0) {
+    return <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucune catégorie n&apos;est configurée pour cette commune.</p>;
+  }
+
+  if (!racine) {
+    return (
+      <div className={variant === "desktop" ? "tk-cat-grid-desktop" : "tk-wizard-grid"}>
+        {arbre.map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => { setRacineOuverte(r.id); if (r.enfants.length === 0) choisir(r.id); }}
+            className="tk-wizard-cat"
+            aria-pressed={racineChoisie === r.id}
+            data-active={racineChoisie === r.id}
+          >
+            <span className="tk-wizard-cat-emoji" aria-hidden><IconeCategorie nom={r.icone} size={22} /></span>
+            <span className="tk-wizard-cat-label">{r.libelle}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <button type="button" onClick={() => setRacineOuverte(null)} className="civiq-btn civiq-btn-ghost" style={{ alignSelf: "flex-start", fontSize: 13, padding: "6px 10px" }}>
+        ← Toutes les catégories
+      </button>
+      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+        <IconeCategorie nom={racine.icone} size={18} /> {racine.libelle}
+      </p>
+      <div role="radiogroup" aria-label={`Précision : ${racine.libelle}`} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {[...racine.enfants, { ...racine, libelle: `Autre (${racine.libelle.toLowerCase()})`, enfants: undefined }].map((c) => {
+          const active = value.categorieId === c.id;
+          return (
+            <button
+              key={c.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => choisir(c.id)}
+              className="tk-wizard-option"
+              data-active={active}
+              style={{ minHeight: 48 }}
+            >
+              <span className="tk-wizard-option-body">
+                <span className="tk-wizard-option-title">{c.libelle}</span>
+                {c.urgence_defaut === "danger_immediat" && <span className="tk-wizard-option-help" style={{ color: "var(--destructive)" }}>Danger immédiat</span>}
+              </span>
+              <span className="tk-wizard-radio" aria-hidden>{active && <Check size={14} strokeWidth={3} />}</span>
+            </button>
+          );
+        })}
+      </div>
+      {reglages.consigne && value.categorieId && (
+        <div role="alert" style={{ marginTop: 6, padding: 14, borderRadius: "var(--radius)", background: "#FFF6F7", border: "2px solid var(--destructive)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <strong style={{ color: "var(--destructive)", display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}>
+            <Siren size={18} aria-hidden="true" /> Mettez-vous en sécurité avant tout
+          </strong>
+          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: "var(--fg)" }}>{reglages.consigne}</p>
+          <a href="tel:112" className="civiq-btn" style={{ background: "var(--destructive)", color: "#fff", justifyContent: "center", fontWeight: 700 }}>Appeler le 112</a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Étape « Service et visibilité » (lot 1) ────────────────────
 
 function EtapeVisibilite({
@@ -822,6 +898,7 @@ function RecapSheet({
     };
   }, []);
 
+  const { categories: categoriesRecap } = useContext(VisibiliteCtx);
   const assigneeNames = value.assigneIds
     .map((id) => agents.find((a) => a.id === id)?.full_name ?? "—")
     .filter(Boolean);
@@ -843,11 +920,7 @@ function RecapSheet({
     {
       id: "categorie",
       label: "Catégorie",
-      value: value.categorie ? (
-        <>
-          {CATEGORIE_ICONS[value.categorie]} {CATEGORIE_LABELS[value.categorie]}
-        </>
-      ) : "—",
+      value: value.categorieId ? cheminCategorie(value.categorieId, categoriesRecap).libelle : "—",
     },
     { id: "description", label: "Titre", value: value.titre || "—" },
   );
@@ -855,7 +928,7 @@ function RecapSheet({
     rows.push({ id: "description", label: "Description", value: value.description });
   }
   rows.push(
-    { id: "priorite", label: "Priorité", value: PRIORITE_LABELS[value.priorite] },
+    { id: "priorite", label: "Urgence", value: URGENCE_LABELS[value.urgence] },
     {
       id: "localisation",
       label: "Localisation",

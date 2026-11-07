@@ -19,9 +19,11 @@ import { estSensible } from "@/lib/tickets/droits";
 import { Lock } from "lucide-react";
 import { listAssignableAgents } from "@/lib/tickets/mutations";
 import { isModuleActive } from "@/lib/module-guard";
-import { PrioriteBadge, StatutBadge, CategorieBadge } from "@/components/tickets/TicketBadge";
+import { PrioriteBadge, StatutBadge, CategorieBadge, CategorieCheminBadge, DelaiBadge, UrgenceBadge } from "@/components/tickets/TicketBadge";
+import { listerCategories } from "@/lib/tickets/categories-server";
+import { cheminCategorie, etatDelai } from "@/lib/tickets/categories";
 import {
-  CANAL_LABELS, type TicketCommentaire,
+  CANAL_LABELS, groupOf, type TicketCommentaire,
 } from "@/lib/tickets/types";
 import TicketsRealtime from "@/components/tickets/TicketsRealtime";
 import TicketActions from "@/components/tickets/TicketActions";
@@ -73,11 +75,16 @@ export default async function TicketDetailPage({ params }: Props) {
 
   // Services de la commune, personnes nommables, journal des accès
   const service = await createServiceClient();
-  const [{ data: servicesRows }, personnes, acces] = await Promise.all([
+  const [{ data: servicesRows }, personnes, acces, categories] = await Promise.all([
     service.from("services").select("id, nom").eq("commune_id", ticket.commune_id).is("deleted_at", null).order("ordre").order("nom"),
     droits.changer_visibilite ? listerPersonnesCommune() : Promise.resolve([]),
     sensible ? journalDesAcces(ticket.id) : Promise.resolve([]),
+    listerCategories(service, ticket.commune_id),
   ]);
+  // Lot 2 : catégorie de la commune, délai cible, transmission
+  const chemin = cheminCategorie(ticket.categorie_id, categories);
+  const ouvert = groupOf(ticket.statut) === "ouvert";
+  const delai = etatDelai(ticket.delai_cible_le, ticket.created_at, ouvert);
   const projectId = (ticket as { project_id?: string | null }).project_id ?? null;
   // Passerelle projet : réservée à l'équipe, module Projets actif.
   const passerelle = (isSuperAdmin || isAdmin || isEditor) && (await isModuleActive("projects"))
@@ -114,9 +121,10 @@ export default async function TicketDetailPage({ params }: Props) {
               <Lock size={12} aria-hidden="true" /> {niveau === "restreint" ? "Restreint" : "Confidentiel"}
             </span>
           )}
-          <PrioriteBadge priorite={ticket.priorite} />
-          <CategorieBadge categorie={ticket.categorie} />
+          {ticket.urgence ? <UrgenceBadge urgence={ticket.urgence} /> : <PrioriteBadge priorite={ticket.priorite} />}
+          {chemin.racine ? <CategorieCheminBadge libelle={chemin.libelle} icone={chemin.racine.icone} /> : <CategorieBadge categorie={ticket.categorie} />}
           <StatutBadge statut={ticket.statut} />
+          <DelaiBadge etat={delai} />
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.025em", lineHeight: 1.25 }}>
           <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 16, color: "var(--fg-xmuted)", marginRight: 10 }}>
@@ -363,7 +371,13 @@ export default async function TicketDetailPage({ params }: Props) {
             <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
               <KV icon={<Hash size={12} />} label="Numéro" value={`#${ticket.numero}`} mono />
               <KV icon={<Inbox size={12} />} label="Canal" value={CANAL_LABELS[ticket.canal]} />
-              <KV icon={<Tag size={12} />} label="Catégorie" value={ticket.categorie.replace("_", " ")} />
+              <KV icon={<Tag size={12} />} label="Catégorie" value={chemin.racine ? chemin.libelle : ticket.categorie.replace("_", " ")} />
+              {ticket.delai_cible_le && (
+                <KV icon={<Clock size={12} />} label="Délai cible" value={`${dateFormat(ticket.delai_cible_le)}${delai === "depasse" ? " — dépassé" : ""}`} />
+              )}
+              {ticket.transmis_a && (
+                <KV icon={<Inbox size={12} />} label="Transmis à" value={[ticket.transmis_a, ticket.transmis_le ? `le ${new Date(ticket.transmis_le).toLocaleDateString("fr-FR")}` : null, ticket.transmis_reference ? `réf. ${ticket.transmis_reference}` : null].filter(Boolean).join(" · ")} />
+              )}
               <KV icon={<Calendar size={12} />} label="Créé le" value={dateFormat(ticket.created_at)} />
               {ticket.assigne_at && <KV icon={<Clock size={12} />} label="Assigné le" value={dateFormat(ticket.assigne_at)} />}
               {ticket.pris_en_charge_at && <KV icon={<Clock size={12} />} label="Pris en charge" value={dateFormat(ticket.pris_en_charge_at)} />}

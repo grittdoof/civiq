@@ -4,6 +4,9 @@ import { Plus, Map as MapIcon, BarChart3, Printer, Settings } from "lucide-react
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
 import { peutCreer, valeurAction } from "@/lib/tickets/droits";
+import { listerCategories } from "@/lib/tickets/categories-server";
+import { cheminCategorie } from "@/lib/tickets/categories";
+import { createServiceClient } from "@/lib/supabase-server";
 import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
@@ -61,6 +64,13 @@ export default async function TicketsListPage({ searchParams }: Props) {
     ouverts: allTickets.filter((t) => (OUVERT_STATUTS as string[]).includes(t.statut)).length,
     cloture: allTickets.filter((t) => (CLOTURE_STATUTS as string[]).includes(t.statut)).length,
     tous: allTickets.length,
+  };
+
+  // Lot 2 : chemins lisibles des catégories de la commune
+  const categories = await listerCategories(await createServiceClient(), ctx.communeId);
+  const categorieDe = (id: string | null | undefined) => {
+    const ch = cheminCategorie(id, categories);
+    return ch.racine ? { libelle: ch.libelle, icone: ch.racine.icone } : null;
   };
 
   // Vignette : miniature de la première photo, via l'adresse stable de
@@ -140,7 +150,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
       ) : (
         <div className="tk-list">
           {tickets.map((t) => (
-            <TicketCard key={t.id} ticket={t} photoUrl={photoUrls.get(t.id)} />
+            <TicketCard key={t.id} ticket={t} photoUrl={photoUrls.get(t.id)} categorie={categorieDe(t.categorie_id)} />
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import { listAssignableAgents, listerPersonnesCommune } from "@/lib/tickets/mutations";
 import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { peutCreer } from "@/lib/tickets/droits";
+import { listerCategories } from "@/lib/tickets/categories-server";
 import { createServiceClient } from "@/lib/supabase-server";
 import ForbiddenScreen from "@/components/ForbiddenScreen";
 import NewTicketForm from "./NewTicketForm";
@@ -59,9 +60,10 @@ export default async function NewTicketPage() {
   }
 
   const service = await createServiceClient();
-  const [agents, personnes, { data: services }] = await Promise.all([
+  const [agents, personnes, categories, { data: services }] = await Promise.all([
     listAssignableAgents(),
     listerPersonnesCommune(),
+    listerCategories(service, ctx.communeId, { actifsSeulement: true }),
     service.from("services").select("id, nom").eq("commune_id", ctx.communeId).is("deleted_at", null).order("ordre").order("nom"),
   ]);
   return (
@@ -71,6 +73,7 @@ export default async function NewTicketPage() {
       services={(services ?? []) as Array<{ id: string; nom: string }>}
       personnes={personnes}
       moi={ctx.userId}
+      categories={categories}
     />
   );
 }

@@ -15,14 +15,12 @@ import TicketPhotoUpload from "@/components/tickets/TicketPhotoUpload";
 import { updateTicket } from "@/lib/tickets/mutations";
 import {
   CANAL_LABELS,
-  CATEGORIE_LABELS,
-  CATEGORIE_ICONS,
-  PRIORITE_LABELS,
-  PRIORITE_COLORS,
   type TicketCanal,
-  type TicketCategorie,
-  type TicketPriorite,
 } from "@/lib/tickets/types";
+import {
+  URGENCES, URGENCE_AIDE, URGENCE_COLORS, URGENCE_LABELS, arborescence, reglagesEffectifs,
+  type CategorieTicket, type Urgence,
+} from "@/lib/tickets/categories";
 import {
   useTicketWizard,
   type WizardValue,
@@ -45,8 +43,11 @@ interface TicketSeed {
   canal: TicketCanal;
   titre: string;
   description: string | null;
-  categorie: TicketCategorie;
-  priorite: TicketPriorite;
+  categorie_id: string | null;
+  urgence: Urgence | null;
+  transmis_a: string | null;
+  transmis_le: string | null;
+  transmis_reference: string | null;
   adresse: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -69,6 +70,10 @@ interface Props {
   agents: Agent[];
   ticket: TicketSeed;
   initialAssigneeIds: string[];
+  /** Lot 2 : taxonomie de la commune (actives + la catégorie actuelle). */
+  categories: CategorieTicket[];
+  /** Le formulaire n'affiche l'assignation qu'avec ce droit. */
+  peutAssigner?: boolean;
 }
 
 const CANAUX: Array<{ value: TicketCanal; emoji: string; help: string }> = [
@@ -78,20 +83,9 @@ const CANAUX: Array<{ value: TicketCanal; emoji: string; help: string }> = [
   { value: "email", emoji: "✉️", help: "Email reçu" },
 ];
 
-const CATEGORIES: TicketCategorie[] = [
-  "voirie", "espaces_verts", "batiment", "eclairage_public",
-  "proprete", "mobilier_urbain", "reseaux_eau", "signalisation", "autre",
-];
-
-const PRIORITES: Array<{ value: TicketPriorite; sub: string }> = [
-  { value: "basse", sub: "À traiter quand possible" },
-  { value: "normale", sub: "Délai normal d'intervention" },
-  { value: "haute", sub: "Demande de l'attention rapide" },
-  { value: "urgente", sub: "Risque immédiat ou bloquant" },
-];
 
 export default function EditTicketForm({
-  communeId, agents, ticket, initialAssigneeIds,
+  communeId, agents, ticket, initialAssigneeIds, categories, peutAssigner = true,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -101,8 +95,8 @@ export default function EditTicketForm({
     canal: ticket.canal,
     titre: ticket.titre,
     description: ticket.description ?? "",
-    categorie: ticket.categorie,
-    priorite: ticket.priorite,
+    categorieId: ticket.categorie_id ?? null,
+    urgence: ticket.urgence ?? "normale",
     location: {
       adresse: ticket.adresse,
       latitude: ticket.latitude,
@@ -120,6 +114,11 @@ export default function EditTicketForm({
   });
   const { value, set } = wiz;
   const [newPhotoPaths, setNewPhotoPaths] = useState<string[]>([]);
+  const [transmisA, setTransmisA] = useState(ticket.transmis_a ?? "");
+  const [transmisLe, setTransmisLe] = useState(ticket.transmis_le ?? "");
+  const [transmisRef, setTransmisRef] = useState(ticket.transmis_reference ?? "");
+  const arbre = arborescence(categories);
+  const suggestionGestionnaire = reglagesEffectifs(value.categorieId, categories).gestionnaire;
 
   // Prévient la sortie si saisie non sauvegardée
   useEffect(() => {
@@ -142,7 +141,7 @@ export default function EditTicketForm({
 
   function submit() {
     setError(null);
-    if (!value.titre.trim() || !value.categorie) {
+    if (!value.titre.trim() || !value.categorieId) {
       setError("Le titre et la catégorie sont requis.");
       return;
     }
@@ -155,8 +154,11 @@ export default function EditTicketForm({
           canal: value.canal,
           titre: value.titre,
           description: value.description,
-          categorie: value.categorie!,
-          priorite: value.priorite,
+          categorie_id: value.categorieId!,
+          urgence: value.urgence,
+          transmis_a: transmisA,
+          transmis_le: transmisLe || null,
+          transmis_reference: transmisRef,
           adresse: value.location.adresse,
           latitude: value.location.latitude,
           longitude: value.location.longitude,
@@ -166,7 +168,7 @@ export default function EditTicketForm({
           demandeur_email: showDemandeur ? value.demandeur_email : null,
           demandeur_adresse: showDemandeur ? value.demandeur_adresse : null,
           echeance: value.echeance || null,
-          assignee_ids: value.assigneIds,
+          ...(peutAssigner ? { assignee_ids: value.assigneIds } : {}),
           new_photo_paths: newPhotoPaths,
         });
         router.push(`/admin/tickets/${ticket.id}`);
@@ -260,26 +262,24 @@ export default function EditTicketForm({
           </Card>
         )}
 
-        {/* Catégorie */}
+        {/* Catégorie (lot 2 : catégorie › sous-catégorie de la commune) */}
         <Card num={showDemandeur ? 3 : 2} eyebrow="Catégorie" title="De quoi s'agit-il ?">
-          <div className="tk-cat-grid-desktop">
-            {CATEGORIES.map((c) => {
-              const active = value.categorie === c;
-              return (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => set("categorie", c)}
-                  className="tk-wizard-cat"
-                  aria-pressed={active}
-                  data-active={active}
-                >
-                  <span className="tk-wizard-cat-emoji" aria-hidden>{CATEGORIE_ICONS[c]}</span>
-                  <span className="tk-wizard-cat-label">{CATEGORIE_LABELS[c]}</span>
-                </button>
-              );
-            })}
-          </div>
+          <Field label="Catégorie" required>
+            <select
+              className="civiq-input"
+              value={value.categorieId ?? ""}
+              onChange={(e) => set("categorieId", e.target.value || null)}
+              style={{ maxWidth: 480 }}
+            >
+              <option value="" disabled>Choisir…</option>
+              {arbre.map((r) => (
+                <optgroup key={r.id} label={r.libelle}>
+                  <option value={r.id}>{r.libelle} (sans précision)</option>
+                  {r.enfants.map((c) => <option key={c.id} value={c.id}>{c.libelle}{c.actif ? "" : " (désactivée)"}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </Field>
         </Card>
 
         {/* Description */}
@@ -307,49 +307,60 @@ export default function EditTicketForm({
           </div>
         </Card>
 
-        {/* Priorité */}
-        <Card num={showDemandeur ? 5 : 4} eyebrow="Priorité" title="À quel point est-ce urgent ?">
-          <div className="tk-prio-grid-desktop">
-            {PRIORITES.map((p) => {
-              const c = PRIORITE_COLORS[p.value];
-              const active = value.priorite === p.value;
+        {/* Urgence (lot 2) */}
+        <Card num={showDemandeur ? 5 : 4} eyebrow="Urgence" title="À quel point est-ce urgent ?">
+          <div className="tk-prio-grid-desktop" role="radiogroup" aria-label="Urgence">
+            {URGENCES.map((u) => {
+              const c = URGENCE_COLORS[u];
+              const active = value.urgence === u;
               return (
                 <button
-                  key={p.value}
+                  key={u}
                   type="button"
-                  onClick={() => set("priorite", p.value)}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => set("urgence", u)}
                   className="tk-wizard-option"
-                  aria-pressed={active}
                   data-active={active}
-                  style={active ? { borderColor: c.fg, background: c.bg } : undefined}
+                  style={active ? { borderColor: u === "danger_immediat" ? c.bg : c.fg, background: u === "danger_immediat" ? "#FFF6F7" : c.bg } : undefined}
                 >
-                  <span
-                    className="tk-wizard-option-emoji"
-                    style={{
-                      background: c.bg,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    aria-hidden
-                  >
-                    <span style={{ width: 12, height: 12, borderRadius: 3, background: c.fg }} />
+                  <span className="tk-wizard-option-emoji" style={{ background: c.bg, display: "inline-flex", alignItems: "center", justifyContent: "center" }} aria-hidden>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: u === "danger_immediat" ? "#fff" : c.fg }} />
                   </span>
                   <span className="tk-wizard-option-body">
-                    <span className="tk-wizard-option-title">{PRIORITE_LABELS[p.value]}</span>
-                    <span className="tk-wizard-option-help">{p.sub}</span>
+                    <span className="tk-wizard-option-title">{URGENCE_LABELS[u]}</span>
+                    <span className="tk-wizard-option-help">{URGENCE_AIDE[u]}</span>
                   </span>
-                  <span className="tk-wizard-radio" aria-hidden>
-                    {active && <Check size={14} strokeWidth={3} />}
-                  </span>
+                  <span className="tk-wizard-radio" aria-hidden>{active && <Check size={14} strokeWidth={3} />}</span>
                 </button>
               );
             })}
           </div>
         </Card>
 
+        {/* Transmission à un gestionnaire extérieur (lot 2) */}
+        <Card num={showDemandeur ? 6 : 5} eyebrow="Gestionnaire extérieur" title="Transmis à un autre organisme ?" optional>
+          <div className="tk-desc-grid">
+            <Field label="Organisme">
+              <input
+                className="civiq-input"
+                value={transmisA}
+                onChange={(e) => setTransmisA(e.target.value)}
+                placeholder={suggestionGestionnaire ? `Ex : ${suggestionGestionnaire}` : "Ex : Enedis, Département…"}
+                maxLength={120}
+              />
+            </Field>
+            <Field label="Transmis le">
+              <input type="date" className="civiq-input" value={transmisLe} onChange={(e) => setTransmisLe(e.target.value)} style={{ maxWidth: 220 }} />
+            </Field>
+            <Field label="Référence chez l'organisme">
+              <input className="civiq-input" value={transmisRef} onChange={(e) => setTransmisRef(e.target.value)} maxLength={120} />
+            </Field>
+          </div>
+        </Card>
+
         {/* Localisation */}
-        <Card num={showDemandeur ? 6 : 5} eyebrow="Localisation" title="Où exactement ?">
+        <Card num={showDemandeur ? 7 : 6} eyebrow="Localisation" title="Où exactement ?">
           <TicketLocationPicker
             value={value.location}
             onChange={(loc) => set("location", loc)}
@@ -357,7 +368,7 @@ export default function EditTicketForm({
         </Card>
 
         {/* Photos (ajout uniquement, pas de suppression v1) */}
-        <Card num={showDemandeur ? 7 : 6} eyebrow="Photos" title="Ajouter des photos" optional>
+        <Card num={showDemandeur ? 8 : 7} eyebrow="Photos" title="Ajouter des photos" optional>
           <p style={{ fontSize: 13, color: "var(--fg-muted)", marginBottom: 12 }}>
             Les photos déjà attachées au ticket restent visibles dans le détail.
             Tu peux en ajouter de nouvelles ci-dessous.
@@ -369,8 +380,9 @@ export default function EditTicketForm({
           />
         </Card>
 
-        {/* Assignation */}
-        <Card num={showDemandeur ? 8 : 7} eyebrow="Assignation" title="Agents assignés" optional>
+        {/* Assignation (selon le droit « assigner ») */}
+        {peutAssigner && (
+        <Card num={showDemandeur ? 9 : 8} eyebrow="Assignation" title="Agents assignés" optional>
           <div className="tk-assign-grid">
             {agents.length === 0 ? (
               <p style={{ fontSize: 13, color: "var(--fg-muted)" }}>Aucun agent disponible.</p>
@@ -419,6 +431,7 @@ export default function EditTicketForm({
             </Field>
           </div>
         </Card>
+        )}
       </div>
 
       <div className="tk-form-desktop-submit">
