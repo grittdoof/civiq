@@ -1219,3 +1219,10 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Doublon possible** si la connexion tombe entre la création et la confirmation d'un ticket envoyé depuis la file (pas d'identifiant d'idempotence).
 - iOS n'a pas de Background Sync : la file part à l'ouverture de l'application ou au retour du réseau.
 - Aucune migration dans ce lot.
+
+### Lot 4 — pilotage direction (même session)
+- `/admin/tickets/pilotage` (maquette 4B, menu « Pilotage ») : période (7 j, 30 j, trimestre, année), filtres service / catégorie / urgence ; **À traiter maintenant** (danger immédiat non pris en charge, sans réponse > 7 jours, au-delà du délai cible) ; chiffres clés (ouverts, clôturés et tendance, délai moyen, % pris en charge sous 24 h) ; **tableau par service** dépliable par catégorie (`<details>` + `:has`) ; catégories les plus signalées avec tendance ; carte des tickets ouverts (`TicketsMap` avec `hauteur`).
+- Exports : `GET /api/tickets/pilotage/export?type=services|tickets` (CSV « ; » + BOM pour Excel, droit « exporter ») ; version imprimable `?imprimer=1` (impression automatique, sous-lignes dépliées, filtres et carte masqués).
+- Confidentialité : `chargerPilotage` exclut les confidentiels ; un restreint que la personne ne peut pas ouvrir mais qui serait dans sa portée est **compté sans détail** (`masque` : ni titre, ni adresse, jamais listé). Accès : portée « son service » ou plus (sinon retour à la liste).
+- Logique pure `pilotage.ts` (indicateurs, alertes, tableau, tendance, CSV) ; tests `pilotage.test.ts` → 352 ✓ ; `next build` OK. Non vérifié dans le navigateur (données réelles nécessaires) : recette finale.
+- Le seuil « sans réponse » est fixé à 7 jours dans la page (paramètre communal à prévoir si besoin).

@@ -20,6 +20,8 @@ import "leaflet/dist/leaflet.css";
 interface Props {
   center: [number, number];
   tickets: MapTicket[];
+  /** Hauteur fixe (px) quand la carte est intégrée à une page (pilotage, lot 4). */
+  hauteur?: number;
 }
 
 const FILTERS: Array<{ value: "tous" | "urgents" | "ouverts" | "clos"; label: string }> = [
@@ -29,7 +31,7 @@ const FILTERS: Array<{ value: "tous" | "urgents" | "ouverts" | "clos"; label: st
   { value: "clos", label: "Clos" },
 ];
 
-export default function TicketsMapInner({ center, tickets }: Props) {
+export default function TicketsMapInner({ center, tickets, hauteur }: Props) {
   const [filter, setFilter] = useState<"tous" | "urgents" | "ouverts" | "clos">("ouverts");
 
   useEffect(() => { fixLeafletIcons(); }, []);
@@ -66,7 +68,7 @@ export default function TicketsMapInner({ center, tickets }: Props) {
       </div>
 
       <div style={{
-        height: "calc(100vh - 220px)", minHeight: 420,
+        height: hauteur ? `${hauteur}px` : "calc(100vh - 220px)", minHeight: hauteur ? undefined : 420,
         borderRadius: "var(--radius-sm)", overflow: "hidden",
         border: "1px solid var(--border)", position: "relative",
       }}>

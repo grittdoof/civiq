@@ -3299,3 +3299,58 @@ button.civiq-card,
   .tk-etat { align-self: flex-start; }
 }
 .civiq-content > .tk-hors-ligne { margin: 12px 16px 0; }
+
+/* ═══ Lot 4 — Pilotage direction (maquette 4B) ═════════════════ */
+.tk-pilotage-periodes { display: flex; gap: 6px; flex-wrap: wrap; }
+.tk-pilotage-periodes a {
+  min-height: 38px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--card, #fff); color: var(--fg); font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.tk-pilotage-periodes a[aria-current="page"] { background: var(--marine); border-color: var(--marine); color: #fff; }
+.tk-pilotage-filtres { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 18px; }
+.tk-pilotage-filtres label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--fg-muted); }
+.tk-pilotage-filtres select {
+  height: 38px; min-width: 160px; border-radius: 8px; border: 1px solid var(--border);
+  padding: 0 8px; font: inherit; font-size: 13.5px; background: var(--card, #fff); color: var(--fg);
+}
+.tk-pilotage-exports { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.tk-pilotage-haut { display: flex; flex-wrap: wrap; gap: 18px; }
+.tk-pilotage-alertes { flex: 999 1 520px; min-width: 0; padding: 18px 20px 8px; }
+.tk-alertes { list-style: none; margin: 0; padding: 0; }
+.tk-alertes li { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; border-top: 1px solid var(--border-light); font-size: 14px; }
+.tk-alertes li:first-child { border-top: 0; }
+.tk-alertes li a { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.tk-alerte-point { width: 10px; height: 10px; border-radius: 5px; margin-top: 5px; flex-shrink: 0; }
+.tk-alerte-detail { display: block; font-size: 12.5px; color: var(--fg-muted); margin-top: 2px; font-weight: 400; }
+.tk-pilotage-kpis { flex: 1 1 340px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-content: start; }
+.tk-kpi { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 12px; background: var(--border-light); }
+.tk-kpi b { font-size: 24px; font-weight: 800; color: var(--fg); }
+.tk-kpi span { font-size: 12px; color: var(--fg-muted); font-weight: 600; }
+.tk-kpi-note { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; color: var(--fg-muted); }
+.tk-tableau { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--card, #fff); }
+.tk-tableau table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13.5px; }
+.tk-tableau th, .tk-tableau td { padding: 11px 12px; border-bottom: 1px solid var(--border-light); text-align: left; white-space: nowrap; }
+.tk-tableau thead th { font-size: 11px; font-weight: 700; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border); }
+.tk-tableau .n { text-align: right; font-variant-numeric: tabular-nums; }
+.tk-tableau tbody th { font-weight: 700; }
+.tk-tableau summary { cursor: pointer; list-style: revert; }
+.tk-tableau-sous { display: none; background: var(--border-light); }
+.tk-tableau-sous th { font-weight: 500 !important; color: var(--fg-muted); padding-left: 32px !important; }
+.tk-tableau-groupe:has(details[open]) .tk-tableau-sous { display: table-row; }
+.tk-tableau-total th, .tk-tableau-total td { font-weight: 800; border-bottom: 0; }
+.tk-pilotage-bas { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; }
+.tk-pilotage-bas > section { flex: 1 1 400px; min-width: 0; }
+.tk-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tk-top li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 32px 52px; gap: 10px; align-items: center; font-size: 13px; }
+.tk-top-libelle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-top-barre { height: 10px; border-radius: 5px; background: var(--border-light); overflow: hidden; }
+.tk-top-barre i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+.tk-top li b { text-align: right; }
+.tk-top-tendance { font-size: 12px; color: var(--fg-muted); }
+@media print {
+  .tk-pilotage .tk-pilotage-retour, .tk-pilotage .tk-pilotage-filtres, .tk-pilotage .tk-pilotage-periodes,
+  .tk-pilotage .tk-pilotage-carte { display: none !important; }
+  .tk-pilotage .tk-tableau-sous { display: table-row; }
+  .tk-pilotage .tk-tableau { overflow: visible; border: 0; }
+  .tk-pilotage .tk-tableau table { min-width: 0; font-size: 11px; }
+}

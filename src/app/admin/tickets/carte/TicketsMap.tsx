@@ -35,6 +35,6 @@ const Inner = dynamic(() => import("./TicketsMapInner"), {
   ),
 });
 
-export default function TicketsMap(props: { center: [number, number]; tickets: MapTicket[] }) {
+export default function TicketsMap(props: { center: [number, number]; tickets: MapTicket[]; hauteur?: number }) {
   return <Inner {...props} />;
 }
