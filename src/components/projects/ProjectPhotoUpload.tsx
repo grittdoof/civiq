@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, Upload, Trash2, Loader2 } from "lucide-react";
+import { lireReponse } from "@/lib/storage/televerser";
 
 interface Props {
   projectId: string;
@@ -28,7 +29,7 @@ export default function ProjectPhotoUpload({ projectId, current, canEdit }: Prop
         method: "POST",
         body: form,
       });
-      const data = (await res.json()) as { photo_url?: string; error?: string };
+      const data = await lireReponse<{ photo_url?: string }>(res);
       if (!res.ok || data.error) {
         setError(data.error ?? "Erreur");
       } else if (data.photo_url) {

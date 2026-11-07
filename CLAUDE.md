@@ -1096,7 +1096,46 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - Carte de la demande : « Voir la démarche », « Déposer chez le financeur », date limite (orange si proche et pas encore déposée), « Informations sur l'aide » dépliable avec mention de la source.
 - Tests : 274 ✓ ; `next build` OK ; carte vérifiée dans le navigateur.
 
-## Session 30 — Photos de signalement : accès Storage limité à la commune (2026-11-07)
+## Session 30 — Gros fichiers (dépôt direct), étapes d'un événement déplaçables, onglets par type (2026-11-07)
+
+### Prompt de départ
+> « Dans un projet de type événement on ne peut pas déplacer les étapes comme dans un projet simple ou investissement. Vérifie que l'ensemble des fonctionnalités améliorées soit bien déployé partout ! Message d'erreur en voulant joindre un fichier de 8 000 Ko : « Unexpected token 'R', "Request En"... is not valid JSON ». » — puis « peut-on trouver un moyen de stockage externe ? »
+
+### Cause
+Vercel refuse toute requête de plus de **4,5 Mo** et répond en texte (« Request Entity Too Large ») : le navigateur tentait de le lire comme du JSON. Le stockage était déjà externe (Supabase Storage) ; c'est le **trajet** du fichier, via nos fonctions, qui bloquait. La limite affichée de 20 Mo n'était donc jamais atteignable.
+
+### Livrés
+- **Dépôt direct** : `lib/storage/depot-direct.ts` (serveur) et `lib/storage/televerser.ts` (navigateur). ① `{ etape: "preparer" }` : droits vérifiés, chemin choisi par le serveur, lien de dépôt signé (`createSignedUploadUrl`) ; ② le navigateur envoie à Supabase (`uploadToSignedUrl`, clé publique) ; ③ `{ etape: "enregistrer", path }` : droits revérifiés, chemin sous le préfixe attendu, fichier présent, **taille relue côté stockage** (retiré si trop lourd). Format et taille également imposés par le bucket.
+- Appliqué à : documents de projet (`DocumentsEditor`), pièces jointes d'étape (`EtapesEditor`), devis (`DevisComparator`), documents de séance, feuille d'émargement signée, compte rendu déposé en fichier. Les routes n'acceptent plus le multipart.
+- `lireReponse()` : toute réponse non JSON devient un message clair (« Fichier trop volumineux. ») — aussi pour photo de projet, logo, bannière (≤ 5 Mo, encore en multipart).
+- **Migration 054** (appliquée en prod après essai à blanc) : `.odt` accepté par le bucket `project-documents` (le compte rendu le promettait, le bucket le refusait).
+- **Événement** : étapes déplaçables (poignée, appui long, flèches) comme les autres types ; la liste suit l'ordre manuel (une étape en retard reste signalée sur sa ligne mais ne remonte plus en tête). Une nouvelle étape se range à sa date (`ordrePourDate`).
+- **Onglets** : Financeurs pour l'événement (les fiches locales cochées « Événementiel » n'avaient aucun écran), Documents pour le suivi simple.
+- Vérifié sur le stockage de production : 8 Mo déposé via lien signé et relu, 21 Mo refusé par le bucket, fichiers de test supprimés. Tests : `televersement-evenement.test.ts` (7) → 281 ✓ ; `next build` OK ; rétroplanning (poignée, glisser) vérifié dans le navigateur (page de test temporaire, non commitée).
+
+### Points d'attention
+- **Tout nouveau dépôt de fichier passe par `televerser()` + `depot-direct`**, jamais par un corps multipart (> 4,5 Mo = refus de Vercel).
+- Le chemin est **toujours** choisi par le serveur ; à l'enregistrement, contrôler le préfixe (commune, projet ou séance) et, si besoin, le motif du nom.
+- Pièces jointes de clôture des signalements (`/api/tickets/upload-document`) : bucket « tickets » inexistant et route trop permissive — traité à part.
+
+## Session 31 — Pièces jointes de clôture des signalements (2026-11-07)
+
+### Cause
+`/api/tickets/upload-document` écrivait dans un bucket « tickets » **qui n'a jamais existé** : toutes les pièces jointes du rapport de clôture échouaient (0 sur 70 rapports en prod). La route n'exigeait que d'être connecté (chemin fourni par le client : n'importe quel compte pouvait écrire sous `tickets/<autre commune>/…`), prenait le type MIME du navigateur et faisait transiter le fichier par Vercel (4,5 Mo max pour 10 Mo promis). `closeTicketWithReport` enregistrait tel quel les chemins envoyés par le client. Les pièces n'étaient relues nulle part.
+
+### Livrés
+- **Migration 055** (appliquée en prod après essai à blanc, additive) : bucket **privé** `tickets-documents` (20 Mo ; PDF, Word, Excel, ODT, ODS, texte), aucune policy (service role + liens signés). Retour arrière : refuse un bucket non vide ; `storage.protect_delete()` impose `set_config('storage.allow_delete_query','true', true)` pour un DELETE direct sur les tables Storage.
+- `lib/tickets/documents-rapport.ts` (pur, testé) : type MIME déduit de l'extension, chemin `tickets/<commune>/rapports/<uuid>_<nom-ascii>.<ext>` choisi par le serveur (le nom d'origine simplifié reste lisible), `estCheminRapportValide`, `nomAffichable`.
+- Route en **dépôt direct** (`depot-direct` / `televerser`) : `ticket_id` obligatoire, rôle admin / éditeur / super-admin, signalement de la commune de l'utilisateur, taille relue côté stockage.
+- `closeTicketWithReport` : chaque chemin doit être sous le préfixe de la commune du signalement **et** présent dans le bucket ; une nouvelle clôture (après réouverture) conserve les pièces de la précédente.
+- Écran du signalement : liste des pièces jointes dans « Rapport d'intervention » (liens signés 1 h, téléchargement sous le nom lisible).
+- Tests : `tests/unit/tickets/documents-rapport.test.ts` (5) → 286 ✓ ; `tsc` 0 ; `next build` OK. Dépôt réel non exercé localement (session Supabase requise).
+
+### Points d'attention
+- Un agent **assigné** qui ne serait ni admin ni éditeur peut ouvrir l'assistant de clôture mais pas déposer de document (photo ou « sans pièce jointe » restent possibles).
+- `tickets-photos` était lisible et inscriptible par tout compte connecté (policies de la migration 010) : resserré en Session 32 (migration 056).
+
+## Session 32 — Photos de signalement : accès Storage limité à la commune (2026-11-07)
 
 ### Constat
 Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisaient **tout compte connecté**, administré sans commune compris, à lire et déposer des photos de **toutes les communes**. La lecture applicative passe déjà par le service role (`getPhotoSignedUrl`) ; le dépôt, lui, est fait par le navigateur avec la clé utilisateur (`TicketPhotoUpload`, chemin `<commune_id>/<uuid>.jpg`), d'où le choix de **restreindre** les policies plutôt que de les supprimer. Le serveur, qui écrit `ticket_photos` en service role, acceptait n'importe quel `storage_path` reçu.

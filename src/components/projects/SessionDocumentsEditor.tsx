@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, ExternalLink, Trash2, Loader2, File as FileIcon } from "lucide-react";
+import { televerser } from "@/lib/storage/televerser";
 
 interface SessionDocument {
   id: string;
@@ -45,15 +46,10 @@ export default function SessionDocumentsEditor({
     if (!file) return;
     setError(null);
     setUploading(true);
-    const form = new FormData();
-    form.append("file", file);
-    form.append("nom", file.name);
-    form.append("type", type);
     try {
-      const res = await fetch(url, { method: "POST", body: form });
-      const data = (await res.json()) as { document?: SessionDocument; error?: string };
-      if (!res.ok || data.error) {
-        setError(data.error ?? `Erreur ${res.status}`);
+      const { ok, data } = await televerser<{ document?: SessionDocument }>(url, file, { nom: file.name, type });
+      if (!ok || data.error) {
+        setError(data.error ?? "Le document n'a pas été ajouté.");
       } else if (data.document) {
         setDocs([data.document, ...docs]);
         router.refresh();

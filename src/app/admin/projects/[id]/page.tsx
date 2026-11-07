@@ -67,12 +67,14 @@ const ONGLETS: Record<TypeProjetCode, Array<{ key: Onglet; label: string }>> = {
   evenementiel: [
     { key: "retroplanning", label: "Rétroplanning" },
     { key: "budget", label: "Budget" },
+    { key: "financeurs", label: "Financeurs" },
     { key: "partenaires", label: "Partenaires" },
     { key: "documents", label: "Documents" },
   ],
   suivi_simple: [
     { key: "etapes", label: "Étapes" },
     { key: "financeurs", label: "Financeurs" },
+    { key: "documents", label: "Documents" },
   ],
 };
 

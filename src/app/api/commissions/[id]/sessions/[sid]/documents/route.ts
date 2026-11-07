@@ -2,12 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import {
+  MAX_DEPOT_OCTETS, extensionDe, lireDemandeDepot, preparerDepot, tropLourd, verifierDepot,
+} from "@/lib/storage/depot-direct";
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
 
 const ALLOWED_TYPES = new Set([
   "ordre_du_jour", "presentation", "rapport", "annexe", "autre",
 ]);
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+const FORMAT_REFUSE = () => NextResponse.json(
+  { error: "Format non accepté. Formats possibles : PDF, image (JPG, PNG, WebP), Word, Excel." },
+  { status: 400 },
+);
 
 async function checkSessionAccess(sid: string, communeId: string) {
   const service = await createServiceClient();
@@ -66,36 +85,29 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
-  const form = await req.formData();
-  const file = form.get("file");
-  const nom = (form.get("nom") as string | null)?.trim() || (file instanceof File ? file.name : "");
-  const type = (form.get("type") as string | null) ?? "annexe";
-
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Fichier requis" }, { status: 400 });
-  }
+  // Dépôt direct dans le stockage (le fichier ne passe plus par Vercel).
+  const body = await lireDemandeDepot(req);
+  if (!body) return NextResponse.json({ error: "Requête de dépôt invalide." }, { status: 400 });
+  const nom = (typeof body.nom === "string" ? body.nom : "").trim().slice(0, 200);
+  const type = typeof body.type === "string" ? body.type : "annexe";
   if (!nom) return NextResponse.json({ error: "Nom requis" }, { status: 400 });
   if (!ALLOWED_TYPES.has(type)) {
     return NextResponse.json({ error: "type invalide" }, { status: 400 });
   }
-  if (file.size > 20 * 1024 * 1024) {
-    return NextResponse.json({ error: "Fichier trop volumineux (max 20 MB)" }, { status: 400 });
-  }
 
   const service = await createServiceClient();
-  const ext = file.name.match(/\.([a-z0-9]{1,8})$/i)?.[1] ?? "bin";
-  const storagePath = `${guard.communeId}/sessions/${sid}/${crypto.randomUUID()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  const { error: uploadErr } = await service.storage
-    .from("project-documents")
-    .upload(storagePath, buffer, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-    });
-  if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message }, { status: 500 });
+  const prefixe = `${guard.communeId}/sessions/${sid}/`;
+  if (body.etape === "preparer") {
+    const ext = extensionDe(nom);
+    const contentType = MIME_BY_EXT[ext];
+    if (!contentType) return FORMAT_REFUSE();
+    if (Number(body.taille) > MAX_DEPOT_OCTETS) return tropLourd();
+    return preparerDepot(service, "project-documents", `${prefixe}${crypto.randomUUID()}.${ext}`, contentType);
   }
+  const depot = await verifierDepot(service, "project-documents", body.path, prefixe);
+  if (!depot.ok) return depot.response;
+  if (!MIME_BY_EXT[extensionDe(depot.path)] || depot.path.slice(prefixe.length).startsWith("emargement-")) return FORMAT_REFUSE();
+  const storagePath = depot.path;
 
   const { data: signed } = await service.storage
     .from("project-documents")

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, ExternalLink, Trash2, Loader2, FileSignature } from "lucide-react";
+import { televerser } from "@/lib/storage/televerser";
 
 interface Props {
   commissionId: string;
@@ -34,12 +35,9 @@ export default function SignedAttendanceUpload({
     if (!file) return;
     setError(null);
     setBusy(true);
-    const form = new FormData();
-    form.append("file", file);
     try {
-      const res = await fetch(apiUrl, { method: "POST", body: form });
-      const data = (await res.json()) as { signed_url?: string; error?: string };
-      if (!res.ok || data.error) {
+      const { ok, data } = await televerser<{ signed_url?: string }>(apiUrl, file);
+      if (!ok || data.error) {
         setError(data.error ?? "Erreur");
       } else if (data.signed_url) {
         setUrl(data.signed_url);
