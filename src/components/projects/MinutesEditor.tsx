@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Save, CheckCircle2, Lock, Loader2, Send, Mail, AlertTriangle, X, Paperclip, FileText, Trash2 } from "lucide-react";
 import RichTextEditor from "./RichTextEditor";
 import { toRichHtml } from "@/lib/projects/rich-text";
+import { televerser } from "@/lib/storage/televerser";
 
 interface Props {
   commissionId: string;
@@ -106,11 +107,8 @@ export default function MinutesEditor({ commissionId, sessionId, initial, valida
     setError(null);
     try {
       if (file.size > 20 * 1024 * 1024) throw new Error("Fichier trop volumineux (20 Mo au maximum).");
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`${url}/fichier`, { method: "POST", body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || !j.fichier) throw new Error(j.error ?? "Le fichier n'a pas été enregistré.");
+      const { ok, data: j } = await televerser<{ fichier?: Fichier }>(`${url}/fichier`, file);
+      if (!ok || !j.fichier) throw new Error(j.error ?? "Le fichier n'a pas été enregistré.");
       setFichier(j.fichier as Fichier);
       router.refresh();
     } catch (e) {

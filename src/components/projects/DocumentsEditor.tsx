@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, ExternalLink, Trash2, Loader2, File as FileIcon } from "lucide-react";
 import type { ProjectDocument, ProjectDocumentType } from "@/lib/projects/types";
+import { televerser } from "@/lib/storage/televerser";
 
 interface Props {
   projectId: string;
@@ -41,19 +42,12 @@ export default function DocumentsEditor({ projectId, initial, canEdit }: Props) 
     setError(null);
     setUploading(true);
 
-    const form = new FormData();
-    form.append("file", file);
-    form.append("nom", file.name);
-    form.append("type", type);
-
     try {
-      const res = await fetch(`/api/projects/${projectId}/documents`, {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json()) as { document?: ProjectDocument; error?: string };
-      if (!res.ok || data.error) {
-        setError(data.error ?? `Erreur ${res.status}`);
+      const { ok, data } = await televerser<{ document?: ProjectDocument }>(
+        `/api/projects/${projectId}/documents`, file, { nom: file.name, type },
+      );
+      if (!ok || data.error) {
+        setError(data.error ?? "Le document n'a pas été ajouté.");
       } else if (data.document) {
         setDocs([data.document, ...docs]);
         router.refresh();

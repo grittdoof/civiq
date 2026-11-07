@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Upload, Trash2, Loader2, ImageIcon } from "lucide-react";
+import { lireReponse } from "@/lib/storage/televerser";
 
 interface Props {
   communeId: string;
@@ -44,7 +45,7 @@ export default function CommuneLogoUpload({ communeId, communeName, initialUrl, 
       const form = new FormData();
       form.append("file", file);
       const res = await fetch(`/api/communes/${communeId}/logo`, { method: "POST", body: form });
-      const data = (await res.json().catch(() => ({}))) as { logo_url?: string; error?: string };
+      const data = await lireReponse<{ logo_url?: string }>(res);
       if (!res.ok || !data.logo_url) throw new Error(data.error ?? `Erreur ${res.status}`);
       update(data.logo_url);
     } catch (e) {

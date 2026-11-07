@@ -58,7 +58,27 @@ export function sortEtapes<T extends EtapeLike>(list: T[]): T[] {
   });
 }
 
-/** Rétroplanning (événement) : étapes en retard en tête, puis par date. */
+/**
+ * Rétroplanning : ordre qui range une nouvelle étape à sa date, avant la
+ * première étape prévue plus tard. undefined = en fin de liste (pas de
+ * date, aucune étape plus tardive, ou pas de place entre deux ordres).
+ */
+export function ordrePourDate<T extends EtapeLike>(list: T[], date: string | null | undefined): number | undefined {
+  if (!date) return undefined;
+  const tries = sortEtapes(list);
+  const i = tries.findIndex((e) => {
+    const d = datePrevue(e);
+    return d !== null && d.slice(0, 16) > date.slice(0, 16);
+  });
+  if (i === -1) return undefined;
+  const apres = tries[i].ordre;
+  const avant = i === 0 ? 0 : tries[i - 1].ordre;
+  if (apres == null || avant == null) return undefined;
+  const o = Math.floor((avant + apres) / 2);
+  return o > avant && o < apres ? o : undefined;
+}
+
+/** Ancien tri du rétroplanning : étapes en retard en tête, puis par date. */
 export function sortRetroplanning<T extends EtapeLike>(list: T[], now: Date = new Date()): T[] {
   return [...list].sort((a, b) => {
     const la = isEnRetard(a, now) ? 0 : 1;
