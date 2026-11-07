@@ -15,10 +15,12 @@ import {
 import { writeAudit } from "@/lib/audit";
 import { verifierCheminsPhotos } from "./photos";
 import {
-  assignationAutorisee, droitsSurTicket, estAssigne, peutCreer, peutVoirTicket, verifierVisibilite,
+  assignationAutorisee, droitsSurTicket, estAssigne, estSensible, peutCreer, peutVoirTicket, verifierVisibilite,
   type Confidentialite,
 } from "./droits";
 import { chargerLiens, chargerSpectateur, journaliserModification, versDroits } from "./droits-server";
+import { URGENCE_LABELS, cheminCategorie, estUrgence, type Urgence } from "./categories";
+import { listerCategories } from "./categories-server";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -36,8 +38,13 @@ export interface CreateTicketInput {
   // Contenu
   titre: string;
   description?: string | null;
-  categorie: TicketCategorie;
-  priorite: TicketPriorite;
+  /** Historique : déduit de `categorie_id` par la base si absent. */
+  categorie?: TicketCategorie;
+  /** Historique : déduit de `urgence` par la base si absent. */
+  priorite?: TicketPriorite;
+  /** Lot 2 : sous-catégorie (ou catégorie) de la taxonomie de la commune. */
+  categorie_id?: string | null;
+  urgence?: Urgence;
 
   // Localisation
   adresse?: string | null;
@@ -83,6 +90,11 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
   const destinataires = [...new Set((input.destinataire_ids ?? []).filter(Boolean))];
   const confidentialite = verifierVisibilite(input.confidentialite ?? "standard", destinataires);
   await verifierServiceEtPersonnes(service, ctx.communeId, input.service_id ?? null, destinataires);
+  // Lot 2 : catégorie de la commune ; service par défaut de la catégorie
+  // si aucun n'a été choisi (undefined = non renseigné, null = aucun).
+  const categorie = input.categorie_id ? await verifierCategorie(service, ctx.communeId, input.categorie_id) : null;
+  const serviceId = input.service_id === undefined ? (categorie?.serviceDefaut ?? null) : input.service_id;
+  if (input.urgence !== undefined && !estUrgence(input.urgence)) throw new Error("Urgence inconnue");
 
   // Normalisation : si assignee_ids fourni, prime sur assigne_a (legacy mono).
   const multiAssignees = Array.isArray(input.assignee_ids)
@@ -97,8 +109,8 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     canal: input.canal,
     titre,
     description: input.description?.trim() || null,
-    categorie: input.categorie,
-    priorite: input.priorite,
+    ...(categorie ? { categorie_id: categorie.id } : { categorie: input.categorie ?? "autre" }),
+    ...(input.urgence ? { urgence: input.urgence } : { priorite: input.priorite ?? "normale" }),
     adresse: input.adresse?.trim() || null,
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
@@ -110,7 +122,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     assigne_a: primaryAssignee,
     echeance: input.echeance || null,
     statut: hasAssignee ? "assigne" : "nouveau",
-    service_id: input.service_id || null,
+    service_id: serviceId || null,
     confidentialite,
   };
   if (hasAssignee) {
@@ -181,7 +193,7 @@ export async function createTicket(input: CreateTicketInput): Promise<{ id: stri
     }
   }
   // Sinon, ticket urgent non assigné → notif à tous les agents techniques
-  else if (input.priorite === "urgente" && ctx.communeId) {
+  else if ((input.urgence === "urgente" || input.urgence === "danger_immediat" || input.priorite === "urgente") && ctx.communeId) {
     notifyUrgentUnassigned({
       ticketId: created.id,
       ticketNumero: created.numero,
@@ -255,6 +267,20 @@ async function authorizeTicketMutation(ticketId: string) {
 
 function exiger(ok: boolean, message: string): void {
   if (!ok) throw new Error(message);
+}
+
+/** La catégorie appartient à la commune et est active (lot 2). */
+async function verifierCategorie(
+  service: Awaited<ReturnType<typeof createServiceClient>>, communeId: string | null, categorieId: string,
+): Promise<{ id: string; serviceDefaut: string | null }> {
+  if (!communeId) throw new Error("Aucune commune attribuée");
+  const { data: c } = await service
+    .from("ticket_categories")
+    .select("id, actif, service_defaut_id, parent:parent_id ( service_defaut_id )")
+    .eq("id", categorieId).eq("commune_id", communeId).is("deleted_at", null).maybeSingle();
+  if (!c || !c.actif) throw new Error("Catégorie inconnue");
+  const parent = c.parent as unknown as { service_defaut_id: string | null } | null;
+  return { id: c.id as string, serviceDefaut: (c.service_defaut_id as string | null) ?? parent?.service_defaut_id ?? null };
 }
 
 /** Le service et les personnes choisies appartiennent à la commune (comptes équipe). */
@@ -580,6 +606,12 @@ export interface UpdateTicketInput {
   description?: string | null;
   categorie?: TicketCategorie;
   priorite?: TicketPriorite;
+  /** Lot 2 */
+  categorie_id?: string;
+  urgence?: Urgence;
+  transmis_a?: string | null;
+  transmis_le?: string | null;
+  transmis_reference?: string | null;
   adresse?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -644,7 +676,7 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
   const { data: currentRow } = await service
     .from("tickets")
     .select(
-      "canal, titre, description, categorie, priorite, adresse, latitude, longitude, precision_geo, demandeur_nom, demandeur_telephone, demandeur_email, demandeur_adresse, echeance",
+      "canal, titre, description, categorie, priorite, categorie_id, urgence, transmis_a, transmis_le, transmis_reference, adresse, latitude, longitude, precision_geo, demandeur_nom, demandeur_telephone, demandeur_email, demandeur_adresse, echeance",
     )
     .eq("id", input.ticketId)
     .single();
@@ -680,6 +712,19 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
   );
   applyField("categorie", input.categorie);
   applyField("priorite", input.priorite);
+  // Lot 2 : catégorie de la commune, urgence, transmission
+  if (input.categorie_id !== undefined && input.categorie_id !== current.categorie_id) {
+    await verifierCategorie(service, ticket.commune_id, input.categorie_id);
+    const cats = await listerCategories(service, ticket.commune_id);
+    applyField("categorie_id", input.categorie_id, "Catégorie", (v) => cheminCategorie(v as string | null, cats).libelle);
+  }
+  if (input.urgence !== undefined) {
+    if (!estUrgence(input.urgence)) throw new Error("Urgence inconnue");
+    applyField("urgence", input.urgence, "Urgence", (v) => (estUrgence(v) ? URGENCE_LABELS[v] : "—"));
+  }
+  applyField("transmis_a", input.transmis_a, "Transmis à");
+  applyField("transmis_le", input.transmis_le, "Transmis le");
+  applyField("transmis_reference", input.transmis_reference, "Référence chez le gestionnaire");
   applyField("adresse", input.adresse, "Adresse", (v) => shortText(v as string, 80));
   applyField("latitude", input.latitude);
   applyField("longitude", input.longitude);
@@ -812,7 +857,8 @@ export async function updateTicket(input: UpdateTicketInput): Promise<void> {
     targetType: "ticket",
     targetId: input.ticketId,
     communeId: ticket.commune_id,
-    metadata: { changes: journalEntries },
+    // Signalement restreint ou confidentiel : jamais son contenu dans l'audit
+    metadata: estSensible(ticket) ? { nb_changements: journalEntries.length, niveau: ticket.confidentialite } : { changes: journalEntries },
   });
 
   revalidatePath(`/admin/tickets/${input.ticketId}`);

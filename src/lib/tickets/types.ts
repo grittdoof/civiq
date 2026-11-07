@@ -74,6 +74,14 @@ export interface Ticket {
   service_id?: string | null;
   /** Niveau de visibilité (lot 1) : standard · restreint · confidentiel. */
   confidentialite?: "standard" | "restreint" | "confidentiel";
+
+  /** Lot 2 (migration 059) */
+  categorie_id?: string | null;
+  urgence?: "faible" | "normale" | "urgente" | "danger_immediat";
+  delai_cible_le?: string | null;
+  transmis_a?: string | null;
+  transmis_le?: string | null;
+  transmis_reference?: string | null;
 }
 
 export interface TicketPhoto {

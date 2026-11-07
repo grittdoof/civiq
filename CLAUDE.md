@@ -1176,7 +1176,7 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - 057 appliquée : la lecture directe du bucket `tickets-photos` est limitée à ses propres fichiers.
 
 ### Lot 1 — droits de consultation (même session)
-- **Migration 058** (essai à blanc en prod avec scénarios, **non appliquée**) : fonctions `dst`, `accueil`, `responsable_service` ; `ticket_fonction()` ; tables `services`, `service_membres`, `ticket_matrice` (par commune : `voit` rien/siens/service/commune, `voit_restreints`, `actions` jsonb oui/non/si_assigne), `ticket_destinataires` ; `tickets.service_id`, `tickets.confidentialite` ; `user_voit_ticket()` (RLS de tickets et tables filles → temps réel) ; matrice « compatibilité » posée sur les communes où le module est actif (tout le monde voit les tickets standard, comme avant), matrice par défaut ailleurs et sur toute nouvelle commune (trigger).
+- **Migration 058** (appliquée en prod le 2026-11-07 après essai à blanc, avant le déploiement de la PR 28) : fonctions `dst`, `accueil`, `responsable_service` ; `ticket_fonction()` ; tables `services`, `service_membres`, `ticket_matrice` (par commune : `voit` rien/siens/service/commune, `voit_restreints`, `actions` jsonb oui/non/si_assigne), `ticket_destinataires` ; `tickets.service_id`, `tickets.confidentialite` ; `user_voit_ticket()` (RLS de tickets et tables filles → temps réel) ; matrice « compatibilité » posée sur les communes où le module est actif (tout le monde voit les tickets standard, comme avant), matrice par défaut ailleurs et sur toute nouvelle commune (trigger).
 - `lib/tickets/droits.ts` (pur, **miroir 1:1 de user_voit_ticket**) : `peutVoirTicket`, `peutAgir`, `peutCreer`, `assignationAutorisee` (« si assigné » = s'ajouter soi-même), `MATRICE_DEFAUT` / `MATRICE_COMPAT` ; test qui compare la matrice par défaut au SQL.
 - `lib/tickets/droits-server.ts` : `chargerSpectateur` (cache par requête), `filtrerVisibles`, `chargerTicketVisible`, `destinatairesVisibles` (notifications), journal `audit_log` (`ticket.consultation` une fois par jour, `ticket.modification`), `journalDesAcces`.
 - Appliqué à : liste, compteurs, carte, statistiques (+ vue reporting filtrée), impression et PDF (droit « exporter »), fiche, modifier, clôturer, dépôt de documents, routes de pièces jointes, tableau de bord, notifications urgentes, module Projets (pré-remplissage, titre du signalement d'origine).
@@ -1190,3 +1190,18 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Toute évolution de la règle se fait des deux côtés** : `user_voit_ticket()` (SQL) et `peutVoirTicket()` (TS).
 - `ticket_destinataires` et `services` ont deux FK vers `profiles` : nommer la FK dans les embeds.
 - Le super-admin voit tout, confidentiels compris (décision du 2026-11-07).
+
+### Lot 2 — catégories, urgence, délai cible, transmission (même session)
+- **Migration 059** (appliquée en prod le 2026-11-07 après essai à blanc, avant le déploiement) : `ticket_categories` (taxonomie **par commune** : 16 catégories, 81 sous-catégories du brief, avec service par défaut, urgence et visibilité proposées, délai cible en heures, gestionnaire extérieur, consigne d'urgence — gaz, câble tombé), copiée par `ticket_categories_seed()` sur chaque commune et à la création (trigger) ; `tickets.categorie_id`, `urgence` (faible · normale · urgente · danger immédiat), `delai_cible_le`, `transmis_a|le|reference`. Reprise des 103 tickets (aucun délai inventé pour l'historique). Déclencheur `tickets_sync_categorie_urgence` : `categorie` (enum) et `priorite` restent synchronisées dans les deux sens pour l'ancien code et les écrans non migrés (stats, PDF, carte).
+- `lib/tickets/categories.ts` (pur) : arbre, chemin, réglages effectifs (sous-catégorie → catégorie), urgence (miroir du déclencheur), délai cible, `suggererCategorie` (mots-clés) ; `categories-validation.ts` ; tests sur la taxonomie **lue dans la migration** (source unique).
+- Création : catégorie → sous-catégorie, consigne d'urgence en tête, urgence 4 niveaux, préréglages (urgence, service, visibilité). Serveur : catégorie de la commune vérifiée, service par défaut si aucun choisi.
+- Modification : catégorie (liste groupée), urgence, bloc « Transmis à ». Fiche et liste : chemin de catégorie, urgence, badge « Délai dépassé / proche », transmission.
+- Paramètres : éditeur des catégories (réglages par niveau, ajout, suppression logique) ; `/admin/tickets/requalifier` (tickets « Autre » avec suggestion, application unitaire ou groupée via `updateTicket`).
+- L'audit d'une modification de ticket restreint/confidentiel ne recopie plus son contenu.
+- Tests : `categories.test.ts` → 338 ✓ ; `next build` OK ; formulaire et éditeur vérifiés dans le navigateur (page temporaire, données simulées).
+
+#### Points d'attention (lot 2)
+- **Appliquer 059 AVANT de déployer le code** (le nouveau code lit `ticket_categories`, `urgence`). L'ancien code supporte 059.
+- **Évolution de la correspondance urgence ↔ priorité** : des deux côtés (déclencheur SQL et `categories.ts`).
+- Les statistiques, la carte et le PDF lisent encore `categorie` / `priorite` (synchronisées) : à migrer au lot 4.
+- Une catégorie supprimée n'est plus proposée ; ses tickets gardent `categorie_id` mais s'affichent « Sans catégorie ».

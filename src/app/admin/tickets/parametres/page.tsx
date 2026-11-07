@@ -8,6 +8,8 @@ import { listerEquipe, listerServices } from "@/lib/tickets/services-server";
 import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { FONCTIONS_MATRICE, PORTEES, fonctionDe } from "@/lib/tickets/droits";
 import ServicesEditor from "@/components/tickets/ServicesEditor";
+import CategoriesEditor from "@/components/tickets/CategoriesEditor";
+import { listerCategories } from "@/lib/tickets/categories-server";
 
 // ═══════════════════════════════════════════════════════════════
 // /admin/tickets/parametres — Services de la commune et leurs membres
@@ -26,10 +28,12 @@ export default async function ParametresTicketsPage() {
   if (ctx.role !== "admin" && ctx.role !== "super_admin") redirect("/admin/tickets");
 
   const service = await createServiceClient();
-  const [services, equipe, spectateur] = await Promise.all([
+  const [services, equipe, spectateur, categories, { count: nbAutre }] = await Promise.all([
     listerServices(service, ctx.communeId),
     listerEquipe(service, ctx.communeId),
     chargerSpectateur(),
+    listerCategories(service, ctx.communeId),
+    service.from("tickets").select("id", { count: "exact", head: true }).eq("commune_id", ctx.communeId).eq("categorie", "autre"),
   ]);
   const { data: profil } = await service.from("profiles").select("job_title").eq("id", ctx.userId).maybeSingle();
   const maFonction = FONCTIONS_MATRICE.find((f) => f.fonction === fonctionDe(profil?.job_title))?.libelle;
@@ -49,6 +53,20 @@ export default async function ParametresTicketsPage() {
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 12px" }}>Services et membres</h2>
         <ServicesEditor initial={services} equipe={equipe} />
+      </section>
+
+      <section style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", margin: "0 0 4px" }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Catégories</h2>
+          {(nbAutre ?? 0) > 0 && (
+            <Link href="/admin/tickets/requalifier" style={{ fontSize: 13.5, fontWeight: 600 }}>Requalifier les tickets « Autre » ({nbAutre}) →</Link>
+          )}
+        </div>
+        <p style={{ fontSize: 13.5, color: "var(--fg-muted)", margin: "0 0 12px", lineHeight: 1.55 }}>
+          À la création d&apos;un ticket, la catégorie propose son service, son urgence et sa visibilité, et calcule le délai cible.
+          Une sous-catégorie sans réglage reprend ceux de sa catégorie.
+        </p>
+        <CategoriesEditor initial={categories} services={services.map((s) => ({ id: s.id, nom: s.nom }))} />
       </section>
 
       <section className="civiq-card" style={{ padding: 16 }}>

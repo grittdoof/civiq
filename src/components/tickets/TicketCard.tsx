@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { MapPin, User, Clock, Lock } from "lucide-react";
 import type { TicketWithRelations } from "@/lib/tickets/types";
-import { PrioriteBadge, StatutBadge, CategorieBadge } from "./TicketBadge";
+import { PrioriteBadge, StatutBadge, CategorieBadge, CategorieCheminBadge, DelaiBadge, UrgenceBadge } from "./TicketBadge";
+import { etatDelai } from "@/lib/tickets/categories";
+import { groupOf } from "@/lib/tickets/types";
 
 // ═══════════════════════════════════════════════════════════════
 // Card affichée dans la liste /admin/tickets
@@ -11,9 +13,12 @@ import { PrioriteBadge, StatutBadge, CategorieBadge } from "./TicketBadge";
 export default function TicketCard({
   ticket,
   photoUrl,
+  categorie,
 }: {
   ticket: TicketWithRelations;
   photoUrl?: string | null;
+  /** Lot 2 : chemin lisible de la catégorie de la commune. */
+  categorie?: { libelle: string; icone: string | null } | null;
 }) {
   const elapsed = formatElapsed(ticket.created_at);
   const assigneeName = ticket.assignee_profile?.full_name || null;
@@ -36,9 +41,10 @@ export default function TicketCard({
               <Lock size={11} aria-hidden="true" /> {ticket.confidentialite === "restreint" ? "Restreint" : "Confidentiel"}
             </span>
           )}
-          <PrioriteBadge priorite={ticket.priorite} />
-          <CategorieBadge categorie={ticket.categorie} />
+          {ticket.urgence ? <UrgenceBadge urgence={ticket.urgence} /> : <PrioriteBadge priorite={ticket.priorite} />}
+          {categorie ? <CategorieCheminBadge libelle={categorie.libelle} icone={categorie.icone} /> : <CategorieBadge categorie={ticket.categorie} />}
           <StatutBadge statut={ticket.statut} />
+          <DelaiBadge etat={etatDelai(ticket.delai_cible_le, ticket.created_at, groupOf(ticket.statut) === "ouvert")} />
         </div>
 
         <h3 className="tk-card-title">
