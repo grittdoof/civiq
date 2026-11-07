@@ -13,6 +13,7 @@ import { formatEuros } from "@/lib/projects/cost-calc";
 import AlerteBlock from "./AlerteBlock";
 import FieldHelp from "./FieldHelp";
 import LearnMore from "./LearnMore";
+import { televerser } from "@/lib/storage/televerser";
 
 // ═══════════════════════════════════════════════════════════════
 // Comparateur de devis (brief §2.7).
@@ -252,13 +253,10 @@ function AddDevis({ projectId, entreprises, lots, onAdded, onError }: {
     try {
       let doc: { id: string; nom: string; url: string } | undefined;
       if (file) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("nom", file.name);
-        fd.append("type", "devis");
-        const up = await fetch(`/api/projects/${projectId}/documents`, { method: "POST", body: fd });
-        const uj = await up.json().catch(() => ({}));
-        if (!up.ok || !uj.document) throw new Error(uj.error ?? "Le fichier du devis n'a pas été ajouté.");
+        const { ok, data: uj } = await televerser<{ document?: { id: string; nom: string; url: string } }>(
+          `/api/projects/${projectId}/documents`, file, { nom: file.name, type: "devis" },
+        );
+        if (!ok || !uj.document) throw new Error(uj.error ?? "Le fichier du devis n'a pas été ajouté.");
         doc = uj.document;
       }
       const contact = entreprises.find((c) => c.nom.toLowerCase() === f.prestataire.trim().toLowerCase());

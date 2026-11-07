@@ -12,6 +12,7 @@ import {
 import type { SurveySchema, SurveyEvent, SurveyEventLocation } from "@/types/survey";
 import { formatEventDate } from "@/lib/survey-event";
 import EventLocationPicker from "./EventLocationPicker";
+import { lireReponse } from "@/lib/storage/televerser";
 
 // ═══════════════════════════════════════════════════════════════
 // EVENT SETTINGS PANEL — back-office
@@ -78,7 +79,7 @@ export default function EventSettingsPanel({
         method: "POST",
         body,
       });
-      const data = await res.json();
+      const data = await lireReponse<{ banner_url?: string; banner_storage_path?: string }>(res);
       if (!res.ok) {
         setUploadError(data.error || "Échec de l'envoi");
         return;

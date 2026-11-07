@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import {
+  extensionDe, lireDemandeDepot, preparerDepot, tropLourd, verifierDepot,
+} from "@/lib/storage/depot-direct";
 
 // ═══════════════════════════════════════════════════════════════
-// POST   /api/commissions/:id/sessions/:sid/minutes/fichier (multipart « file »)
+// POST   /api/commissions/:id/sessions/:sid/minutes/fichier — dépôt direct
+//        ({ etape: "preparer", nom, taille } puis { etape: "enregistrer", path, nom })
 // DELETE /api/commissions/:id/sessions/:sid/minutes/fichier
 //
 // Compte rendu déposé en fichier (PDF ou Word) au lieu d'être rédigé
@@ -55,23 +59,25 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const g = await garde(id, sid);
   if ("error" in g) return g.error;
 
-  const form = await req.formData().catch(() => null);
-  const file = form?.get("file");
-  if (!(file instanceof File)) return NextResponse.json({ error: "Aucun fichier reçu." }, { status: 400 });
-  const ext = (file.name.split(".").pop() ?? "").toLowerCase();
+  // Dépôt direct dans le stockage (le fichier ne passe plus par Vercel).
+  const body = await lireDemandeDepot(req);
+  if (!body) return NextResponse.json({ error: "Requête de dépôt invalide." }, { status: 400 });
+  const nomFichier = typeof body.nom === "string" ? body.nom : "";
+  const ext = extensionDe(nomFichier);
   const type = TYPES[ext];
   if (!type) return NextResponse.json({ error: "Format accepté : PDF ou Word (.pdf, .doc, .docx, .odt)." }, { status: 400 });
-  if (file.size > MAX_OCTETS) return NextResponse.json({ error: "Fichier trop volumineux (20 Mo au maximum)." }, { status: 413 });
-
-  const nom = file.name.replace(/[\\/\r\n"]/g, "_").slice(0, 200);
-  const path = `commissions/${id}/${sid}/compte-rendu-${Date.now()}.${ext}`;
-  const { error: upErr } = await g.service.storage
-    .from("project-documents")
-    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: type, upsert: false });
-  if (upErr) {
-    console.error("[minutes] dépôt:", upErr);
-    return NextResponse.json({ error: "Le fichier n'a pas été enregistré." }, { status: 500 });
+  const prefixe = `commissions/${id}/${sid}/`;
+  if (body.etape === "preparer") {
+    if (Number(body.taille) > MAX_OCTETS) return tropLourd(MAX_OCTETS);
+    return preparerDepot(g.service, "project-documents", `${prefixe}compte-rendu-${Date.now()}.${ext}`, type);
   }
+  const depot = await verifierDepot(g.service, "project-documents", body.path, prefixe, MAX_OCTETS);
+  if (!depot.ok) return depot.response;
+  if (!new RegExp(`^compte-rendu-\\d+\\.${ext}$`).test(depot.path.slice(prefixe.length))) {
+    return NextResponse.json({ error: "Dépôt invalide." }, { status: 400 });
+  }
+  const path = depot.path;
+  const nom = nomFichier.replace(/[\\/\r\n"]/g, "_").slice(0, 200);
   const now = new Date().toISOString();
   const { error } = await g.service.from("commission_sessions").update({
     cr_fichier_path: path, cr_fichier_nom: nom, cr_fichier_type: type, cr_fichier_par: g.guard.userId, cr_fichier_le: now,

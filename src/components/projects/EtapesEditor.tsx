@@ -10,9 +10,10 @@ import {
 import type { EtapeStatut, Milestone, ProjectDocument, Stakeholder } from "@/lib/projects/types";
 import {
   ETAPE_STATUTS, ETAPE_STATUT_META, deplacerEtape, formatEtapeDate, isEnRetard, nextStatut,
-  ordresPour, sortEtapes, sortRetroplanning, statutOf,
+  ordresPour, ordrePourDate, sortEtapes, statutOf,
 } from "@/lib/projects/etapes";
 import EnvoiEtape from "./EnvoiEtape";
+import { televerser } from "@/lib/storage/televerser";
 import { useReordonnerEtapes } from "./useReordonnerEtapes";
 import FieldHelp from "./FieldHelp";
 import AlerteBlock from "./AlerteBlock";
@@ -23,7 +24,8 @@ import type { Alerte } from "@/lib/projects/type-change";
 //   • ajout sur une seule ligne : statut, libellé, date ;
 //   • pièce jointe, partie prenante, commentaire : icônes facultatives ;
 //   • statut = couleur + icône + libellé ; retard signalé en texte ;
-//   • mode « rétroplanning » (événement) : retards en tête, puis par date.
+//   • ordre manuel pour les trois types (glisser-déposer, flèches) ;
+//     rétroplanning (événement) : une nouvelle étape se range à sa date.
 // Mises à jour optimistes, annulées si le serveur refuse.
 // ═══════════════════════════════════════════════════════════════
 
@@ -84,7 +86,7 @@ export default function EtapesEditor({
   const addInputRef = useRef<HTMLInputElement>(null);
 
   const now = useMemo(() => new Date(), []);
-  const list = mode === "retroplanning" ? sortRetroplanning(etapes, now) : sortEtapes(etapes);
+  const list = sortEtapes(etapes);
   const lateCount = etapes.filter((e) => isEnRetard(e, now)).length;
 
   async function patch(id: string, fields: Record<string, unknown>, optimistic: Partial<Milestone>) {
@@ -120,10 +122,16 @@ export default function EtapesEditor({
     setAdding(true);
     setError(null);
     try {
+      const datePrev = fromInputs(date, time);
+      const ordreAuto = mode === "retroplanning" ? ordrePourDate(etapes, datePrev) : undefined;
       const res = await fetch(`/api/projects/${projectId}/milestones`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ libelle, statut, date_previsionnelle: fromInputs(date, time), est_un_jalon: jalon }),
+        body: JSON.stringify({
+          libelle, statut, date_previsionnelle: datePrev, est_un_jalon: jalon,
+          // Rétroplanning : rangée à sa date ; sinon en fin de liste.
+          ...(ordreAuto !== undefined ? { ordre: ordreAuto } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.milestone) throw new Error(json.error ?? "L'étape n'a pas été ajoutée.");
@@ -185,7 +193,7 @@ export default function EtapesEditor({
     }
   }
   const glisser = useReordonnerEtapes({
-    actif: canEdit && mode === "etapes",
+    actif: canEdit,
     ids: list.map((x) => x.id),
     onDeposer: reordonner,
   });
@@ -200,16 +208,13 @@ export default function EtapesEditor({
         upload = new File([blob], file.name, { type: blob.type });
       }
       if (upload.size > 20 * 1024 * 1024) throw new Error("Fichier trop volumineux (20 Mo au maximum).");
-      const fd = new FormData();
-      fd.append("file", upload);
-      fd.append("nom", file.name);
-      fd.append("type", "autre");
-      fd.append("milestone_id", e.id);
-      fd.append("note_interne", String(noteInterne));
-      const res = await fetch(`/api/projects/${projectId}/documents`, { method: "POST", body: fd });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.document) throw new Error(json.error ?? "Le fichier n'a pas été ajouté.");
-      setDocs((d) => [json.document, ...d]);
+      const { ok, data: json } = await televerser<{ document?: ProjectDocument }>(
+        `/api/projects/${projectId}/documents`, upload,
+        { nom: file.name, type: "autre", milestone_id: e.id, note_interne: noteInterne },
+      );
+      const ajoute = json.document;
+      if (!ok || !ajoute) throw new Error(json.error ?? "Le fichier n'a pas été ajouté.");
+      setDocs((d) => [ajoute, ...d]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Le fichier n'a pas été ajouté.");
     } finally {
@@ -340,19 +345,15 @@ export default function EtapesEditor({
                         title="Réglages de l'étape">
                         {busy === e.id ? <Loader2 size={15} className="civiq-spin" aria-hidden="true" /> : <Settings size={15} aria-hidden="true" />}
                       </button>
-                      {mode === "etapes" && (
-                        <>
-                          <button type="button" className="civiq-icon-btn pj-etape-grip"
-                            onPointerDown={(ev) => glisser.onPointerDown(ev, e.id, true)}
-                            aria-label={`Déplacer « ${e.libelle} » (glisser, ou utiliser les flèches)`} title="Glisser pour déplacer">
-                            <GripVertical size={15} aria-hidden="true" />
-                          </button>
-                          <button type="button" className="civiq-icon-btn" onClick={() => move(e, -1)} disabled={sortedIdx === 0}
-                            aria-label={`Monter « ${e.libelle} »`}><ArrowUp size={15} aria-hidden="true" /></button>
-                          <button type="button" className="civiq-icon-btn" onClick={() => move(e, 1)} disabled={sortedIdx === etapes.length - 1}
-                            aria-label={`Descendre « ${e.libelle} »`}><ArrowDown size={15} aria-hidden="true" /></button>
-                        </>
-                      )}
+                      <button type="button" className="civiq-icon-btn pj-etape-grip"
+                        onPointerDown={(ev) => glisser.onPointerDown(ev, e.id, true)}
+                        aria-label={`Déplacer « ${e.libelle} » (glisser, ou utiliser les flèches)`} title="Glisser pour déplacer">
+                        <GripVertical size={15} aria-hidden="true" />
+                      </button>
+                      <button type="button" className="civiq-icon-btn" onClick={() => move(e, -1)} disabled={sortedIdx === 0}
+                        aria-label={`Monter « ${e.libelle} »`}><ArrowUp size={15} aria-hidden="true" /></button>
+                      <button type="button" className="civiq-icon-btn" onClick={() => move(e, 1)} disabled={sortedIdx === etapes.length - 1}
+                        aria-label={`Descendre « ${e.libelle} »`}><ArrowDown size={15} aria-hidden="true" /></button>
                     </div>
                   )}
                 </div>

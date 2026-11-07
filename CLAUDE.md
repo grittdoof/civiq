@@ -1095,3 +1095,25 @@ Les vues `tickets_reporting_v`, `commune_stats`, `surveys_trash` étaient accord
 - À la création depuis une piste (suggestion **ou recherche**, hors cache) : `infosAideDepuis()` copie ces champs ; fiche locale : son lien. Côté serveur (`parseFinancing`) : liens rendus absolus, http(s) seulement (`urlAbsolue`), informations bornées (`lireInfosAide`). La recherche renvoie désormais la description (1 200 caractères).
 - Carte de la demande : « Voir la démarche », « Déposer chez le financeur », date limite (orange si proche et pas encore déposée), « Informations sur l'aide » dépliable avec mention de la source.
 - Tests : 274 ✓ ; `next build` OK ; carte vérifiée dans le navigateur.
+
+## Session 30 — Gros fichiers (dépôt direct), étapes d'un événement déplaçables, onglets par type (2026-11-07)
+
+### Prompt de départ
+> « Dans un projet de type événement on ne peut pas déplacer les étapes comme dans un projet simple ou investissement. Vérifie que l'ensemble des fonctionnalités améliorées soit bien déployé partout ! Message d'erreur en voulant joindre un fichier de 8 000 Ko : « Unexpected token 'R', "Request En"... is not valid JSON ». » — puis « peut-on trouver un moyen de stockage externe ? »
+
+### Cause
+Vercel refuse toute requête de plus de **4,5 Mo** et répond en texte (« Request Entity Too Large ») : le navigateur tentait de le lire comme du JSON. Le stockage était déjà externe (Supabase Storage) ; c'est le **trajet** du fichier, via nos fonctions, qui bloquait. La limite affichée de 20 Mo n'était donc jamais atteignable.
+
+### Livrés
+- **Dépôt direct** : `lib/storage/depot-direct.ts` (serveur) et `lib/storage/televerser.ts` (navigateur). ① `{ etape: "preparer" }` : droits vérifiés, chemin choisi par le serveur, lien de dépôt signé (`createSignedUploadUrl`) ; ② le navigateur envoie à Supabase (`uploadToSignedUrl`, clé publique) ; ③ `{ etape: "enregistrer", path }` : droits revérifiés, chemin sous le préfixe attendu, fichier présent, **taille relue côté stockage** (retiré si trop lourd). Format et taille également imposés par le bucket.
+- Appliqué à : documents de projet (`DocumentsEditor`), pièces jointes d'étape (`EtapesEditor`), devis (`DevisComparator`), documents de séance, feuille d'émargement signée, compte rendu déposé en fichier. Les routes n'acceptent plus le multipart.
+- `lireReponse()` : toute réponse non JSON devient un message clair (« Fichier trop volumineux. ») — aussi pour photo de projet, logo, bannière (≤ 5 Mo, encore en multipart).
+- **Migration 054** (appliquée en prod après essai à blanc) : `.odt` accepté par le bucket `project-documents` (le compte rendu le promettait, le bucket le refusait).
+- **Événement** : étapes déplaçables (poignée, appui long, flèches) comme les autres types ; la liste suit l'ordre manuel (une étape en retard reste signalée sur sa ligne mais ne remonte plus en tête). Une nouvelle étape se range à sa date (`ordrePourDate`).
+- **Onglets** : Financeurs pour l'événement (les fiches locales cochées « Événementiel » n'avaient aucun écran), Documents pour le suivi simple.
+- Vérifié sur le stockage de production : 8 Mo déposé via lien signé et relu, 21 Mo refusé par le bucket, fichiers de test supprimés. Tests : `televersement-evenement.test.ts` (7) → 281 ✓ ; `next build` OK ; rétroplanning (poignée, glisser) vérifié dans le navigateur (page de test temporaire, non commitée).
+
+### Points d'attention
+- **Tout nouveau dépôt de fichier passe par `televerser()` + `depot-direct`**, jamais par un corps multipart (> 4,5 Mo = refus de Vercel).
+- Le chemin est **toujours** choisi par le serveur ; à l'enregistrement, contrôler le préfixe (commune, projet ou séance) et, si besoin, le motif du nom.
+- Pièces jointes de clôture des signalements (`/api/tickets/upload-document`) : bucket « tickets » inexistant et route trop permissive — traité à part.

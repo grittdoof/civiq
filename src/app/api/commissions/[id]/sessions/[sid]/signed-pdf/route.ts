@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
 import { writeAudit } from "@/lib/audit";
+import {
+  MAX_DEPOT_OCTETS, extensionDe, lireDemandeDepot, preparerDepot, tropLourd, verifierDepot,
+} from "@/lib/storage/depot-direct";
 
-// POST   /api/commissions/:id/sessions/:sid/signed-pdf  — upload PDF
+// POST   /api/commissions/:id/sessions/:sid/signed-pdf  — dépôt direct du PDF
+//        ({ etape: "preparer", nom, taille } puis { etape: "enregistrer", path })
 // DELETE /api/commissions/:id/sessions/:sid/signed-pdf  — supprime
 
 interface RouteParams { params: Promise<{ id: string; sid: string }>; }
@@ -33,36 +37,32 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
   }
 
-  const form = await req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Fichier requis" }, { status: 400 });
-  }
-  if (file.type !== "application/pdf") {
-    return NextResponse.json({ error: "Le fichier doit être un PDF" }, { status: 400 });
-  }
-  if (file.size > 20 * 1024 * 1024) {
-    return NextResponse.json({ error: "Fichier trop volumineux (max 20 MB)" }, { status: 400 });
-  }
-
+  // Dépôt direct dans le stockage (le fichier ne passe plus par Vercel).
+  const body = await lireDemandeDepot(req);
+  if (!body) return NextResponse.json({ error: "Requête de dépôt invalide." }, { status: 400 });
   const service = await createServiceClient();
+  const prefixe = `${guard.communeId}/sessions/${sid}/`;
+  if (body.etape === "preparer") {
+    if (extensionDe(typeof body.nom === "string" ? body.nom : "") !== "pdf") {
+      return NextResponse.json({ error: "Le fichier doit être un PDF" }, { status: 400 });
+    }
+    if (Number(body.taille) > MAX_DEPOT_OCTETS) return tropLourd();
+    return preparerDepot(service, "project-documents", `${prefixe}emargement-${crypto.randomUUID()}.pdf`, "application/pdf");
+  }
+  const depot = await verifierDepot(service, "project-documents", body.path, prefixe);
+  if (!depot.ok) return depot.response;
+  if (!/^emargement-[0-9a-f-]+\.pdf$/.test(depot.path.slice(prefixe.length))) {
+    return NextResponse.json({ error: "Dépôt invalide." }, { status: 400 });
+  }
+  const storagePath = depot.path;
 
-  // Suppression de l'ancien fichier si présent
+  // Ancien fichier, retiré après remplacement
   const { data: prev } = await service
     .from("commission_sessions")
     .select("signed_attendance_pdf_path")
     .is("deleted_at", null)
     .eq("id", sid)
     .maybeSingle();
-
-  const storagePath = `${guard.communeId}/sessions/${sid}/emargement-${crypto.randomUUID()}.pdf`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { error: uploadErr } = await service.storage
-    .from("project-documents")
-    .upload(storagePath, buffer, { contentType: "application/pdf", upsert: false });
-  if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message }, { status: 500 });
-  }
 
   const { data: signed } = await service.storage
     .from("project-documents")
