@@ -1167,10 +1167,10 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - `PhotoGallery` : vignettes = miniatures, visionneuse plein écran (Échap, ← →, balayage, « Ouvrir en grand », « Télécharger »). PDF ouverts dans un onglet, Word / Excel téléchargés.
 - **Miniatures** (480 px) déposées par `TicketPhotoUpload` sous `<commune>/miniatures/` ; sans miniature (photos antérieures), la route sert la photo entière. Offre Supabase gratuite : pas de transformation d'image à la volée.
 - `listTickets` : plus de limite implicite de 100, photos lues pour les seuls signalements listés (avant : toutes les photos de la plateforme), requête morte supprimée.
-- **Migration 057** (essai à blanc en prod, non appliquée) : lecture directe du bucket `tickets-photos` limitée à ses propres fichiers (nécessaire à `remove`) ; super-admin inchangé.
+- **Migration 057** (appliquée en prod le 2026-11-07 après essai à blanc, avec le déploiement de la PR 27) : lecture directe du bucket `tickets-photos` limitée à ses propres fichiers (nécessaire à `remove`) ; super-admin inchangé.
 - Tests : `tests/unit/tickets/pieces.test.ts` (7) → 299 ✓ ; `next build` OK ; visionneuse vérifiée dans le navigateur (bureau + mobile, page de test temporaire non commitée) ; routes : 401 sans session.
 
 ### Points d'attention
 - **Ne jamais remettre de lien signé dans une page** : utiliser `urlPhoto` / `urlDocument` (`lib/tickets/pieces.ts`). Exception : la génération PDF côté serveur (`/api/tickets/pdf`).
 - Toute nouvelle route qui sert un contenu de signalement passe par `accesTicketEnLecture`.
-- Appliquer 057 avec le déploiement (l'ancien code lit déjà en service role).
+- 057 appliquée : la lecture directe du bucket `tickets-photos` est limitée à ses propres fichiers.
