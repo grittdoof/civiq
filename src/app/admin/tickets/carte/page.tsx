@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, LayoutGrid } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
-import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { listTickets } from "@/lib/tickets/queries";
+import { urlPhoto } from "@/lib/tickets/pieces";
 import TicketsMap from "./TicketsMap";
 
 // ═══════════════════════════════════════════════════════════════
@@ -26,17 +27,12 @@ export default async function TicketsMapPage() {
   const tickets = await listTickets(ctx.communeId, {});
   const geoTickets = tickets.filter((t) => t.latitude != null && t.longitude != null);
 
-  // URLs signées pour les pop-ups (1 photo/ticket suffit)
+  // Vignettes des pop-ups : miniature via l'adresse stable de notre route
   const photoUrls: Record<string, string> = {};
-  await Promise.all(
-    geoTickets.map(async (t) => {
-      const first = t.signalement_photos?.[0];
-      if (first) {
-        const url = await getPhotoSignedUrl(first.storage_path);
-        if (url) photoUrls[t.id] = url;
-      }
-    })
-  );
+  for (const t of geoTickets) {
+    const first = t.signalement_photos?.[0];
+    if (first) photoUrls[t.id] = urlPhoto(t.id, first.id, { miniature: true });
+  }
 
   // Centre par défaut sur la commune si on n'a pas de ticket géolocalisé
   const center: [number, number] =

@@ -8,7 +8,9 @@ import {
   Tag, Hash, Inbox, FileText,
 } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
-import { getTicket, getPhotoSignedUrl, getRapportDocuments } from "@/lib/tickets/queries";
+import { getTicket, getRapportDocuments } from "@/lib/tickets/queries";
+import { urlPhoto } from "@/lib/tickets/pieces";
+import PhotoGallery, { type PhotoGalerie } from "@/components/tickets/PhotoGallery";
 import { listAssignableAgents } from "@/lib/tickets/mutations";
 import { isModuleActive } from "@/lib/module-guard";
 import { PrioriteBadge, StatutBadge, CategorieBadge } from "@/components/tickets/TicketBadge";
@@ -66,14 +68,19 @@ export default async function TicketDetailPage({ params }: Props) {
     ? await chargerPasserelle({ statut: ticket.statut, project_id: projectId }, ctx.communeId!, { id: ctx.userId, role: ctx.role })
     : null;
 
-  // URLs signées pour les photos
-  const photoUrls = await Promise.all(
-    photos.map(async (p) => ({ ...p, url: await getPhotoSignedUrl(p.storage_path) }))
-  );
-  const signalementPhotos = photoUrls.filter((p) => p.type === "signalement");
-  const serviceFaitPhotos = photoUrls.filter((p) => p.type === "service_fait");
-  // Pièces jointes du rapport de clôture (bucket privé, liens signés 1 h)
-  const rapportDocuments = await getRapportDocuments(ticket.commune_id, rapport?.document_paths);
+  // Pièces jointes : adresses stables de nos routes (droits vérifiés à
+  // l'ouverture, jamais de lien signé périmé dans une page restée ouverte).
+  const versGalerie = (p: (typeof photos)[number]): PhotoGalerie => ({
+    id: p.id,
+    src: urlPhoto(ticket.id, p.id),
+    miniature: urlPhoto(ticket.id, p.id, { miniature: true }),
+    telecharger: urlPhoto(ticket.id, p.id, { telecharger: true }),
+    legende: p.legende,
+    date: new Date(p.uploaded_at).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+  });
+  const signalementPhotos = photos.filter((p) => p.type === "signalement").map(versGalerie);
+  const serviceFaitPhotos = photos.filter((p) => p.type === "service_fait").map(versGalerie);
+  const rapportDocuments = await getRapportDocuments(ticket.commune_id, ticket.id, rapport?.document_paths);
 
   const dateFormat = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -107,14 +114,7 @@ export default async function TicketDetailPage({ params }: Props) {
               <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
                 Photos du signalement
               </h2>
-              <div className="tk-photo-gallery">
-                {signalementPhotos.map((p) => (
-                  p.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={p.id} src={p.url} alt={p.legende ?? ""} />
-                  ) : null
-                ))}
-              </div>
+              <PhotoGallery photos={signalementPhotos} titre="Photos du signalement" />
             </div>
           )}
 
@@ -189,14 +189,7 @@ export default async function TicketDetailPage({ params }: Props) {
               <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--success)", marginBottom: 8 }}>
                 Service fait
               </h2>
-              <div className="tk-photo-gallery">
-                {serviceFaitPhotos.map((p) => (
-                  p.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={p.id} src={p.url} alt={p.legende ?? ""} />
-                  ) : null
-                ))}
-              </div>
+              <PhotoGallery photos={serviceFaitPhotos} titre="Photos du service fait" />
             </div>
           )}
 
@@ -231,9 +224,20 @@ export default async function TicketDetailPage({ params }: Props) {
                         <li key={d.path} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <FileText size={14} aria-hidden="true" style={{ color: "var(--fg-muted)", flexShrink: 0 }} />
                           {d.url ? (
-                            <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
-                              {d.nom}
-                            </a>
+                            <>
+                              {d.ouvrir ? (
+                                <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+                                  {d.nom} <span className="tk-sr-only">(s&apos;ouvre dans un nouvel onglet)</span>
+                                </a>
+                              ) : (
+                                <a href={d.telechargement} style={{ color: "var(--accent)", wordBreak: "break-all" }}>
+                                  {d.nom}
+                                </a>
+                              )}
+                              <a href={d.telechargement} aria-label={`Télécharger ${d.nom}`} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--fg-muted)", whiteSpace: "nowrap" }}>
+                                Télécharger
+                              </a>
+                            </>
                           ) : (
                             <span style={{ color: "var(--fg-muted)" }}>{d.nom} (fichier introuvable)</span>
                           )}

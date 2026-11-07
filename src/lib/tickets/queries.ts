@@ -1,5 +1,6 @@
 import { createServiceClient } from "@/lib/supabase-server";
 import { BUCKET_DOCUMENTS_RAPPORT, estCheminRapportValide, nomAffichable } from "./documents-rapport";
+import { ouvrirDansNavigateur, urlDocument } from "./pieces";
 import type { TicketWithRelations, TicketStatut, TicketPriorite, TicketCategorie, TicketPhoto, TicketCommentaire, TicketRapport } from "./types";
 
 // ═══════════════════════════════════════════════════════════════
@@ -19,60 +20,33 @@ export interface ListTicketsFilters {
 /** Liste les tickets vivants (deleted_at à venir si on ajoute soft-delete) d'une commune. */
 export async function listTickets(communeId: string, filters: ListTicketsFilters = {}): Promise<TicketWithRelations[]> {
   const service = await createServiceClient();
-  let q = service
+
+  // Sans limite par défaut : l'ancienne limite de 100 faisait disparaître
+  // les plus anciens signalements de la liste et des compteurs.
+  let base = service
     .from("tickets")
     .select(`
       *,
       created_by_profile:profiles!tickets_created_by_fkey ( id, full_name, job_title ),
-      assignee_profile:profiles!tickets_assigne_a_fkey ( id, full_name, job_title ),
-      photo_count:ticket_photos(count),
-      comment_count:ticket_commentaires(count),
-      signalement_photos:ticket_photos!inner ( id, ticket_id, storage_path, type, uploaded_by, uploaded_at, legende )
+      assignee_profile:profiles!tickets_assigne_a_fkey ( id, full_name, job_title )
     `)
     .eq("commune_id", communeId)
-    .eq("signalement_photos.type", "signalement")
     .order("priorite", { ascending: false })
     .order("created_at", { ascending: false });
+  if (filters.limit) base = base.limit(filters.limit);
+  const { data: ticketsBase } = await base;
 
-  if (filters.statut) {
-    if (Array.isArray(filters.statut)) q = q.in("statut", filters.statut);
-    else q = q.eq("statut", filters.statut);
-  }
-  if (filters.priorite) q = q.eq("priorite", filters.priorite);
-  if (filters.categorie) q = q.eq("categorie", filters.categorie);
-  if (filters.assignedToMe) q = q.eq("assigne_a", filters.assignedToMe);
-
-  if (filters.search?.trim()) {
-    const s = filters.search.trim();
-    const numericNumero = Number(s.replace(/^#/, ""));
-    if (Number.isFinite(numericNumero) && numericNumero > 0) {
-      q = q.or(`numero.eq.${numericNumero},titre.ilike.%${s}%,description.ilike.%${s}%`);
-    } else {
-      q = q.or(`titre.ilike.%${s}%,description.ilike.%${s}%`);
-    }
-  }
-
-  if (filters.limit) q = q.limit(filters.limit);
-
-  // Fallback : la requête ci-dessus avec inner photos peut exclure les tickets sans photo.
-  // On fait donc deux requêtes et on merge — plus prévisible que les jointures complexes.
-  const [{ data: ticketsBase }, { data: photos }] = await Promise.all([
-    service
-      .from("tickets")
-      .select(`
-        *,
-        created_by_profile:profiles!tickets_created_by_fkey ( id, full_name, job_title ),
-        assignee_profile:profiles!tickets_assigne_a_fkey ( id, full_name, job_title )
-      `)
-      .eq("commune_id", communeId)
-      .order("priorite", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(filters.limit ?? 100),
-    service
+  // Photos de signalement des seuls signalements listés (avant : toutes
+  // les photos de la plateforme étaient lues puis triées en mémoire).
+  const ids = (ticketsBase ?? []).map((t) => t.id as string);
+  const { data: photos } = ids.length > 0
+    ? await service
       .from("ticket_photos")
       .select("id, ticket_id, storage_path, type, uploaded_by, uploaded_at, legende")
-      .eq("type", "signalement"),
-  ]);
+      .eq("type", "signalement")
+      .in("ticket_id", ids)
+      .order("uploaded_at", { ascending: true })
+    : { data: [] as TicketPhoto[] };
 
   let rows = (ticketsBase ?? []) as unknown as TicketWithRelations[];
 
@@ -190,19 +164,26 @@ export async function getPhotoSignedUrl(storagePath: string, expiresIn = 60 * 60
 }
 
 /**
- * Pièces jointes du rapport d'intervention avec un lien de lecture
- * signé (bucket privé tickets-documents), limitées au préfixe de la
- * commune du signalement. Un fichier absent n'a pas de lien.
+ * Pièces jointes du rapport d'intervention, limitées au préfixe de la
+ * commune du signalement. Chaque document reçoit l'adresse stable de
+ * notre route (droits vérifiés à l'ouverture) ; un fichier absent du
+ * stockage n'a pas d'adresse.
  */
 export async function getRapportDocuments(
-  communeId: string, paths: string[] | null | undefined, expiresIn = 60 * 60,
-): Promise<Array<{ path: string; nom: string; url: string | null }>> {
+  communeId: string, ticketId: string, paths: string[] | null | undefined,
+): Promise<Array<{ path: string; nom: string; url: string | null; telechargement: string; ouvrir: boolean }>> {
   const valides = (paths ?? []).filter((p) => estCheminRapportValide(p, communeId));
   if (valides.length === 0) return [];
   const service = await createServiceClient();
   return Promise.all(valides.map(async (path) => {
     const nom = nomAffichable(path);
-    const { data } = await service.storage.from(BUCKET_DOCUMENTS_RAPPORT).createSignedUrl(path, expiresIn, { download: nom });
-    return { path, nom, url: data?.signedUrl ?? null };
+    const { data } = await service.storage.from(BUCKET_DOCUMENTS_RAPPORT).exists(path);
+    return {
+      path,
+      nom,
+      url: data ? urlDocument(ticketId, path) : null,
+      telechargement: urlDocument(ticketId, path, { telecharger: true }),
+      ouvrir: ouvrirDansNavigateur(nom),
+    };
   }));
 }

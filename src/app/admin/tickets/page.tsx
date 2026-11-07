@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plus, Map as MapIcon, BarChart3, Printer } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
-import { listTickets, getPhotoSignedUrl } from "@/lib/tickets/queries";
+import { listTickets } from "@/lib/tickets/queries";
+import { urlPhoto } from "@/lib/tickets/pieces";
 import { OUVERT_STATUTS, CLOTURE_STATUTS } from "@/lib/tickets/types";
 import { isModuleActive } from "@/lib/module-guard";
 import TicketCard from "@/components/tickets/TicketCard";
@@ -59,19 +60,13 @@ export default async function TicketsListPage({ searchParams }: Props) {
     tous: allTickets.length,
   };
 
-  // Pré-générer les URLs signées des premières photos
+  // Vignette : miniature de la première photo, via l'adresse stable de
+  // notre route (droits vérifiés, lien jamais périmé).
   const photoUrls = new Map<string, string>();
-  await Promise.all(
-    tickets.flatMap((t) => {
-      const first = t.signalement_photos?.[0];
-      if (!first) return [];
-      return [
-        getPhotoSignedUrl(first.storage_path).then((url) => {
-          if (url) photoUrls.set(t.id, url);
-        }),
-      ];
-    })
-  );
+  for (const t of tickets) {
+    const first = t.signalement_photos?.[0];
+    if (first) photoUrls.set(t.id, urlPhoto(t.id, first.id, { miniature: true }));
+  }
 
   const canCreate = ctx.role === "admin" || ctx.role === "super_admin" || ctx.role === "editor";
 
@@ -132,7 +127,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
       ) : (
         <div className="tk-list">
           {tickets.map((t) => (
-            <TicketCard key={t.id} ticket={t} signedPhotoUrl={photoUrls.get(t.id)} />
+            <TicketCard key={t.id} ticket={t} photoUrl={photoUrls.get(t.id)} />
           ))}
         </div>
       )}

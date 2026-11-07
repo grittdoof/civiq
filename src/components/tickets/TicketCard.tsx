@@ -10,19 +10,19 @@ import { PrioriteBadge, StatutBadge, CategorieBadge } from "./TicketBadge";
 
 export default function TicketCard({
   ticket,
-  signedPhotoUrl,
+  photoUrl,
 }: {
   ticket: TicketWithRelations;
-  signedPhotoUrl?: string | null;
+  photoUrl?: string | null;
 }) {
   const elapsed = formatElapsed(ticket.created_at);
   const assigneeName = ticket.assignee_profile?.full_name || null;
 
   return (
     <Link href={`/admin/tickets/${ticket.id}`} className="tk-card civiq-card civiq-card-hover">
-      {signedPhotoUrl ? (
+      {photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={signedPhotoUrl} alt="" className="tk-card-thumb" />
+        <img src={photoUrl} alt="" className="tk-card-thumb" loading="lazy" decoding="async" />
       ) : (
         <div className="tk-card-thumb tk-card-thumb-empty" aria-hidden>
           <span style={{ fontSize: 28, opacity: 0.4 }}>📋</span>
