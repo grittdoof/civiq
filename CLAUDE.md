@@ -1235,3 +1235,17 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - Totaux par quartier de la maquette : **non faits** (il faudrait dessiner des zones) ; la page s'en passe.
 - Middleware : un utilisateur connecté qui ouvre une page d'authentification arrive sur `/admin/accueil`.
 - Tests : `public.test.ts` → 356 ✓ ; `next build` OK.
+
+### Lot 5 — ouverture au périscolaire (même session)
+- **Migration 061** (essai à blanc en prod avec `DRYRUN_OK`, **non appliquée**) : `sites` (écoles, accueils de loisirs, restaurants scolaires… par commune), `ticket_periscolaire` (site, créneau, enfant facultatif ≤ 80 caractères, famille informée + date ; RLS `user_voit_ticket`, écriture service role), `ticket_categories.notifier_fonctions` (« Incident enfant » → maire, DGS, secrétaire générale, aussi pour les nouvelles communes), service « Périscolaire » créé et proposé par défaut sur la catégorie, `commune_settings.tickets_effacement_enfant_mois`, `date_effacement_enfant()` et `purger_donnees_enfants()` (service role).
+- **Création** : étape « Précisions périscolaire » (visible si la catégorie est sous « Périscolaire & scolaire ») : lieu, moment, enfant (prénom + initiale, avertissement « aucune information de santé »), famille informée. **Remontée automatique** : les personnes dont la fonction est cochée sur la catégorie (ou sa parente) sont nommées destinataires (donc voient le ticket restreint) et reçoivent une notification ; présélectionnées dans le formulaire, ajoutées côté serveur dans tous les cas.
+- **Fiche** : carte « Périscolaire » (lieu, moment, enfant ou « Effacé le … », famille, date d'effacement prévue).
+- **Paramètres** : lieux (ajout, renommage, retrait logique), délai d'effacement (fin d'année scolaire par défaut, ou 3 / 6 / 12 mois), « Prévenir automatiquement » sur chaque catégorie.
+- **Effacement** : cron quotidien `/api/cron/purge-periscolaire` (2 h 45) → `purger_donnees_enfants()` + journal ; par défaut le 31 août qui suit la clôture (Europe/Paris). Logique pure miroir `dateEffacementEnfant` (`lib/tickets/periscolaire.ts`).
+- Tests : `periscolaire.test.ts` (5) → 365 ✓ ; `next build` OK. Non vérifié dans le navigateur (recette finale).
+
+#### Points d'attention (lot 5)
+- **Appliquer 060 puis 061 AVANT de déployer le code** (le nouveau code lit `sites`, `ticket_periscolaire`, `notifier_fonctions`). L'ancien code supporte les deux.
+- **Évolution de la règle d'effacement** : des deux côtés (`date_effacement_enfant` SQL et `dateEffacementEnfant` TS).
+- Seul le champ « enfant » est effacé : un prénom écrit dans le titre, la description ou un commentaire ne l'est pas (consigne affichée à la saisie).
+- Durée de conservation à faire valider par le DPO de la commune.

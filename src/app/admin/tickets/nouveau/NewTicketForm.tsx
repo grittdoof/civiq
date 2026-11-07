@@ -21,6 +21,7 @@ import { envoyerFile, mettreEnFile } from "@/lib/tickets/hors-ligne";
 import { estErreurReseau } from "@/lib/tickets/hors-ligne-regles";
 import VisibiliteChamps, { type Personne } from "@/components/tickets/VisibiliteChamps";
 import IconeCategorie from "@/components/tickets/IconeCategorie";
+import { CRENEAUX, destinatairesAuto, estPeriscolaire } from "@/lib/tickets/periscolaire";
 import {
   URGENCES, URGENCE_AIDE, URGENCE_COLORS, URGENCE_LABELS, arborescence, cheminCategorie, reglagesEffectifs,
   type CategorieTicket,
@@ -63,6 +64,8 @@ interface OptionsVisibilite {
   categories: CategorieTicket[];
   /** Lot 3 : photos gardées sur le téléphone (hors ligne). */
   setPhotosEnAttente?: (photos: Blob[]) => void;
+  /** Lot 5 : écoles, accueils de loisirs… de la commune. */
+  sites?: Array<{ id: string; nom: string }>;
 }
 const VisibiliteCtx = createContext<OptionsVisibilite>({ services: [], personnes: [], moi: "", categories: [] });
 
@@ -72,6 +75,7 @@ interface Props {
   personnes?: Personne[];
   moi?: string;
   categories?: CategorieTicket[];
+  sites?: Array<{ id: string; nom: string }>;
   agents: Array<{
     id: string;
     full_name: string | null;
@@ -116,7 +120,7 @@ function useIsDesktop(breakpoint = 900): boolean | null {
 
 // ─── Orchestrateur ───────────────────────────────────────────────
 
-export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "", categories = [] }: Props) {
+export default function NewTicketForm({ communeId, agents, services = [], personnes = [], moi = "", categories = [], sites = [] }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -177,6 +181,12 @@ export default function NewTicketForm({ communeId, agents, services = [], person
           service_id: value.serviceId || null,
           confidentialite: value.confidentialite,
           destinataire_ids: value.confidentialite === "standard" ? [] : value.destinataireIds,
+          periscolaire: value.estPeriscolaire ? {
+            site_id: value.siteId || null,
+            creneau: value.creneau || null,
+            enfant: value.enfant.trim() || null,
+            famille_informee: value.familleInformee === "" ? null : value.familleInformee === "oui",
+          } : null,
       };
       // Lot 3 : sans réseau (ou photos gardées sur le téléphone), le
       // signalement part dans la file d'attente et sera envoyé plus tard.
@@ -225,7 +235,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   // et l'admin shell mobile cache la complexité d'un éventuel flash).
   if (isDesktop === null || !isDesktop) {
     return (
-      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente }}>
+      <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente, sites }}>
       <MobileWizard
         wiz={wiz}
         agents={agents}
@@ -241,7 +251,7 @@ export default function NewTicketForm({ communeId, agents, services = [], person
   }
 
   return (
-    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente }}>
+    <VisibiliteCtx.Provider value={{ services, personnes, moi, categories, setPhotosEnAttente, sites }}>
     <DesktopForm
       wiz={wiz}
       agents={agents}
@@ -646,6 +656,9 @@ function StepContent({
     case "categorie":
       return <EtapeCategorie value={value} set={set} variant={variant} />;
 
+    case "periscolaire":
+      return <EtapePeriscolaire value={value} set={set} />;
+
     case "description":
       return (
         <div className={variant === "desktop" ? "tk-desc-grid" : "tk-wizard-fields"}>
@@ -795,7 +808,7 @@ function EtapeCategorie({
   set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
   variant: "mobile" | "desktop";
 }) {
-  const { categories } = useContext(VisibiliteCtx);
+  const { categories, personnes } = useContext(VisibiliteCtx);
   const arbre = arborescence(categories, { actifsSeulement: true });
   const choisie = categories.find((c) => c.id === value.categorieId) ?? null;
   const racineChoisie = choisie ? (choisie.parent_id ?? choisie.id) : null;
@@ -810,6 +823,10 @@ function EtapeCategorie({
     set("urgence", r.urgence);
     set("serviceId", r.serviceId ?? "");
     set("confidentialite", r.confidentialite);
+    // Lot 5 : étape « Précisions périscolaire » et personnes prévenues
+    // d'office (déjà cochées comme destinataires).
+    set("estPeriscolaire", estPeriscolaire(id, categories));
+    set("destinataireIds", destinatairesAuto(id, categories, personnes));
   }
 
   if (arbre.length === 0) {
@@ -880,6 +897,66 @@ function EtapeCategorie({
   );
 }
 
+// ─── Étape « Précisions périscolaire » (lot 5) ──────────────────
+
+function EtapePeriscolaire({
+  value, set,
+}: {
+  value: WizardValue;
+  set: <K extends keyof WizardValue>(key: K, val: WizardValue[K]) => void;
+}) {
+  const { sites = [] } = useContext(VisibiliteCtx);
+  return (
+    <div className="tk-wizard-fields" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <Field label="Lieu (école, accueil de loisirs…)">
+        {sites.length > 0 ? (
+          <select className="civiq-input" value={value.siteId} onChange={(e) => set("siteId", e.target.value)} style={{ maxWidth: 360 }}>
+            <option value="">Non précisé</option>
+            {sites.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+          </select>
+        ) : (
+          <p style={{ margin: 0, fontSize: 13, color: "var(--fg-muted)" }}>Aucun lieu enregistré : un administrateur peut les ajouter dans les paramètres des tickets.</p>
+        )}
+      </Field>
+      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="civiq-field-label">Moment</legend>
+        <div role="radiogroup" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {CRENEAUX.map((c) => {
+            const actif = value.creneau === c.valeur;
+            return (
+              <button key={c.valeur} type="button" role="radio" aria-checked={actif} data-active={actif} className="tk-wizard-option"
+                onClick={() => set("creneau", actif ? "" : c.valeur)} style={{ minHeight: 44, width: "auto", padding: "8px 14px" }}>
+                <span className="tk-wizard-option-title">{c.libelle}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+      <Field label="Enfant concerné (facultatif)">
+        <input className="civiq-input" value={value.enfant} maxLength={80} placeholder="Prénom et initiale du nom, ex. Léa M."
+          onChange={(e) => set("enfant", e.target.value)} autoComplete="off" style={{ maxWidth: 360 }} />
+        <span style={{ display: "block", marginTop: 6, fontSize: 12.5, color: "var(--fg-muted)", lineHeight: 1.5 }}>
+          Aucune information de santé. Ce champ est effacé automatiquement après l&apos;année scolaire.
+        </span>
+      </Field>
+      <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="civiq-field-label">La famille est-elle informée ?</legend>
+        <div role="radiogroup" style={{ display: "flex", gap: 8 }}>
+          {([["oui", "Oui"], ["non", "Pas encore"]] as const).map(([v, l]) => {
+            const actif = value.familleInformee === v;
+            return (
+              <button key={v} type="button" role="radio" aria-checked={actif} data-active={actif} className="tk-wizard-option"
+                onClick={() => set("familleInformee", actif ? "" : v)} style={{ minHeight: 44, width: "auto", padding: "8px 18px" }}>
+                <span className="tk-wizard-option-title">{l}</span>
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
+    </div>
+  );
+}
+
 // ─── Étape « Service et visibilité » (lot 1) ────────────────────
 
 function EtapeVisibilite({
@@ -943,7 +1020,7 @@ function RecapSheet({
     };
   }, []);
 
-  const { categories: categoriesRecap } = useContext(VisibiliteCtx);
+  const { categories: categoriesRecap, sites: sitesRecap = [] } = useContext(VisibiliteCtx);
   const assigneeNames = value.assigneIds
     .map((id) => agents.find((a) => a.id === id)?.full_name ?? "—")
     .filter(Boolean);
@@ -967,8 +1044,20 @@ function RecapSheet({
       label: "Catégorie",
       value: value.categorieId ? cheminCategorie(value.categorieId, categoriesRecap).libelle : "—",
     },
-    { id: "description", label: "Titre", value: value.titre || "—" },
   );
+  if (value.estPeriscolaire) {
+    rows.push({
+      id: "periscolaire",
+      label: "Périscolaire",
+      value: [
+        sitesRecap.find((x) => x.id === value.siteId)?.nom,
+        CRENEAUX.find((c) => c.valeur === value.creneau)?.libelle,
+        value.enfant.trim() ? `Enfant : ${value.enfant.trim()}` : null,
+        value.familleInformee === "oui" ? "Famille informée" : value.familleInformee === "non" ? "Famille pas encore informée" : null,
+      ].filter(Boolean).join(" · ") || "—",
+    });
+  }
+  rows.push({ id: "description", label: "Titre", value: value.titre || "—" });
   if (value.description.trim()) {
     rows.push({ id: "description", label: "Description", value: value.description });
   }

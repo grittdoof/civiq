@@ -7,6 +7,7 @@ import {
   URGENCES, URGENCE_LABELS, arborescence, formatDelai,
   type CategorieTicket, type NoeudCategorie,
 } from "@/lib/tickets/categories";
+import { FONCTIONS_MATRICE } from "@/lib/tickets/droits";
 
 // ═══════════════════════════════════════════════════════════════
 // Catégories et sous-catégories de la commune (lot 2).
@@ -52,6 +53,7 @@ function Reglages({
         libelle: f.libelle, actif: f.actif, service_defaut_id: f.service_defaut_id, urgence_defaut: f.urgence_defaut,
         confidentialite_defaut: f.confidentialite_defaut, delai_cible_heures: f.delai_cible_heures,
         gestionnaire_externe: f.gestionnaire_externe ?? "", consigne_urgence: f.consigne_urgence ?? "",
+        notifier_fonctions: f.notifier_fonctions?.length ? f.notifier_fonctions : null,
         ...(estRacine ? { icone: f.icone } : {}),
       });
       onSaved(categorie); setEtat("ok");
@@ -100,6 +102,22 @@ function Reglages({
       <label style={{ ...lab, gridColumn: "1 / -1" }}>Consigne d&apos;urgence (affichée avant la création)
         <textarea style={{ ...champ, height: 64, padding: 8, resize: "vertical" }} value={f.consigne_urgence ?? ""} onChange={(e) => maj("consigne_urgence", e.target.value)} maxLength={1000} placeholder="Ex : ne pas allumer de flamme, appeler…" />
       </label>
+      <fieldset style={{ gridColumn: "1 / -1", border: 0, padding: 0, margin: 0 }}>
+        <legend style={{ ...lab, marginBottom: 4 }}>Prévenir automatiquement (nommés destinataires à la création)</legend>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 14px" }}>
+          {FONCTIONS_MATRICE.filter((fn) => fn.fonction !== "autre").map((fn) => {
+            const coche = (f.notifier_fonctions ?? []).includes(fn.fonction);
+            return (
+              <label key={fn.fonction} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 32, fontSize: 13 }}>
+                <input type="checkbox" checked={coche} style={{ width: 16, height: 16 }}
+                  onChange={() => maj("notifier_fonctions", coche ? (f.notifier_fonctions ?? []).filter((x) => x !== fn.fonction) : [...(f.notifier_fonctions ?? []), fn.fonction])} />
+                {fn.libelle}
+              </label>
+            );
+          })}
+        </div>
+        {!estRacine && !(f.notifier_fonctions?.length) && <span style={{ fontSize: 12, color: "var(--fg-muted)" }}>{herite}</span>}
+      </fieldset>
       <label style={{ ...lab, flexDirection: "row", alignItems: "center", gap: 8 }}>
         <input type="checkbox" checked={f.actif} onChange={(e) => maj("actif", e.target.checked)} style={{ width: 18, height: 18 }} /> Proposée à la création
       </label>

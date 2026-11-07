@@ -22,6 +22,7 @@ import { isModuleActive } from "@/lib/module-guard";
 import { PrioriteBadge, StatutBadge, CategorieBadge, CategorieCheminBadge, DelaiBadge, UrgenceBadge } from "@/components/tickets/TicketBadge";
 import { listerCategories } from "@/lib/tickets/categories-server";
 import { cheminCategorie, etatDelai } from "@/lib/tickets/categories";
+import { CRENEAU_LABELS, dateEffacementEnfant, type Creneau } from "@/lib/tickets/periscolaire";
 import {
   CANAL_LABELS, groupOf, type TicketCommentaire,
 } from "@/lib/tickets/types";
@@ -75,12 +76,24 @@ export default async function TicketDetailPage({ params }: Props) {
 
   // Services de la commune, personnes nommables, journal des accès
   const service = await createServiceClient();
-  const [{ data: servicesRows }, personnes, acces, categories] = await Promise.all([
+  const [{ data: servicesRows }, personnes, acces, categories, { data: peri }, { data: reglages }] = await Promise.all([
     service.from("services").select("id, nom").eq("commune_id", ticket.commune_id).is("deleted_at", null).order("ordre").order("nom"),
     droits.changer_visibilite ? listerPersonnesCommune() : Promise.resolve([]),
     sensible ? journalDesAcces(ticket.id) : Promise.resolve([]),
     listerCategories(service, ticket.commune_id),
+    // Lot 5 : précisions périscolaire (ticket déjà vérifié visible)
+    service.from("ticket_periscolaire")
+      .select("creneau, enfant, famille_informee, famille_informee_le, donnees_purgees_le, site:site_id ( nom )")
+      .eq("ticket_id", ticket.id).maybeSingle(),
+    service.from("commune_settings").select("tickets_effacement_enfant_mois").eq("commune_id", ticket.commune_id).maybeSingle(),
   ]);
+  const periscolaire = peri as null | {
+    creneau: Creneau | null; enfant: string | null; famille_informee: boolean | null;
+    famille_informee_le: string | null; donnees_purgees_le: string | null; site: { nom: string } | null;
+  };
+  const effacementLe = periscolaire?.enfant && groupOf(ticket.statut) !== "ouvert"
+    ? dateEffacementEnfant(ticket.clos_at ?? ticket.resolu_at ?? ticket.updated_at, reglages?.tickets_effacement_enfant_mois ?? null)
+    : null;
   // Lot 2 : catégorie de la commune, délai cible, transmission
   const chemin = cheminCategorie(ticket.categorie_id, categories);
   const ouvert = groupOf(ticket.statut) === "ouvert";
@@ -350,6 +363,32 @@ export default async function TicketDetailPage({ params }: Props) {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+          )}
+
+          {periscolaire && (
+            <div className="civiq-card" style={{ padding: 14 }}>
+              <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--fg-muted)", marginBottom: 8 }}>
+                Périscolaire
+              </h2>
+              <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
+                <KV icon={<MapPin size={12} />} label="Lieu" value={periscolaire.site?.nom ?? "Non précisé"} />
+                <KV icon={<Clock size={12} />} label="Moment" value={periscolaire.creneau ? CRENEAU_LABELS[periscolaire.creneau] : "Non précisé"} />
+                <KV icon={<Tag size={12} />} label="Enfant" value={
+                  periscolaire.enfant
+                    ?? (periscolaire.donnees_purgees_le ? `Effacé le ${new Date(periscolaire.donnees_purgees_le).toLocaleDateString("fr-FR")}` : "Non renseigné")
+                } />
+                <KV icon={<Inbox size={12} />} label="Famille" value={
+                  periscolaire.famille_informee === true
+                    ? `Informée${periscolaire.famille_informee_le ? ` le ${new Date(periscolaire.famille_informee_le).toLocaleDateString("fr-FR")}` : ""}`
+                    : periscolaire.famille_informee === false ? "Pas encore informée" : "Non précisé"
+                } />
+              </div>
+              {effacementLe && (
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--fg-muted)" }}>
+                  Le prénom de l&apos;enfant sera effacé le {new Date(`${effacementLe}T12:00:00`).toLocaleDateString("fr-FR")}.
+                </p>
               )}
             </div>
           )}

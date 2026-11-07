@@ -6,7 +6,7 @@ import type { CategorieTicket } from "./categories";
 type Service = Awaited<ReturnType<typeof createServiceClient>>;
 
 export const COLONNES_CATEGORIE =
-  "id, parent_id, code, libelle, icone, ordre, actif, service_defaut_id, urgence_defaut, confidentialite_defaut, delai_cible_heures, gestionnaire_externe, consigne_urgence";
+  "id, parent_id, code, libelle, icone, ordre, actif, service_defaut_id, urgence_defaut, confidentialite_defaut, delai_cible_heures, gestionnaire_externe, consigne_urgence, notifier_fonctions";
 
 export async function listerCategories(
   service: Service, communeId: string, { actifsSeulement = false } = {},

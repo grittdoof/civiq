@@ -10,6 +10,7 @@ import { FONCTIONS_MATRICE, PORTEES, fonctionDe } from "@/lib/tickets/droits";
 import ServicesEditor from "@/components/tickets/ServicesEditor";
 import CategoriesEditor from "@/components/tickets/CategoriesEditor";
 import PagePubliqueReglage from "@/components/tickets/PagePubliqueReglage";
+import PeriscolaireReglages, { type Site } from "@/components/tickets/PeriscolaireReglages";
 import { NON_PUBLIES_PAR_DEFAUT } from "@/lib/tickets/public";
 import { listerCategories } from "@/lib/tickets/categories-server";
 
@@ -30,14 +31,15 @@ export default async function ParametresTicketsPage() {
   if (ctx.role !== "admin" && ctx.role !== "super_admin") redirect("/admin/tickets");
 
   const service = await createServiceClient();
-  const [services, equipe, spectateur, categories, { count: nbAutre }, { data: reglage }, { data: commune }] = await Promise.all([
+  const [services, equipe, spectateur, categories, { count: nbAutre }, { data: reglage }, { data: commune }, { data: sites }] = await Promise.all([
     listerServices(service, ctx.communeId),
     listerEquipe(service, ctx.communeId),
     chargerSpectateur(),
     listerCategories(service, ctx.communeId),
     service.from("tickets").select("id", { count: "exact", head: true }).eq("commune_id", ctx.communeId).eq("categorie", "autre"),
-    service.from("commune_settings").select("tickets_public_actif, tickets_public_categories").eq("commune_id", ctx.communeId).maybeSingle(),
+    service.from("commune_settings").select("tickets_public_actif, tickets_public_categories, tickets_effacement_enfant_mois").eq("commune_id", ctx.communeId).maybeSingle(),
     service.from("communes").select("slug").eq("id", ctx.communeId).maybeSingle(),
+    service.from("sites").select("id, nom, type, adresse").eq("commune_id", ctx.communeId).is("deleted_at", null).order("nom"),
   ]);
   const racines = categories.filter((c) => !c.parent_id && c.actif);
   const { data: profil } = await service.from("profiles").select("job_title").eq("id", ctx.userId).maybeSingle();
@@ -72,6 +74,14 @@ export default async function ParametresTicketsPage() {
           Une sous-catégorie sans réglage reprend ceux de sa catégorie.
         </p>
         <CategoriesEditor initial={categories} services={services.map((s) => ({ id: s.id, nom: s.nom }))} />
+      </section>
+
+      <section style={{ marginBottom: 28 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 4px" }}>Périscolaire</h2>
+        <p style={{ fontSize: 13.5, color: "var(--fg-muted)", margin: "0 0 12px", lineHeight: 1.55 }}>
+          Les lieux proposés à la création d&apos;un ticket périscolaire. Le prénom de l&apos;enfant, facultatif, est effacé automatiquement.
+        </p>
+        <PeriscolaireReglages sitesInitiaux={(sites ?? []) as Site[]} effacementInitial={(reglage?.tickets_effacement_enfant_mois as number | null) ?? null} />
       </section>
 
       {commune?.slug && (

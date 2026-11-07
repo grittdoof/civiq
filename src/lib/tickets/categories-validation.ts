@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { estUrgence } from "./categories";
+import { FONCTIONS_MATRICE } from "./droits";
 
 export interface ReglagesSaisis {
   libelle?: unknown;
@@ -15,6 +16,7 @@ export interface ReglagesSaisis {
   delai_cible_heures?: unknown;
   gestionnaire_externe?: unknown;
   consigne_urgence?: unknown;
+  notifier_fonctions?: unknown;
 }
 
 export type ReglagesValides = Partial<{
@@ -28,6 +30,7 @@ export type ReglagesValides = Partial<{
   delai_cible_heures: number | null;
   gestionnaire_externe: string | null;
   consigne_urgence: string | null;
+  notifier_fonctions: string[] | null;
 }>;
 
 const texte = (v: unknown, max: number): string | null => {
@@ -78,6 +81,15 @@ export function validerReglages(b: ReglagesSaisis, iconesConnues: readonly strin
   }
   if (b.gestionnaire_externe !== undefined) out.gestionnaire_externe = texte(b.gestionnaire_externe, 120);
   if (b.consigne_urgence !== undefined) out.consigne_urgence = texte(b.consigne_urgence, 1000);
+  if (b.notifier_fonctions !== undefined) {
+    const n = b.notifier_fonctions;
+    if (n === null) out.notifier_fonctions = null;
+    else {
+      const connues = FONCTIONS_MATRICE.map((f) => f.fonction as string);
+      if (!Array.isArray(n) || n.some((x) => typeof x !== "string" || !connues.includes(x))) throw new Error("Fonction inconnue");
+      out.notifier_fonctions = n.length ? [...new Set(n as string[])] : null;
+    }
+  }
   return out;
 }
 

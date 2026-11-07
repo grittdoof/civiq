@@ -15,6 +15,7 @@ export type WizardStepId =
   | "canal"
   | "demandeur"
   | "categorie"
+  | "periscolaire"
   | "description"
   | "priorite"
   | "localisation"
@@ -41,6 +42,12 @@ export interface WizardValue {
   serviceId: string;
   confidentialite: "standard" | "restreint" | "confidentiel";
   destinataireIds: string[];
+  /** Lot 5 : précisions d'un signalement périscolaire (étape visible si la catégorie l'est). */
+  estPeriscolaire: boolean;
+  siteId: string;
+  creneau: "" | "matin" | "midi" | "soir" | "mercredi" | "vacances";
+  enfant: string;
+  familleInformee: "" | "oui" | "non";
 }
 
 export interface WizardStep {
@@ -86,6 +93,16 @@ const ALL_STEPS: StepDef[] = [
     isVisible: () => true,
     isValid: (v) => !!v.categorieId,
     invalidReason: () => "Choisis une catégorie.",
+  },
+  {
+    id: "periscolaire",
+    title: "Précisions périscolaire",
+    eyebrow: "Périscolaire",
+    subtitle: "Lieu, moment et, si besoin, l'enfant concerné.",
+    optional: true,
+    isVisible: (v) => v.estPeriscolaire,
+    isValid: (v) => v.enfant.trim().length <= 80,
+    invalidReason: () => "Prénom et initiale suffisent (80 caractères au maximum).",
   },
   {
     id: "description",
@@ -167,6 +184,11 @@ export const INITIAL_VALUE: WizardValue = {
   serviceId: "",
   confidentialite: "standard",
   destinataireIds: [],
+  estPeriscolaire: false,
+  siteId: "",
+  creneau: "",
+  enfant: "",
+  familleInformee: "",
 };
 
 export interface UseTicketWizardResult {
