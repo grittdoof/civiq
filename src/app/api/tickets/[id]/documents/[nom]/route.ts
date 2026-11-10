@@ -25,13 +25,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!acces.ok) return acces.response;
   const { ticket, service } = acces;
 
-  const { data: rapport } = await service
-    .from("ticket_rapports")
-    .select("document_paths")
-    .eq("ticket_id", ticket.id)
-    .maybeSingle();
+  const [{ data: rapport }, { data: propres }] = await Promise.all([
+    service.from("ticket_rapports").select("document_paths").eq("ticket_id", ticket.id).maybeSingle(),
+    // Pièces jointes du ticket lui-même (rappels)
+    service.from("tickets").select("document_paths").eq("id", ticket.id).maybeSingle(),
+  ]);
   const chemin = trouverDocument(
-    rapport?.document_paths as string[] | null,
+    [...((rapport?.document_paths as string[] | null) ?? []), ...((propres?.document_paths as string[] | null) ?? [])],
     decoder(nom),
     (c) => estCheminRapportValide(c, ticket.commune_id),
   );

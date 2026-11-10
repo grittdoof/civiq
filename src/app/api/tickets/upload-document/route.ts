@@ -16,6 +16,8 @@ import {
 //   { etape: "enregistrer", ticket_id, path }     → chemin vérifié
 // Le fichier ne transite pas par Vercel (limite de 4,5 Mo).
 // Droits : signalement visible et droit « clôturer » (matrice de la commune).
+// `cible: "ticket"` : pièce jointe du ticket lui-même (rappels) — droit
+// « modifier », chemin ajouté côté serveur à tickets.document_paths.
 // Chemin : tickets/<commune de l'utilisateur>/rapports/, choisi ici.
 // ═══════════════════════════════════════════════════════════════
 
@@ -47,8 +49,9 @@ export async function POST(req: NextRequest) {
   if (!ticket || !spectateur || ticket.commune_id !== ctx.communeId) {
     return NextResponse.json({ error: "Signalement introuvable" }, { status: 404 });
   }
-  if (!peutAgir("cloturer", ticket.droits, spectateur)) {
-    return NextResponse.json({ error: "Vous ne pouvez pas clôturer ce signalement" }, { status: 403 });
+  const surTicket = body.cible === "ticket";
+  if (surTicket ? !peutAgir("modifier", ticket.droits, spectateur) : !peutAgir("cloturer", ticket.droits, spectateur)) {
+    return NextResponse.json({ error: surTicket ? "Vous ne pouvez pas modifier ce ticket" : "Vous ne pouvez pas clôturer ce signalement" }, { status: 403 });
   }
 
   const prefixe = prefixeRapports(ctx.communeId);
@@ -68,6 +71,12 @@ export async function POST(req: NextRequest) {
   if (!mimeDocumentRapport(depot.path)) {
     await service.storage.from(BUCKET_DOCUMENTS_RAPPORT).remove([depot.path]);
     return FORMAT_REFUSE();
+  }
+  if (surTicket) {
+    const { data: t } = await service.from("tickets").select("document_paths").eq("id", ticketId).maybeSingle();
+    const chemins = [...new Set([...((t?.document_paths as string[] | null) ?? []), depot.path])].slice(0, 30);
+    const { error } = await service.from("tickets").update({ document_paths: chemins }).eq("id", ticketId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
   return NextResponse.json({ path: depot.path });
 }

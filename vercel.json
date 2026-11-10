@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/purge-periscolaire",
       "schedule": "45 2 * * *"
+    },
+    {
+      "path": "/api/cron/rappels-tickets",
+      "schedule": "0 6 * * *"
     }
   ]
 }

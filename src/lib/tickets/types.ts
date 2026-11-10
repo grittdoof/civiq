@@ -82,6 +82,13 @@ export interface Ticket {
   transmis_a?: string | null;
   transmis_le?: string | null;
   transmis_reference?: string | null;
+  /** Rappel programmé (migration 062) */
+  rappel_le?: string | null;
+  rappel_avance_jours?: number;
+  rappel_repetition?: "aucune" | "annuelle";
+  rappel_envoye_at?: string | null;
+  rappel_origine_id?: string | null;
+  document_paths?: string[] | null;
 }
 
 export interface TicketPhoto {

@@ -33,7 +33,8 @@ async function calculer(slug: string, periode: PeriodePublique): Promise<PagePub
     .from("tickets")
     .select("categorie_id, statut, created_at, pris_en_charge_at, assigne_at, resolu_at, clos_at")
     .eq("commune_id", c.id)
-    .eq("confidentialite", "standard");
+    .eq("confidentialite", "standard")
+    .is("rappel_le", null);
   const tickets: TicketPublic[] = (lignes ?? [])
     .filter((t) => t.categorie_id)
     .map((t) => ({

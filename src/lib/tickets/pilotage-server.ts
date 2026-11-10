@@ -35,7 +35,8 @@ export async function chargerPilotage(communeId: string, s: Spectateur): Promise
       .from("tickets")
       .select("id, numero, titre, statut, urgence, priorite, categorie, created_at, pris_en_charge_at, assigne_at, clos_at, resolu_at, delai_cible_le, service_id, categorie_id, commune_id, created_by, assigne_a, confidentialite, adresse, latitude, longitude")
       .eq("commune_id", communeId)
-      .neq("confidentialite", "confidentiel"),
+      .neq("confidentialite", "confidentiel")
+      .is("rappel_le", null), // les rappels ne sont pas des interventions
     listerCategories(service, communeId),
     service.from("services").select("id, nom").eq("commune_id", communeId).is("deleted_at", null).order("ordre").order("nom"),
   ]);
