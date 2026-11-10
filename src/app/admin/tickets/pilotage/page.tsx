@@ -11,6 +11,7 @@ import {
 } from "@/lib/tickets/pilotage";
 import { URGENCES, URGENCE_LABELS, estUrgence } from "@/lib/tickets/categories";
 import TicketsMap from "../carte/TicketsMap";
+import TableauServices from "@/components/tickets/TableauServices";
 import PrintAutoTrigger from "../imprimer/PrintAutoTrigger";
 
 // ═══════════════════════════════════════════════════════════════
@@ -56,7 +57,6 @@ export default async function PilotagePage({ searchParams }: Props) {
   const al = alertes(tickets, JOURS_SANS_REPONSE, maintenant);
   const nomService = (id: string | null) => (id ? services.find((s) => s.id === id)?.nom ?? "Service supprimé" : "Sans service");
   const nomCategorie = (id: string | null) => (id ? categories.find((c) => c.id === id)?.libelle ?? "Catégorie supprimée" : "Sans catégorie");
-  const parService = tableau(tickets, periode, (t) => t.service_id, nomService, maintenant);
   const topCategories = tableau(tickets, periode, (t) => t.categorie_id, nomCategorie, maintenant)
     .filter((l) => l.crees > 0).sort((a, b) => b.crees - a.crees).slice(0, 6);
   const total = { ouverts: ind.ouverts, enCours: ind.enCours, enRetard: ind.enRetard, delaiMoyen: ind.delaiMoyen, clotures: ind.clotures };
@@ -187,53 +187,10 @@ export default async function PilotagePage({ searchParams }: Props) {
         </section>
       </div>
 
-      <section aria-labelledby="services" style={{ marginTop: 22 }}>
-        <h2 id="services" style={h2}>Par service — cliquez une ligne pour le détail par catégorie</h2>
-        <div className="tk-tableau">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Service</th><th scope="col" className="n">Ouverts</th><th scope="col" className="n">En cours</th>
-                <th scope="col" className="n">En retard</th><th scope="col" className="n">Délai moyen</th><th scope="col" className="n">Clôturés</th>
-                <th scope="col">Tendance (créés)</th>
-              </tr>
-            </thead>
-            {parService.map((l) => {
-              const tend = tendance(l.crees, l.creesPrecedente);
-              const sousLignes = tableau(tickets.filter((t) => (t.service_id ?? "__aucun") === l.cle), periode, (t) => t.categorie_id, nomCategorie, maintenant);
-              return (
-                <tbody key={l.cle} className="tk-tableau-groupe">
-                  <tr>
-                    <th scope="row">
-                      <details>
-                        <summary>{l.libelle}</summary>
-                      </details>
-                    </th>
-                    <td className="n">{l.ouverts}</td><td className="n">{l.enCours}</td>
-                    <td className="n" style={l.enRetard > 0 ? { color: "#8A4B00", fontWeight: 700 } : undefined}>{l.enRetard}</td>
-                    <td className="n">{formatJours(l.delaiMoyen)}</td><td className="n">{l.clotures}</td>
-                    <td style={{ color: tend.sens === "hausse" ? "#8A4B00" : tend.sens === "baisse" ? "#13693A" : "var(--fg-muted)", fontWeight: tend.sens === "stable" ? 400 : 600 }}>{tend.texte}</td>
-                  </tr>
-                  {sousLignes.map((s) => (
-                    <tr key={s.cle} className="tk-tableau-sous">
-                      <th scope="row">› {s.libelle}</th>
-                      <td className="n">{s.ouverts}</td><td className="n">{s.enCours}</td><td className="n">{s.enRetard}</td>
-                      <td className="n">{formatJours(s.delaiMoyen)}</td><td className="n">{s.clotures}</td>
-                      <td>{tendance(s.crees, s.creesPrecedente).texte}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              );
-            })}
-            <tbody>
-              <tr className="tk-tableau-total">
-                <th scope="row">Total</th><td className="n">{total.ouverts}</td><td className="n">{total.enCours}</td>
-                <td className="n">{total.enRetard}</td><td className="n">{formatJours(total.delaiMoyen)}</td><td className="n">{total.clotures}</td><td />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <TableauServices
+        tickets={tickets} periode={periode} maintenant={maintenant} total={total}
+        services={services} categories={categories.map((c) => ({ id: c.id, libelle: c.libelle }))}
+      />
 
       <div className="tk-pilotage-bas">
         <section aria-labelledby="top" className="civiq-card" style={{ padding: 18 }}>

@@ -260,7 +260,8 @@ body {
 }
 
 /* ── Main content ───────────────────────────────────────────────── */
-.civiq-content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
+/* position: relative : les éléments en position absolue (libellés .tk-sr-only…) restent dans la zone qui défile, sinon ils allongent la page sous la barre latérale. */
+.civiq-content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
 .civiq-main { flex: 1; padding: 32px 36px; max-width: 1100px; width: 100%; }
 .civiq-page-header {
   display: flex;
@@ -3336,7 +3337,26 @@ button.civiq-card,
 .tk-tableau summary { cursor: pointer; list-style: revert; }
 .tk-tableau-sous { display: none; background: var(--border-light); }
 .tk-tableau-sous th { font-weight: 500 !important; color: var(--fg-muted); padding-left: 32px !important; }
-.tk-tableau-groupe:has(details[open]) .tk-tableau-sous { display: table-row; }
+.tk-tableau-groupe:has(> tr:first-child details[open]) .tk-tableau-sous { display: table-row; }
+/* Tickets d'une catégorie : visibles quand le service et la catégorie sont dépliés */
+.tk-tableau-tickets { display: none; background: var(--card, #fff); }
+.tk-tableau-groupe:has(> tr:first-child details[open]) .tk-tableau-sous:has(details[open]) + .tk-tableau-tickets { display: table-row; }
+.tk-tableau-tickets > td { padding: 4px 12px 12px 44px !important; white-space: normal !important; }
+.tk-tableau-tickets ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.tk-tableau-tickets a {
+  display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 8px; border-radius: 8px;
+  color: var(--fg); text-decoration: none; font-size: 13.5px;
+}
+.tk-tableau-tickets a:hover, .tk-tableau-tickets a:focus-visible { background: var(--accent-light); }
+.tk-tableau-num { color: var(--fg-muted); font-variant-numeric: tabular-nums; min-width: 42px; }
+.tk-tableau-titre { flex: 0 1 auto; max-width: 460px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.tk-tableau-statut { font-size: 12px; font-weight: 600; color: var(--accent); }
+.tk-tableau-statut.clos { color: var(--fg-muted); }
+.tk-tableau-urgence { font-size: 12px; font-weight: 700; color: #8A4B00; }
+.tk-tableau-urgence[data-urgence="danger_immediat"] { color: var(--destructive); }
+.tk-tableau-date { font-size: 12px; color: var(--fg-muted); min-width: 52px; text-align: right; margin-left: auto; }
+.tk-tableau-nb { font-weight: 400; color: var(--fg-muted); }
+.tk-tableau-plus { margin: 6px 8px 0; font-size: 12.5px; color: var(--fg-muted); }
 .tk-tableau-total th, .tk-tableau-total td { font-weight: 800; border-bottom: 0; }
 .tk-pilotage-bas { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; }
 .tk-pilotage-bas > section { flex: 1 1 400px; min-width: 0; }

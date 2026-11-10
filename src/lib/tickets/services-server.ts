@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireModule } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
+import { listerCategories } from "./categories-server";
+import { rattachementsParCategorie } from "./categories";
 
 // ═══════════════════════════════════════════════════════════════
 // Services de la commune (lot 1) : lecture et contrôle d'accès
@@ -66,4 +68,16 @@ export function nomServiceValide(nom: unknown): string | null {
   if (typeof nom !== "string") return null;
   const n = nom.trim().replace(/\s+/g, " ");
   return n.length >= 2 && n.length <= 80 ? n : null;
+}
+
+/** Tickets sans service de la commune, regroupés par service par défaut de leur catégorie. */
+export async function rattachementsPossibles(service: Service, communeId: string): Promise<Map<string, string[]>> {
+  const [{ data: tickets }, categories, services] = await Promise.all([
+    service.from("tickets").select("id, categorie_id").eq("commune_id", communeId).is("service_id", null),
+    listerCategories(service, communeId),
+    listerServices(service, communeId),
+  ]);
+  return rattachementsParCategorie(
+    (tickets ?? []) as Array<{ id: string; categorie_id: string | null }>, categories, new Set(services.map((s) => s.id)),
+  );
 }
