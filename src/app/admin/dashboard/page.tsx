@@ -94,7 +94,9 @@ export default async function AdminDashboardPage() {
   let ticketsUrgent = 0;
   let ticketsResolved7d = 0;
   if (hasTickets) {
-    tickets = await listTickets(ctx.communeId, { limit: 200 }, await chargerSpectateur());
+    // Rappels programmés (en attente de leur date) : hors du tableau de bord.
+    tickets = (await listTickets(ctx.communeId, { limit: 200 }, await chargerSpectateur()))
+      .filter((t) => !(t.rappel_le && !t.rappel_envoye_at && t.statut === "en_attente"));
     const openStatuts = ["nouveau", "assigne", "pris_en_charge", "en_cours", "en_attente"];
     ticketsOpen = tickets.filter((t) => openStatuts.includes(t.statut)).length;
     ticketsUrgent = tickets.filter((t) => t.priorite === "urgente" && openStatuts.includes(t.statut)).length;

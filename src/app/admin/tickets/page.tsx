@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plus, Map as MapIcon, BarChart3, Printer, Settings, Search } from "lucide-react";
+import { Plus, Map as MapIcon, BarChart3, Printer, Settings, Search, BellRing } from "lucide-react";
+import { dateDeclenchement, estRappelProgramme, formatJour } from "@/lib/tickets/rappels";
 import { requireCommune } from "@/lib/auth-helpers";
 import { listTickets } from "@/lib/tickets/queries";
 import { droitsSurTicket, fonctionDe, peutCreer, valeurAction } from "@/lib/tickets/droits";
@@ -25,7 +26,7 @@ import LigneIntervention, { type DonneesLigne } from "@/components/tickets/Ligne
 // service / Ma délégation, Non assignés, Mes demandes, Tous) ;
 // tickets ouverts regroupés par urgence (danger → faible), triés par
 // délai cible puis ancienneté ; une action rapide par ligne.
-// Paramètres : ?vue=…&etat=ouverts|clotures&q=…
+// Paramètres : ?vue=…&etat=ouverts|rappels|clotures&q=…
 // (anciens liens ?filter=mes|ouverts|cloture|tous acceptés).
 // ═══════════════════════════════════════════════════════════════
 
@@ -73,11 +74,13 @@ export default async function TicketsListPage({ searchParams }: Props) {
   const vues = vuesDisponibles({ role: ctx.role, ligne: spectateur?.ligne ?? null, aDesServices: services.size > 0 });
   const vueDemandee = (sp.vue ?? (sp.filter === "mes" ? "moi" : sp.filter === "tous" ? "tous" : undefined)) as Vue | undefined;
   const vue: Vue = vueDemandee && vues.includes(vueDemandee) ? vueDemandee : vueParDefaut(fonction, vues);
-  const etat = sp.etat === "clotures" || sp.filter === "cloture" ? "clotures" : "ouverts";
+  const etat = sp.etat === "clotures" || sp.filter === "cloture" ? "clotures" : sp.etat === "rappels" ? "rappels" : "ouverts";
+  // Rappels programmés : hors des interventions en cours jusqu'à leur date.
+  const enCours = (t: TicketWithRelations) => estOuvert(t.statut) && !estRappelProgramme(t);
   const q = (sp.q ?? sp.search ?? "").trim();
 
   const parVue = (v: Vue) => filtrerVue(tickets, v, ctx.userId, services);
-  const comptes = Object.fromEntries(vues.map((v) => [v, parVue(v).filter((t) => estOuvert(t.statut)).length])) as Record<Vue, number>;
+  const comptes = Object.fromEntries(vues.map((v) => [v, parVue(v).filter(enCours).length])) as Record<Vue, number>;
 
   const recherche = (t: TicketWithRelations) => {
     if (!q) return true;
@@ -87,7 +90,10 @@ export default async function TicketsListPage({ searchParams }: Props) {
     return t.titre.toLowerCase().includes(s) || (t.description ?? "").toLowerCase().includes(s) || (t.adresse ?? "").toLowerCase().includes(s);
   };
   const dansVue = parVue(vue).filter(recherche);
-  const ouverts = dansVue.filter((t) => estOuvert(t.statut));
+  const ouverts = dansVue.filter(enCours);
+  // Tous les rappels programmés visibles, quelle que soit la vue
+  const rappels = tickets.filter((t) => estRappelProgramme(t)).filter(recherche)
+    .sort((a, b) => (a.rappel_le ?? "").localeCompare(b.rappel_le ?? ""));
   const clotures = dansVue
     .filter((t) => !estOuvert(t.statut))
     .sort((a, b) => (b.clos_at ?? b.updated_at).localeCompare(a.clos_at ?? a.updated_at));
@@ -110,7 +116,12 @@ export default async function TicketsListPage({ searchParams }: Props) {
         ton: !ouvert ? "neutre" : t.statut === "nouveau" ? "info" : t.statut === "en_attente" ? "alerte" : "ok",
       });
     }
-    if (delai === "depasse") puces.push({ texte: "Délai dépassé", ton: "danger" });
+    if (estRappelProgramme(t)) {
+      puces.length = 0;
+      puces.push({ texte: `Rappel le ${formatJour(dateDeclenchement(t.rappel_le!, t.rappel_avance_jours))}`, ton: "info" });
+      puces.push({ texte: `Échéance ${formatJour(t.rappel_le!)}`, ton: "neutre" });
+      if (t.rappel_repetition === "annuelle") puces.push({ texte: "Chaque année", ton: "neutre" });
+    } else if (delai === "depasse") puces.push({ texte: "Délai dépassé", ton: "danger" });
     else if (delai === "proche") puces.push({ texte: "Délai proche", ton: "alerte" });
     if (t.transmis_a) puces.push({ texte: `Transmis : ${t.transmis_a}`, ton: "neutre" });
     if (estAMoi(t, ctx.userId) && vue !== "moi") puces.push({ texte: "À moi", ton: "info" });
@@ -133,7 +144,7 @@ export default async function TicketsListPage({ searchParams }: Props) {
   const lien = (o: { vue?: Vue; etat?: string }) => {
     const p = new URLSearchParams();
     p.set("vue", o.vue ?? vue);
-    if ((o.etat ?? etat) === "clotures") p.set("etat", "clotures");
+    if ((o.etat ?? etat) !== "ouverts") p.set("etat", o.etat ?? etat);
     if (q) p.set("q", q);
     return `/admin/tickets?${p.toString()}`;
   };
@@ -168,6 +179,11 @@ export default async function TicketsListPage({ searchParams }: Props) {
             </Link>
           )}
           {canCreate && (
+            <Link href="/admin/tickets/rappel/nouveau" className="civiq-btn civiq-btn-outline tk-page-header-link">
+              <BellRing size={14} /> <span>Programmer un rappel</span>
+            </Link>
+          )}
+          {canCreate && (
             <Link href="/admin/tickets/nouveau" className="civiq-btn civiq-btn-default tk-page-header-create">
               <Plus size={14} /> Nouveau ticket
             </Link>
@@ -188,11 +204,14 @@ export default async function TicketsListPage({ searchParams }: Props) {
       <div className="tk-outils">
         <div role="group" aria-label="État" className="tk-etat">
           <Link href={lien({ etat: "ouverts" })} aria-current={etat === "ouverts" ? "page" : undefined}>Ouverts · {ouverts.length}</Link>
+          {(rappels.length > 0 || etat === "rappels") && (
+            <Link href={lien({ etat: "rappels" })} aria-current={etat === "rappels" ? "page" : undefined}>Rappels · {rappels.length}</Link>
+          )}
           <Link href={lien({ etat: "clotures" })} aria-current={etat === "clotures" ? "page" : undefined}>Clôturés · {clotures.length}</Link>
         </div>
         <form action="/admin/tickets" method="get" className="tk-recherche" role="search">
           <input type="hidden" name="vue" value={vue} />
-          {etat === "clotures" && <input type="hidden" name="etat" value="clotures" />}
+          {etat !== "ouverts" && <input type="hidden" name="etat" value={etat} />}
           <Search size={15} aria-hidden="true" />
           <label className="tk-sr-only" htmlFor="tk-q">Rechercher un ticket</label>
           <input id="tk-q" name="q" defaultValue={q} placeholder="Titre, adresse ou n°…" />
@@ -216,6 +235,17 @@ export default async function TicketsListPage({ searchParams }: Props) {
               </ul>
             </section>
           ))
+        )
+      ) : etat === "rappels" ? (
+        rappels.length === 0 ? (
+          <div className="civiq-card tk-empty">
+            <p className="tk-empty-title">Aucun rappel programmé</p>
+            <p className="tk-empty-hint">« Programmer un rappel » crée un ticket qui s&apos;ouvre à la date choisie.</p>
+          </div>
+        ) : (
+          <ul className="tk-lignes">
+            {rappels.map((t) => <LigneIntervention key={t.id} t={versLigne(t)} communeId={ctx.communeId!} />)}
+          </ul>
         )
       ) : clotures.length === 0 ? (
         <div className="civiq-card tk-empty"><p className="tk-empty-title">Aucun ticket clôturé dans cette vue</p></div>

@@ -23,6 +23,8 @@ import { chargerLiens, chargerSpectateur, journaliserModification, versDroits } 
 import { URGENCE_LABELS, cheminCategorie, estUrgence, type Urgence } from "./categories";
 import { listerCategories } from "./categories-server";
 import { destinatairesAuto, estPeriscolaire, validerPeriscolaire, type PrecisionsPeriscolaire } from "./periscolaire";
+import { aujourdhuiParis, estRappelProgramme, validerRappel } from "./rappels";
+import { membresDuService, reglagesParDefautRappel, reprogrammerSiAnnuel } from "./rappels-server";
 
 // ═══════════════════════════════════════════════════════════════
 // Server Actions du module Tickets
@@ -427,6 +429,8 @@ export async function updateTicketStatus(ticketId: string, newStatut: TicketStat
   const { error } = await service.from("tickets").update(updates).eq("id", ticketId);
   if (error) throw new Error(error.message);
   await journaliserModification(ticket, "statut", { statut: newStatut });
+  // Rappel annuel clôturé : celui de l'année suivante est programmé.
+  if (newStatut === "resolu" || newStatut === "clos") await reprogrammerSiAnnuel(service, ticketId);
 
   revalidatePath(`/admin/tickets/${ticketId}`);
   revalidatePath("/admin/tickets");
@@ -1084,6 +1088,7 @@ export async function closeTicketWithReport(input: CloseTicketInput): Promise<vo
   }
   const { error: tErr } = await service.from("tickets").update(updates).eq("id", input.ticketId);
   if (tErr) throw new Error(tErr.message);
+  await reprogrammerSiAnnuel(service, input.ticketId);
 
   // Audit : clôture avec rapport
   await writeAudit({
@@ -1219,4 +1224,86 @@ export async function listerPersonnesCommune(): Promise<Array<{ id: string; full
     .in("role", ["admin", "editor"])
     .order("full_name");
   return (data ?? []) as Array<{ id: string; full_name: string | null; job_title: string | null }>;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// Tickets de rappel programmé
+// ═══════════════════════════════════════════════════════════════
+
+export interface CreerRappelInput {
+  titre: string;
+  description?: string | null;
+  rappel_le: string;
+  avance_jours: number;
+  repetition: "aucune" | "annuelle";
+  /** Personnes prévenues en plus de l'auteur et du service. */
+  destinataire_ids?: string[];
+}
+
+/**
+ * Crée un rappel : rattaché au service « Administration générale »,
+ * restreint (visible des membres de ce service, de l'auteur, des
+ * personnes choisies et de la direction), assigné à son auteur.
+ */
+export async function creerRappel(input: CreerRappelInput): Promise<{ id: string; numero: number }> {
+  const ctx = await getAuthContext();
+  if (!ctx) throw new Error("Non authentifié");
+  if (!ctx.communeId) throw new Error("Aucune commune attribuée");
+  const spectateur = await chargerSpectateur();
+  if (!spectateur || !peutCreer(spectateur)) throw new Error("Permissions insuffisantes pour créer un rappel");
+
+  const saisie = validerRappel(input as unknown as Record<string, unknown>, aujourdhuiParis());
+  const service = await createServiceClient();
+  const { categorieId, serviceId } = await reglagesParDefautRappel(service, ctx.communeId);
+  const membres = await membresDuService(service, serviceId);
+  const choisis = [...new Set((input.destinataire_ids ?? []).filter(Boolean))];
+  await verifierServiceEtPersonnes(service, ctx.communeId, serviceId, choisis);
+  const auteurEquipe = ctx.role === "admin" || ctx.role === "editor";
+  const destinataires = [...new Set([...(auteurEquipe ? [ctx.userId] : []), ...membres, ...choisis])];
+  const confidentialite = destinataires.length > 0 ? "restreint" : "standard";
+  const now = new Date().toISOString();
+
+  const { data: cree, error } = await service.from("tickets").insert({
+    commune_id: ctx.communeId, created_by: ctx.userId, canal: "agent_interne",
+    titre: saisie.titre, description: saisie.description,
+    categorie_id: categorieId, ...(categorieId ? {} : { categorie: "autre" }),
+    service_id: serviceId, confidentialite, urgence: "normale", statut: "en_attente",
+    assigne_a: ctx.userId, assigne_at: now,
+    rappel_le: saisie.rappel_le, rappel_avance_jours: saisie.avance_jours, rappel_repetition: saisie.repetition,
+  }).select("id, numero").single();
+  if (error || !cree) throw new Error(error?.message || "Création du rappel échouée");
+
+  await service.from("ticket_assignees").insert({ ticket_id: cree.id, profile_id: ctx.userId, assigned_by: ctx.userId });
+  if (destinataires.length > 0) {
+    await service.from("ticket_destinataires").insert(
+      destinataires.map((profile_id) => ({ ticket_id: cree.id, profile_id, ajoute_par: ctx.userId })),
+    );
+  }
+  await journaliserModification(
+    { id: cree.id, numero: cree.numero, commune_id: ctx.communeId, confidentialite }, "creation", { rappel: saisie.rappel_le },
+  );
+  revalidatePath("/admin/tickets");
+  return { id: cree.id as string, numero: cree.numero as number };
+}
+
+/** Modifie l'échéance, l'anticipation ou la répétition d'un rappel pas encore déclenché. */
+export async function modifierRappel(
+  ticketId: string, input: { rappel_le: string; avance_jours: number; repetition: "aucune" | "annuelle" },
+): Promise<void> {
+  const { ticket, service, droits } = await authorizeTicketMutation(ticketId);
+  exiger(droits.modifier, "Vous ne pouvez pas modifier ce rappel");
+  const { data: t } = await service.from("tickets").select("titre, statut, rappel_le, rappel_envoye_at").eq("id", ticketId).maybeSingle();
+  if (!t?.rappel_le) throw new Error("Ce ticket n'est pas un rappel");
+  if (!estRappelProgramme(t as { statut: string; rappel_le: string | null; rappel_envoye_at: string | null })) {
+    throw new Error("Ce rappel est déjà parti : il ne se reprogramme plus");
+  }
+  const saisie = validerRappel({ ...input, titre: t.titre }, aujourdhuiParis());
+  const { error } = await service.from("tickets").update({
+    rappel_le: saisie.rappel_le, rappel_avance_jours: saisie.avance_jours, rappel_repetition: saisie.repetition,
+  }).eq("id", ticketId);
+  if (error) throw new Error(error.message);
+  await journaliserModification(ticket, "rappel", { rappel: saisie.rappel_le });
+  revalidatePath(`/admin/tickets/${ticketId}`);
+  revalidatePath("/admin/tickets");
 }

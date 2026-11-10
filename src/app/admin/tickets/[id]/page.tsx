@@ -12,6 +12,8 @@ import { getTicket, getRapportDocuments } from "@/lib/tickets/queries";
 import { urlPhoto } from "@/lib/tickets/pieces";
 import PhotoGallery, { type PhotoGalerie } from "@/components/tickets/PhotoGallery";
 import TicketVisibilite from "@/components/tickets/TicketVisibilite";
+import RappelCarte from "@/components/tickets/RappelCarte";
+import { estRappelProgramme } from "@/lib/tickets/rappels";
 import { chargerSpectateur, journalDesAcces, journaliserConsultation } from "@/lib/tickets/droits-server";
 import { listerPersonnesCommune } from "@/lib/tickets/mutations";
 import { createServiceClient } from "@/lib/supabase-server";
@@ -116,7 +118,11 @@ export default async function TicketDetailPage({ params }: Props) {
   });
   const signalementPhotos = photos.filter((p) => p.type === "signalement").map(versGalerie);
   const serviceFaitPhotos = photos.filter((p) => p.type === "service_fait").map(versGalerie);
-  const rapportDocuments = await getRapportDocuments(ticket.commune_id, ticket.id, rapport?.document_paths);
+  const [rapportDocuments, piecesTicket] = await Promise.all([
+    getRapportDocuments(ticket.commune_id, ticket.id, rapport?.document_paths),
+    // Pièces jointes du ticket lui-même (rappels, migration 062)
+    getRapportDocuments(ticket.commune_id, ticket.id, ticket.document_paths),
+  ]);
 
   const dateFormat = (iso: string | null) =>
     iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
@@ -150,6 +156,18 @@ export default async function TicketDetailPage({ params }: Props) {
       <div className="tk-detail-grid">
         {/* Colonne gauche : contenu */}
         <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {ticket.rappel_le && (
+            <RappelCarte
+              ticketId={ticket.id}
+              rappelLe={ticket.rappel_le}
+              avance={ticket.rappel_avance_jours ?? 0}
+              repetition={ticket.rappel_repetition ?? "aucune"}
+              envoyeLe={ticket.rappel_envoye_at ?? null}
+              programme={estRappelProgramme(ticket)}
+              peutModifier={canEdit}
+              pieces={piecesTicket.map((p) => ({ nom: p.nom, url: p.url, telechargement: p.telechargement, ouvrir: p.ouvrir }))}
+            />
+          )}
           {/* Photos signalement */}
           {signalementPhotos.length > 0 && (
             <div>

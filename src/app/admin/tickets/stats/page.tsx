@@ -25,7 +25,8 @@ export default async function TicketsStatsPage() {
     if (!active) redirect("/admin/dashboard?module=tickets&state=inactive");
   }
 
-  const tickets = await listTickets(ctx.communeId, { limit: 1000 }, await chargerSpectateur());
+  // Les rappels programmés (migration 062) ne sont pas des interventions.
+  const tickets = (await listTickets(ctx.communeId, { limit: 1000 }, await chargerSpectateur())).filter((t) => !t.rappel_le);
   const visibles = new Set(tickets.map((t) => t.id));
 
   // Vue reporting enrichie (migration 013)
