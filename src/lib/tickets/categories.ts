@@ -258,3 +258,20 @@ export function suggererCategorie(
   }
   return meilleur && meilleur.score >= 2 ? meilleur : null;
 }
+
+/**
+ * Tickets sans service à rattacher au service par défaut de leur
+ * catégorie (ou de sa catégorie parente) : service → ids des tickets.
+ * Un service supprimé n'est jamais proposé.
+ */
+export function rattachementsParCategorie(
+  tickets: Array<{ id: string; categorie_id: string | null }>, cats: CategorieTicket[], servicesActifs: Set<string>,
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const t of tickets) {
+    const s = reglagesEffectifs(t.categorie_id, cats).serviceId;
+    if (!s || !servicesActifs.has(s)) continue;
+    out.set(s, [...(out.get(s) ?? []), t.id]);
+  }
+  return out;
+}

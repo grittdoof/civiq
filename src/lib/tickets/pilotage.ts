@@ -157,6 +157,22 @@ export function tableau(
   }).sort((a, b) => b.ouverts - a.ouverts || b.crees - a.crees || a.libelle.localeCompare(b.libelle, "fr"));
 }
 
+const RANG_URGENCE: Record<string, number> = { danger_immediat: 0, urgente: 1, normale: 2, faible: 3 };
+
+/**
+ * Tickets d'une ligne du tableau, à lister au dépliage : les ouverts
+ * (les plus urgents puis les plus anciens d'abord), puis ceux clôturés
+ * pendant la période (les plus récents d'abord). Jamais de ticket masqué.
+ */
+export function ticketsDeLigne<T extends TicketPilotage>(tickets: T[], p: Periode, maintenant = new Date()): T[] {
+  const { debut } = bornesPeriode(p, maintenant);
+  const ouverts = tickets.filter((t) => !t.masque && ouvert(t))
+    .sort((a, b) => (RANG_URGENCE[a.urgence] ?? 9) - (RANG_URGENCE[b.urgence] ?? 9) || ms(a.created_at) - ms(b.created_at));
+  const clos = tickets.filter((t) => { const f = fermeLe(t); return !t.masque && !ouvert(t) && !!f && ms(f) >= debut.getTime(); })
+    .sort((a, b) => ms(fermeLe(b)!) - ms(fermeLe(a)!));
+  return [...ouverts, ...clos];
+}
+
 /** « En hausse : +9 », « En baisse : −2 », « Stable ». */
 export function tendance(maintenant: number, avant: number): { texte: string; sens: "hausse" | "baisse" | "stable" } {
   const d = maintenant - avant;

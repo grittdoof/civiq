@@ -82,3 +82,35 @@ describe("prise en charge (recette)", () => {
     expect(priseEnChargeLe({ pris_en_charge_at: null, assigne_at: null })).toBeNull();
   });
 });
+
+describe("dépliage par catégorie et rattachement aux services", () => {
+  it("liste les ouverts (urgents d'abord) puis les clôturés de la période, jamais les masqués", async () => {
+    const { ticketsDeLigne } = await import("@/lib/tickets/pilotage");
+    const base = { pris_en_charge_at: null, resolu_at: null, delai_cible_le: null, service_id: null, categorie_id: "c", categorie_racine_id: "c", masque: false };
+    const maintenant = new Date("2026-11-10T12:00:00Z");
+    const l = ticketsDeLigne([
+      { ...base, id: "a", numero: 1, statut: "assigne", urgence: "normale", created_at: "2026-10-01T00:00:00Z", clos_at: null },
+      { ...base, id: "b", numero: 2, statut: "nouveau", urgence: "urgente", created_at: "2026-11-01T00:00:00Z", clos_at: null },
+      { ...base, id: "c", numero: 3, statut: "clos", urgence: "normale", created_at: "2026-10-20T00:00:00Z", clos_at: "2026-11-05T00:00:00Z" },
+      { ...base, id: "d", numero: 4, statut: "clos", urgence: "normale", created_at: "2026-01-01T00:00:00Z", clos_at: "2026-02-01T00:00:00Z" },
+      { ...base, id: "e", numero: 5, statut: "nouveau", urgence: "danger_immediat", created_at: "2026-11-02T00:00:00Z", clos_at: null, masque: true },
+    ] as never, "30j", maintenant);
+    expect(l.map((t: { id: string }) => t.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("rattache au service de la catégorie ou de sa parente, jamais à un service supprimé", async () => {
+    const { rattachementsParCategorie } = await import("@/lib/tickets/categories");
+    const b = { icone: null, ordre: 1, actif: true, urgence_defaut: null, confidentialite_defaut: null, delai_cible_heures: null, gestionnaire_externe: null, consigne_urgence: null };
+    const cats = [
+      { ...b, id: "voi", parent_id: null, code: "voirie", libelle: "Voirie", service_defaut_id: "st" },
+      { ...b, id: "nid", parent_id: "voi", code: "nid", libelle: "Nid", service_defaut_id: null },
+      { ...b, id: "ev", parent_id: null, code: "ev", libelle: "Espaces verts", service_defaut_id: null },
+      { ...b, id: "old", parent_id: null, code: "old", libelle: "Ancien", service_defaut_id: "supprime" },
+    ];
+    const m = rattachementsParCategorie(
+      [{ id: "1", categorie_id: "nid" }, { id: "2", categorie_id: "voi" }, { id: "3", categorie_id: "ev" }, { id: "4", categorie_id: "old" }, { id: "5", categorie_id: null }],
+      cats as never, new Set(["st"]),
+    );
+    expect([...m.entries()]).toEqual([["st", ["1", "2"]]]);
+  });
+});

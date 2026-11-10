@@ -4,7 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { requireCommune } from "@/lib/auth-helpers";
 import { isModuleActive } from "@/lib/module-guard";
 import { createServiceClient } from "@/lib/supabase-server";
-import { listerEquipe, listerServices } from "@/lib/tickets/services-server";
+import { listerEquipe, listerServices, rattachementsPossibles } from "@/lib/tickets/services-server";
+import RattacherServices from "@/components/tickets/RattacherServices";
 import { chargerSpectateur } from "@/lib/tickets/droits-server";
 import { FONCTIONS_MATRICE, PORTEES, fonctionDe } from "@/lib/tickets/droits";
 import ServicesEditor from "@/components/tickets/ServicesEditor";
@@ -31,7 +32,7 @@ export default async function ParametresTicketsPage() {
   if (ctx.role !== "admin" && ctx.role !== "super_admin") redirect("/admin/tickets");
 
   const service = await createServiceClient();
-  const [services, equipe, spectateur, categories, { count: nbAutre }, { data: reglage }, { data: commune }, { data: sites }] = await Promise.all([
+  const [services, equipe, spectateur, categories, { count: nbAutre }, { data: reglage }, { data: commune }, { data: sites }, rattachables, { count: nbSansService }] = await Promise.all([
     listerServices(service, ctx.communeId),
     listerEquipe(service, ctx.communeId),
     chargerSpectateur(),
@@ -40,7 +41,10 @@ export default async function ParametresTicketsPage() {
     service.from("commune_settings").select("tickets_public_actif, tickets_public_categories, tickets_effacement_enfant_mois").eq("commune_id", ctx.communeId).maybeSingle(),
     service.from("communes").select("slug").eq("id", ctx.communeId).maybeSingle(),
     service.from("sites").select("id, nom, type, adresse").eq("commune_id", ctx.communeId).is("deleted_at", null).order("nom"),
+    rattachementsPossibles(service, ctx.communeId),
+    service.from("tickets").select("id", { count: "exact", head: true }).eq("commune_id", ctx.communeId).is("service_id", null),
   ]);
+  const nbRattachables = [...rattachables.values()].reduce((n, ids) => n + ids.length, 0);
   const racines = categories.filter((c) => !c.parent_id && c.actif);
   const { data: profil } = await service.from("profiles").select("job_title").eq("id", ctx.userId).maybeSingle();
   const maFonction = FONCTIONS_MATRICE.find((f) => f.fonction === fonctionDe(profil?.job_title))?.libelle;
@@ -73,6 +77,7 @@ export default async function ParametresTicketsPage() {
           À la création d&apos;un ticket, la catégorie propose son service, son urgence et sa visibilité, et calcule le délai cible.
           Une sous-catégorie sans réglage reprend ceux de sa catégorie.
         </p>
+        {(nbSansService ?? 0) > 0 && <RattacherServices possibles={nbRattachables} sansService={nbSansService ?? 0} />}
         <CategoriesEditor initial={categories} services={services.map((s) => ({ id: s.id, nom: s.nom }))} />
       </section>
 
