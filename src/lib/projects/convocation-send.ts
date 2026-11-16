@@ -191,6 +191,8 @@ export async function sendSessionConvocations(opts: {
   sessionId: string;
   memberIds?: string[] | null;
   isReminder?: boolean;
+  /** Convocation modifiée (date, lieu ou ordre du jour). */
+  isUpdate?: boolean;
 }): Promise<SendConvocationsResult | null> {
   const { service, sessionId } = opts;
   const ctx = await loadSessionContext(service, sessionId);
@@ -260,6 +262,7 @@ export async function sendSessionConvocations(opts: {
       googleUrl: googleCalendarUrl(cal),
       outlookUrl: outlookCalendarUrl(cal),
       isReminder: opts.isReminder,
+      isUpdate: opts.isUpdate,
     });
     return {
       to: r.email!,
@@ -328,7 +331,9 @@ export async function sendSessionConvocations(opts: {
       const { sendProjectNotification } = await import("./push");
       await sendProjectNotification({
         profileIds: pushIds,
-        title: opts.isReminder
+        title: opts.isUpdate
+          ? `✏️ Séance modifiée : ${ctx.commission.nom}`
+          : opts.isReminder
           ? `🔔 Rappel : ${ctx.commission.nom}`
           : `📣 Convocation : ${ctx.commission.nom}`,
         body: `${dateLabel}${ctx.lieu ? ` — ${ctx.lieu}` : ""}`,

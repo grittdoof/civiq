@@ -10,6 +10,7 @@ import MinutesEditor from "@/components/projects/MinutesEditor";
 import SessionDocumentsEditor from "@/components/projects/SessionDocumentsEditor";
 import SignedAttendanceUpload from "@/components/projects/SignedAttendanceUpload";
 import SessionSecretarySelector from "@/components/projects/SessionSecretarySelector";
+import SessionInfosEditor from "@/components/projects/SessionInfosEditor";
 import ConvocationsPanel from "@/components/projects/ConvocationsPanel";
 import { createServiceClient } from "@/lib/supabase-server";
 import { listConvocationRecipients } from "@/lib/projects/convocation-send";
@@ -100,6 +101,17 @@ export default async function SessionDetailPage({ params }: PageProps) {
               canEdit={canManageDocs}
             />
           </div>
+          {canManageDocs && (
+            <SessionInfosEditor
+              commissionId={id}
+              sessionId={sid}
+              dateSeance={detail.session.date_seance}
+              lieu={detail.session.lieu}
+              ordreDuJour={detail.session.ordre_du_jour}
+              convoques={convocations.filter((c) => c.convocation?.sent_at).map((c) => c.member_id)}
+              locked={detail.session.compte_rendu_valide}
+            />
+          )}
         </div>
         <div className="pj-page-header-actions">
           <a

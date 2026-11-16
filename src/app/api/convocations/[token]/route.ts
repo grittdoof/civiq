@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase-server";
 
 // POST /api/convocations/:token — réponse publique à une convocation
 //   body : { status: "accepted" | "declined", comment?: string }
+//   (comment absent = message existant conservé)
 //
 // Pas d'authentification : le jeton (192 bits, personnel, reçu par
 // email) fait office de preuve. Fonctionne donc pour les membres
@@ -36,14 +37,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   }
 
   const now = new Date().toISOString();
+  const updates: Record<string, unknown> = { status: body.status, responded_at: now, updated_at: now };
+  // Réponse en un clic depuis l'email : pas de champ « comment » → on ne
+  // touche pas au message déjà laissé.
+  if ("comment" in body) updates.response_comment = body.comment?.trim().slice(0, 500) || null;
   const { error } = await service
     .from("session_convocations")
-    .update({
-      status: body.status,
-      response_comment: body.comment?.trim().slice(0, 500) || null,
-      responded_at: now,
-      updated_at: now,
-    })
+    .update(updates)
     .eq("id", conv.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

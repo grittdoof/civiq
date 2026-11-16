@@ -39,6 +39,8 @@ export interface ConvocationEmailParams {
   googleUrl: string | null;
   outlookUrl: string | null;
   isReminder?: boolean;
+  /** La date, le lieu ou l'ordre du jour ont changé depuis le premier envoi. */
+  isUpdate?: boolean;
   /** Copie pour information (secrétariat) : noms des membres convoqués. */
   copieDe?: string[];
 }
@@ -58,6 +60,8 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
   const hello = p.recipientName?.trim() ? `Bonjour ${esc(p.recipientName.trim())},` : "Bonjour,";
   const intro = p.copieDe
     ? `Copie pour information de la convocation adressée aux membres de la commission <strong>${esc(p.commissionName)}</strong>${p.copieDe.length ? ` (${p.copieDe.length} destinataire${p.copieDe.length > 1 ? "s" : ""} : ${esc(p.copieDe.join(", "))})` : ""}.`
+    : p.isUpdate
+    ? `La séance de la commission <strong>${esc(p.commissionName)}</strong> a été modifiée. Voici la convocation à jour. Si vous avez déjà répondu, votre réponse est conservée.`
     : p.isReminder
     ? `Pour rappel, vous êtes convoqué·e à la séance de la commission <strong>${esc(p.commissionName)}</strong>.`
     : `Vous êtes convoqué·e à la prochaine séance de la commission <strong>${esc(p.commissionName)}</strong>.`;
@@ -70,7 +74,7 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
     p.outlookUrl ? calendarButton(p.outlookUrl, "Outlook") : "",
   ].join("");
 
-  const title = p.copieDe ? "Copie de convocation" : p.isReminder ? "Rappel de convocation" : "Convocation";
+  const title = p.copieDe ? "Copie de convocation" : p.isUpdate ? "Convocation modifiée" : p.isReminder ? "Rappel de convocation" : "Convocation";
 
   const rows = `
     <tr>
@@ -131,7 +135,7 @@ export function buildConvocationEmail(p: ConvocationEmailParams): { subject: str
     .join("\n");
 
   return {
-    subject: `${p.copieDe ? "Copie — " : p.isReminder ? "Rappel — " : ""}Convocation : ${p.commissionName} — ${p.dateLabel}`,
+    subject: `${p.copieDe ? "Copie — " : p.isUpdate ? "Modification — " : p.isReminder ? "Rappel — " : ""}Convocation : ${p.commissionName} — ${p.dateLabel}`,
     html,
     text,
   };

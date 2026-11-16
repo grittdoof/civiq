@@ -57,3 +57,32 @@ describe("émargement : tous les membres figurent", () => {
     expect(peutPointer({ role: "viewer", userId: "x", secretaireId: null, cible })).toBe(false);
   });
 });
+
+describe("émargement : membres supprimés puis recréés (séance du 30/11/2026)", () => {
+  it("un ancien membre dont la ligne est vide n'apparaît pas", () => {
+    const membres = [
+      m({ id: "old", external_name: "BRIAND Annabelle", deleted_at: "2026-11-16T18:20:00Z" }),
+      m({ id: "new", external_name: "Annabelle Briand" }),
+    ];
+    const liste = listeEmargement(membres, [l({ commission_member_id: "old" }), l({ commission_member_id: "new" })]);
+    expect(liste.map((e) => e.nom)).toEqual(["Annabelle Briand"]);
+  });
+
+  it("un élu supprimé puis rajouté garde sa fiche active", () => {
+    const membres = [
+      m({ id: "old", user_id: "u1", profile: { full_name: "Jordan" }, deleted_at: "2026-11-16T18:20:00Z" }),
+      m({ id: "new", user_id: "u1", profile: { full_name: "Jordan" } }),
+    ];
+    const liste = listeEmargement(membres, [l({ conseiller_user_id: "u1" })]);
+    expect(liste).toHaveLength(1);
+    expect(liste[0]).toMatchObject({ member_id: "new", ancien: false });
+  });
+
+  it("une signature ou un statut d'un ancien membre est conservé", () => {
+    const liste = listeEmargement(
+      [m({ id: "old", external_name: "Signé", deleted_at: "2026-11-16T18:20:00Z" })],
+      [l({ commission_member_id: "old", signature_data: "data:image/png;base64,xx" })],
+    );
+    expect(liste[0]).toMatchObject({ nom: "Signé", ancien: true });
+  });
+});
