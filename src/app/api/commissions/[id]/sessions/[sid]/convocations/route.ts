@@ -7,7 +7,7 @@ import { listConvocationRecipients, sendSessionConvocations } from "@/lib/projec
 // GET  /api/commissions/:id/sessions/:sid/convocations
 //   → destinataires (email résolu) + statut d'envoi / de réponse
 // POST /api/commissions/:id/sessions/:sid/convocations
-//   body : { member_ids?: string[], reminder?: boolean }
+//   body : { member_ids?: string[], reminder?: boolean, update?: boolean }
 //   → envoie (ou renvoie) la convocation ; renvoie le rapport d'envoi
 
 export const maxDuration = 60;
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
   const g = await guardSession(id, sid);
   if ("error" in g) return g.error;
 
-  let body: { member_ids?: string[]; reminder?: boolean } = {};
+  let body: { member_ids?: string[]; reminder?: boolean; update?: boolean } = {};
   try { body = await req.json(); } catch { /* corps vide = tous les membres */ }
 
   try {
@@ -60,6 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       sessionId: sid,
       memberIds: Array.isArray(body.member_ids) ? body.member_ids : null,
       isReminder: Boolean(body.reminder),
+      isUpdate: Boolean(body.update),
     });
     if (!result) return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
 
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
         failed: result.failed.length,
         skipped: result.skipped.length,
         reminder: Boolean(body.reminder),
+        update: Boolean(body.update),
       },
     });
     return NextResponse.json({ result });

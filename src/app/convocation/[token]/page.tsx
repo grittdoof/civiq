@@ -12,11 +12,11 @@ import { toRichHtml } from "@/lib/projects/rich-text";
 // ═══════════════════════════════════════════════════════════════
 // /convocation/:token — page publique de réponse à une convocation.
 //
-// Atteinte depuis les boutons de l'email (?reponse=present|absent).
-// La réponse n'est PAS enregistrée à l'ouverture du lien : les
-// antivirus de messagerie (Outlook Safe Links, Gmail…) pré-ouvrent les
-// liens et fausseraient les réponses. Le choix est présélectionné,
-// l'utilisateur confirme d'un clic.
+// Atteinte depuis les boutons de l'email (?reponse=present|absent) : la
+// réponse est enregistrée aussitôt par le navigateur (RsvpForm) et la page
+// affiche la confirmation en tête. Le serveur, lui, n'enregistre rien à
+// l'ouverture du lien : les antivirus de messagerie (Outlook Safe Links,
+// Gmail…) pré-ouvrent les liens sans exécuter la page.
 // ═══════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
@@ -68,6 +68,21 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
   const closed = Boolean(sessionMeta?.compte_rendu_valide) || isPast;
 
   const intent = reponse === "present" ? "accepted" : reponse === "absent" ? "declined" : null;
+  const rsvp = (
+    <RsvpForm
+      token={token}
+      initialStatus={conv.status as "pending" | "accepted" | "declined"}
+      initialComment={conv.response_comment ?? ""}
+      intent={intent}
+      closed={closed}
+    />
+  );
+  // Lieu souvent sans adresse (« Salle du conseil ») : la recherche inclut la commune.
+  const itineraire = ctx.lieu
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+        [ctx.lieu, commune?.address ?? commune?.name].filter(Boolean).join(", "),
+      )}`
+    : null;
 
   return (
     <main className="cv-page">
@@ -84,6 +99,8 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
           {name && <p className="cv-hello">Bonjour {name},</p>}
         </header>
 
+        {intent && rsvp}
+
         <ul className="cv-infos">
           <li>
             <CalendarDays size={18} aria-hidden />
@@ -92,7 +109,10 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
           {ctx.lieu && (
             <li>
               <MapPin size={18} aria-hidden />
-              <span>{ctx.lieu}</span>
+              <span>
+                {ctx.lieu}
+                <a href={itineraire ?? undefined} target="_blank" rel="noreferrer" className="cv-maps">Itinéraire</a>
+              </span>
             </li>
           )}
         </ul>
@@ -105,13 +125,7 @@ export default async function ConvocationPage({ params, searchParams }: PageProp
           </section>
         )}
 
-        <RsvpForm
-          token={token}
-          initialStatus={conv.status as "pending" | "accepted" | "declined"}
-          initialComment={conv.response_comment ?? ""}
-          intent={intent}
-          closed={closed}
-        />
+        {!intent && rsvp}
 
         <section className="cv-calendar">
           <h2>Ajouter à mon agenda</h2>

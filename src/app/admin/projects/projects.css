@@ -3048,3 +3048,10 @@ button.pj-statut-membre { cursor: pointer; }
 .pj-subv-aide-faits dt { flex: none; min-width: 84px; color: var(--fg-muted); }
 .pj-subv-aide-faits dd { margin: 0; color: var(--fg); }
 .pj-subv-aide-source { margin: 0; font-size: 12px; color: var(--fg-muted); }
+
+/* Modifier une séance (date, lieu, ordre du jour) */
+.pj-session-infos { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pj-session-infos-msg { margin: 0; font-size: 14px; font-weight: 600; color: var(--success); }
+.pj-session-infos-form { margin-top: 12px; padding: 16px; display: grid; gap: 14px; max-width: 720px; }
+.pj-session-infos-field { display: grid; gap: 0; }
+.pj-session-infos-field .civiq-field-label { margin-bottom: 6px; }

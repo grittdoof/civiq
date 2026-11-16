@@ -1279,3 +1279,24 @@ Les policies Storage du bucket privé `tickets-photos` (migration 010) autorisai
 - **Appliquer 062 AVANT de déployer** : le pilotage, la page publique et les fiches lisent les nouvelles colonnes.
 - Pièces jointes : PDF, Word, Excel, OpenDocument, texte (formats du bucket) ; pas d'images.
 - Sans membre dans le service et avec un auteur super-admin, le rappel est « standard » (visibilité restreinte impossible sans destinataire).
+
+## Session 34 — Commissions : modifier une séance et un membre, émargement en double, réponse en un clic (2026-11-16)
+
+### Prompt de départ
+> « On ne peut pas modifier le lieu d'une séance oublié, ni l'email d'un conseiller oublié. Une adjointe a supprimé puis recréé ses membres : 12 lignes d'émargement au lieu de 7 (séance du 30/11/2026, « ne fait plus partie de la commission »). Dans l'email de convocation, « Je serai présent » doit enregistrer la réponse directement, sans second clic. »
+
+### Constat (base de production, séance du 30/11/2026 19 h 30, commission « Affaires sanitaires, sociales et à la jeunesse »)
+- 5 membres externes sans email supprimés le 16/11 puis recréés (3 avec compte, 2 externes avec email). `ensure_session_attendance` leur avait créé une ligne d'émargement vide ; la ligne bloquait la suppression réelle (FK) → suppression logique → affichés « ancien membre ». Lieu enregistré : « Salle du ».
+- La route `PATCH …/sessions/:sid` acceptait déjà date, lieu et ordre du jour : aucun écran ne l'appelait.
+
+### Livrés (aucune migration)
+- **Modifier la séance** : `SessionInfosEditor` sous le titre de la séance (date, lieu, ordre du jour), tant que le compte rendu n'est pas validé. Si la convocation est partie : case « Prévenir les membres déjà convoqués » → **convocation modifiée** (`isUpdate` : objet « Modification — Convocation : … », titre « Convocation modifiée », push « Séance modifiée ») ; les réponses déjà données sont conservées (même jeton).
+- **Modifier un membre** : crayon sur chaque membre ; nom, email, téléphone pour un membre sans compte (`PATCH …/members/:mid`, fiche `contacts` mise à jour), rôle pour tous. Un membre avec compte : email = celui du compte (refus explicite). Repère « Pas d'email : ne recevra pas les convocations · Ajouter l'email ». La confirmation de suppression oriente vers le crayon.
+- **Émargement** : un ancien membre n'apparaît que si sa présence a été renseignée (statut ou signature) — `ligneRenseignee` ; un élu supprimé puis rajouté garde sa fiche active. À la suppression d'un membre, ses lignes vides des séances ouvertes sont retirées (`retirerLignesVides`), ce qui permet la suppression réelle. La séance du 30/11 affiche 7 membres sans retouche des données.
+- **Réponse en un clic** : depuis l'email, la page `/convocation/<jeton>?reponse=…` enregistre la réponse **dans le navigateur** au chargement, puis affiche « Merci, nous vous confirmons votre présence. » ou « Nous avons bien pris en compte votre absence. » en tête, avec message facultatif et changement d'avis ; `?reponse=` retiré de l'adresse. Le serveur n'enregistre toujours rien à l'ouverture du lien (les antivirus de messagerie pré-ouvrent les liens sans exécuter la page). `POST /api/convocations/:token` ne modifie le message que si `comment` est envoyé. Lien « Itinéraire » à côté du lieu.
+- Tests : `emargement.test.ts` (+3), `commissions-agenda.test.ts` (+1) → 374 ✓ ; `tsc` 0 ; `next build` OK ; parcours de réponse vérifié dans le navigateur (page de test temporaire, requêtes simulées, non commitée).
+
+### Points d'attention
+- Un antivirus qui exécute le JavaScript des pages (rare : bac à sable de certaines passerelles) pourrait enregistrer une réponse ; l'élu peut la corriger depuis la même page.
+- Le lieu « Salle du » de la séance du 30/11 reste à corriger par la mairie (nouvel écran), avec envoi de la convocation modifiée.
+- Non traité : un annuaire du conseil municipal défini en amont des commissions (proposé à part).

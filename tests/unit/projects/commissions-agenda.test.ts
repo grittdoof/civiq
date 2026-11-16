@@ -88,3 +88,16 @@ describe("agenda filtré par commission et nommé", () => {
     expect(lireCommissions([C1, C1, "pas-un-id"])).toEqual([C1]);
   });
 });
+
+describe("convocation modifiée", () => {
+  it("objet et texte signalent la modification, réponses conservées", () => {
+    const e = buildConvocationEmail({
+      siteUrl: "https://www.gociviq.fr", commune: { name: "Châteauneuf" }, commissionName: "Voirie",
+      dateLabel: "lundi 30 novembre 2026 à 19 h 30", googleUrl: null, outlookUrl: null, isUpdate: true,
+      acceptUrl: "https://x/convocation/t?reponse=present", declineUrl: "https://x/convocation/t?reponse=absent",
+    });
+    expect(e.subject.startsWith("Modification — Convocation : Voirie")).toBe(true);
+    expect(e.html).toContain("Convocation modifiée");
+    expect(e.html).toContain("votre réponse est conservée");
+  });
+});

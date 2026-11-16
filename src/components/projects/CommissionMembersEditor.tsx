@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, UserCheck } from "lucide-react";
+import { Pencil, Plus, Trash2, UserCheck } from "lucide-react";
 import type { CommissionMember, CommissionMemberRole } from "@/lib/projects/types";
 
 interface Profile { id: string; full_name: string | null; job_title: string | null; }
@@ -40,6 +40,51 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
   const [role, setRole] = useState<CommissionMemberRole>("membre");
   const [suppleant, setSuppleant] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Modification d'un membre existant (oubli de l'email, faute de frappe…)
+  const [editId, setEditId] = useState<string | null>(null);
+  const [eName, setEName] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [ePhone, setEPhone] = useState("");
+  const [eRole, setERole] = useState<CommissionMemberRole>("membre");
+  const [eSaving, setESaving] = useState(false);
+  const [eError, setEError] = useState<string | null>(null);
+
+  function startEdit(m: Row) {
+    setEditId(m.id);
+    setEName(m.external_name ?? "");
+    setEEmail(m.external_email ?? "");
+    setEPhone(m.external_phone ?? "");
+    setERole(m.role);
+    setEError(null);
+  }
+
+  async function saveEdit(m: Row) {
+    if (eSaving) return;
+    const body: Record<string, unknown> = { role: eRole };
+    if (!m.user_id) {
+      if (!eName.trim()) { setEError("Le nom est obligatoire."); return; }
+      body.external_name = eName.trim();
+      body.external_email = eEmail.trim();
+      body.external_phone = ePhone.trim();
+    }
+    setESaving(true);
+    setEError(null);
+    try {
+      const res = await fetch(`/api/commissions/${commissionId}/members/${m.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; member?: Partial<Row> };
+      if (!res.ok) throw new Error(data.error ?? "La modification n'a pas été enregistrée.");
+      setRows((r) => r.map((x) => (x.id === m.id ? { ...x, ...data.member } as Row : x)));
+      setEditId(null);
+      router.refresh();
+    } catch (e) {
+      setEError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setESaving(false);
+    }
+  }
 
   function reset() {
     setAdding(false);
@@ -89,7 +134,7 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
   }
 
   async function remove(mid: string) {
-    if (!confirm("Retirer ce conseiller ?")) return;
+    if (!confirm("Retirer ce conseiller de la commission ?\n\nPour corriger son nom ou son email, utilisez plutôt le crayon.")) return;
     const res = await fetch(`/api/commissions/${commissionId}/members/${mid}`, { method: "DELETE" });
     if (res.ok) {
       setRows(rows.filter((r) => r.id !== mid));
@@ -126,6 +171,39 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
         <ul className="pj-subs">
           {rows.map((m) => {
             const noAcc = !m.user_id;
+            if (editId === m.id) {
+              return (
+                <li key={m.id} className="pj-sub-row" style={{ display: "block" }}>
+                  <div className="pj-add-form" style={{ marginTop: 0 }}>
+                    {noAcc ? (
+                      <>
+                        <input placeholder="Nom complet *" aria-label="Nom complet" className="pj-input" value={eName} onChange={(e) => setEName(e.target.value)} />
+                        <input placeholder="Email" aria-label="Email" type="email" className="pj-input" value={eEmail} onChange={(e) => setEEmail(e.target.value)} />
+                        <input placeholder="Téléphone (facultatif)" aria-label="Téléphone" className="pj-input" style={{ gridColumn: "1 / -1" }} value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
+                      </>
+                    ) : (
+                      <p className="pj-table-sub" style={{ gridColumn: "1 / -1", margin: 0 }}>
+                        <strong>{memberDisplayName(m)}</strong> a un compte GoCiviq : les convocations partent à l&apos;email de son compte.
+                      </p>
+                    )}
+                    <select value={eRole} aria-label="Rôle" className="pj-input" style={{ gridColumn: "1 / -1" }} onChange={(e) => setERole(e.target.value as CommissionMemberRole)}>
+                      <option value="membre">Rôle : Membre</option>
+                      <option value="vice_president">Rôle : Vice-président·e</option>
+                      <option value="president">Rôle : Président·e</option>
+                    </select>
+                    {eError && <div className="pj-modal-error" role="alert" style={{ gridColumn: "1 / -1" }}>{eError}</div>}
+                    <div className="pj-add-form-actions">
+                      <button type="button" onClick={() => saveEdit(m)} disabled={eSaving} className="civiq-btn civiq-btn-default civiq-btn-sm">
+                        {eSaving ? "Enregistrement…" : "Enregistrer"}
+                      </button>
+                      <button type="button" onClick={() => setEditId(null)} className="civiq-btn civiq-btn-ghost civiq-btn-sm">
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            }
             return (
               <li key={m.id} className="pj-sub-row">
                 <span style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
@@ -149,6 +227,12 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
                         {m.external_email}
                       </div>
                     )}
+                    {noAcc && !m.external_email && (
+                      <div className="pj-table-sub" style={{ marginTop: 1, color: "var(--destructive)" }}>
+                        Pas d&apos;email : ne recevra pas les convocations.
+                        {canEdit && <> <button type="button" className="pj-link-btn" onClick={() => startEdit(m)}>Ajouter l&apos;email</button></>}
+                      </div>
+                    )}
                   </span>
                 </span>
                 {canEdit ? (
@@ -162,6 +246,11 @@ export default function CommissionMembersEditor({ commissionId, initial, directo
                   <span className={`pj-statut-membre${m.statut_membre === "suppleant" ? " is-suppleant" : ""}`}>
                     {m.statut_membre === "suppleant" ? "Suppléant" : "Titulaire"}
                   </span>
+                )}
+                {canEdit && (
+                  <button type="button" onClick={() => startEdit(m)} className="civiq-icon-btn" aria-label={`Modifier ${memberDisplayName(m)}`} title="Modifier">
+                    <Pencil size={12} />
+                  </button>
                 )}
                 {canEdit && (
                   <button type="button" onClick={() => remove(m.id)} className="civiq-icon-btn" aria-label="Retirer">

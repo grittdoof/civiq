@@ -4,8 +4,10 @@
 //
 // Règle : TOUS les membres figurent, qu'ils aient été convoqués ou non :
 // présent, excusé, absent — ou « non renseigné » tant que personne n'a
-// pointé. La liste = membres actifs de la commission ∪ membres déjà
-// inscrits à la séance (un membre parti depuis reste dans l'historique).
+// pointé. La liste = membres actifs de la commission ∪ anciens membres
+// dont la présence a été renseignée (statut ou signature). Un ancien
+// membre dont la ligne est vide (retiré de la commission avant la
+// séance, ou supprimé puis recréé) n'apparaît pas.
 // ═══════════════════════════════════════════════════════════════
 
 export type StatutEmargement = "present" | "excuse" | "absent";
@@ -56,6 +58,11 @@ export function statutDe(l: Pick<LigneSource, "statut" | "present"> | undefined)
   return l.present === true ? "present" : l.present === false ? "absent" : null;
 }
 
+/** Une présence a été pointée ou une signature recueillie. */
+export function ligneRenseignee(l: LigneSource | undefined): boolean {
+  return !!l && (statutDe(l) !== null || !!l.signature_data);
+}
+
 const ORDRE_ROLE: Record<string, number> = { president: 0, vice_president: 1 };
 
 export function listeEmargement(membres: MembreSource[], lignes: LigneSource[]): Emargement[] {
@@ -73,10 +80,12 @@ export function listeEmargement(membres: MembreSource[], lignes: LigneSource[]):
     out.push(e);
   };
 
-  // 1. Membres de la commission (actifs, ou partis mais inscrits à la séance).
-  for (const m of membres) {
+  // 1. Membres de la commission : les actifs d'abord (un élu supprimé
+  //    puis rajouté garde sa fiche active), puis les anciens renseignés.
+  const ordonnes = [...membres].sort((a, b) => Number(!!a.deleted_at) - Number(!!b.deleted_at));
+  for (const m of ordonnes) {
     const l = m.user_id ? parUser.get(m.user_id) : parMembre.get(m.id);
-    if (m.deleted_at && !l) continue;
+    if (m.deleted_at && !ligneRenseignee(l)) continue;
     ajouter({
       cle: m.user_id ? `u:${m.user_id}` : `m:${m.id}`,
       member_id: m.id,
@@ -93,7 +102,7 @@ export function listeEmargement(membres: MembreSource[], lignes: LigneSource[]):
   // 2. Lignes de séance dont le membre n'est plus retrouvé (fiche supprimée).
   for (const l of lignes) {
     const cle = l.conseiller_user_id ? `u:${l.conseiller_user_id}` : l.commission_member_id ? `m:${l.commission_member_id}` : null;
-    if (!cle || vus.has(cle)) continue;
+    if (!cle || vus.has(cle) || !ligneRenseignee(l)) continue;
     ajouter({
       cle,
       member_id: l.commission_member_id,

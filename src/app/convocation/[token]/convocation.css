@@ -77,3 +77,23 @@
 .cv-gociviq { width: 96px; height: auto; margin-top: 20px; opacity: .85; }
 .cv-page .spin { animation: cv-spin 1s linear infinite; }
 @keyframes cv-spin { to { transform: rotate(360deg); } }
+
+/* Réponse en un clic depuis l'email : confirmation en tête de page */
+.cv-confirm { text-align: center; padding-top: 20px; }
+.cv-confirm-wait { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0; font-weight: 600; color: var(--gris-soft); }
+.cv-confirm-icon {
+  width: 56px; height: 56px; margin: 0 auto 12px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+}
+.cv-confirm-accepted .cv-confirm-icon { background: #067647; }
+.cv-confirm-declined .cv-confirm-icon { background: #b42318; }
+.cv-confirm-title { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.3; color: var(--marine); }
+.cv-confirm-sub { margin: 6px 0 0; font-size: 15px; color: var(--gris-soft); }
+.cv-confirm .cv-comment-label { text-align: left; margin-top: 20px; }
+.cv-change { margin: 16px 0 0; font-size: 14px; color: var(--gris-soft); }
+.cv-change-btn {
+  padding: 0; border: 0; background: none; font: inherit; font-weight: 700;
+  color: var(--azur); text-decoration: underline; cursor: pointer;
+}
+.cv-change-btn:disabled { opacity: .5; cursor: wait; }
+.cv-maps { margin-left: 10px; font-size: 14px; font-weight: 600; color: var(--azur); }
